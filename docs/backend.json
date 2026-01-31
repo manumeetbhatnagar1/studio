@@ -167,7 +167,7 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Topic",
       "type": "object",
-      "description": "Represents a topic or chapter within a subject.",
+      "description": "Represents a topic or chapter within a subject. Teachers can add and manage topics through the Curriculum page.",
       "properties": {
         "id": {
           "type": "string",
@@ -689,7 +689,7 @@
           "schema": {
             "$ref": "#/backend/entities/Topic"
           },
-          "description": "Stores topics within the IIT JEE curriculum.",
+          "description": "Stores topics within the IIT JEE curriculum. Teachers can create, update, and delete topics from the Curriculum page.",
           "params": [
             {
               "name": "topicId",

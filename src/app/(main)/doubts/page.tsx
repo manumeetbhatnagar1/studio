@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useForm } from 'react-hook-form';
@@ -163,7 +162,7 @@ export default function DoubtsPage() {
 
   const onSubmit = (values: z.infer<typeof doubtSchema>) => {
     if (!user) {
-      toast({ variant: 'destructive', title: 'Not Authenticated', description: 'You must be logged in to ask a question.' });
+      toast({ variant: 'destructive', title: 'Not Authenticated', description: 'You must be logged in to ask a doubt.' });
       return;
     }
     setIsSubmitting(true);
@@ -176,8 +175,8 @@ export default function DoubtsPage() {
       answer: '',
     });
     toast({
-      title: 'Enquiry Submitted!',
-      description: 'Your question has been posted for our teachers to see.',
+      title: 'Doubt Submitted!',
+      description: 'Your doubt has been posted for our teachers to see.',
     });
     form.reset();
     setIsSubmitting(false);
@@ -185,14 +184,14 @@ export default function DoubtsPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <DashboardHeader title="Enquiries" />
+      <DashboardHeader title="Doubts" />
       <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 grid gap-8">
         <Card className="shadow-lg">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 font-headline text-2xl">
-              <MessageSquare className="w-6 h-6" /> Ask a Question
+              <MessageSquare className="w-6 h-6" /> Ask a Doubt
             </CardTitle>
-            <CardDescription>Have a question? Post it here and get it cleared by our expert instructors.</CardDescription>
+            <CardDescription>Have a doubt? Post it here and get it cleared by our expert instructors.</CardDescription>
           </CardHeader>
           <CardContent>
             <Form {...form}>
@@ -202,7 +201,7 @@ export default function DoubtsPage() {
                   name="question"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Your Question</FormLabel>
+                      <FormLabel>Your Doubt</FormLabel>
                       <FormControl>
                         <Textarea placeholder="e.g., How does Lenz's Law work?" {...field} rows={4} />
                       </FormControl>
@@ -227,7 +226,7 @@ export default function DoubtsPage() {
                   {isSubmitting ? (
                     <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> Submitting...</>
                   ) : (
-                    <><Send className="mr-2 h-4 w-4" /> Post Enquiry</>
+                    <><Send className="mr-2 h-4 w-4" /> Post Doubt</>
                   )}
                 </Button>
               </form>
@@ -237,8 +236,8 @@ export default function DoubtsPage() {
 
         <Card className="shadow-lg">
             <CardHeader>
-                <CardTitle className="font-headline text-2xl">Recent Enquiries</CardTitle>
-                <CardDescription>Browse previously asked questions and answers.</CardDescription>
+                <CardTitle className="font-headline text-2xl">Recent Doubts</CardTitle>
+                <CardDescription>Browse previously asked doubts and answers.</CardDescription>
             </CardHeader>
             <CardContent>
                 {(areDoubtsLoading || isTeacherLoading) ? (
@@ -255,7 +254,7 @@ export default function DoubtsPage() {
                     </Accordion>
                 ) : (
                     <div className="text-center text-muted-foreground py-8">
-                        <p>No enquiries have been posted yet. Be the first one!</p>
+                        <p>No doubts have been posted yet. Be the first one!</p>
                     </div>
                 )}
             </CardContent>

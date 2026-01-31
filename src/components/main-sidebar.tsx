@@ -29,7 +29,7 @@ const navItems: NavItem[] = [
   { title: 'Live Classes', href: '/live-classes', icon: Video },
   { title: 'Practice', href: '/practice', icon: ClipboardList },
   { title: 'Mock Tests', href: '/mock-tests', icon: Target },
-  { title: 'Enquiries', href: '/doubts', icon: MessageSquare },
+  { title: 'Doubts', href: '/doubts', icon: MessageSquare },
 ];
 
 export default function MainSidebar() {

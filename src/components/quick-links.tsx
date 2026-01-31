@@ -48,11 +48,11 @@ const links = [
     imageId: "mock-tests",
   },
   {
-    title: "Enquiries",
+    title: "Doubts",
     href: "/doubts",
     description: "Get your questions answered.",
     icon: MessageSquare,
-    imageId: "enquiry-resolution",
+    imageId: "doubt-resolution",
   },
 ];
 

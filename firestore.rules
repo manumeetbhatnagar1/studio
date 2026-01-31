@@ -1,0 +1,242 @@
+/**
+ * This Firestore Security Ruleset is designed for the JEE Prep Ace application.
+ *
+ * Core Philosophy:
+ * The security model is based on a clear separation between public, read-only educational
+ * content and private, user-specific data. It enforces a role-based access control (RBAC)
+ * system, granting elevated write permissions to 'teacher' users for managing shared
+ * learning materials. User data is strictly segregated and owned by the user.
+ *
+ * Data Structure:
+ * - /users/{userId}: Private user profile data.
+ * - /users/{userId}/...: Subcollections for user-specific data like test results and learning paths.
+ * - /roles_teacher/{userId}: A lookup collection to identify users with the 'teacher' role.
+ * - Top-level collections (e.g., /content, /topics, /live_classes): Shared educational
+ *   materials accessible to all authenticated users.
+ *
+ * Key Security Decisions:
+ * - Default Deny: All paths are closed by default. Access is granted explicitly.
+ * - User Privacy: Users can only access their own data within their `/users/{userId}` document tree.
+ *   Listing all users is explicitly forbidden.
+ * - Role-Based Content Management: Only users marked as teachers (via an entry in `/roles_teacher`)
+ *   can create, update, or delete shared content like topics, questions, and mock tests. This
+ *   prevents students from modifying the curriculum.
+ * - Public Content Accessibility: All signed-in users (students and teachers) can read shared
+ *   educational content to facilitate learning.
+ * - Denormalization for Authorization: Ownership fields like 'studentId' and 'teacherId' are
+ *   denormalized onto documents. This allows for fast, efficient security checks without
+ *   requiring slow and costly `get()` calls to other documents for most rules.
+ * - Structural Segregation: Private data (e.g., `test_results`) is stored in a user-specific
+ *   subcollection, which is more secure and performant than storing it in a top-level
+ *   collection with UID-based query rules.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --------------------------------------------------------------------
+    // Helper Functions
+    // --------------------------------------------------------------------
+
+    /**
+     * Checks if the user is authenticated.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * Checks if the currently authenticated user's UID matches the provided userId.
+     * Used to verify ownership of a resource.
+     */
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    /**
+     * Checks for ownership on an existing document.
+     * Prevents modifying or deleting documents that do not exist.
+     */
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+
+    /**
+     * Checks if the authenticated user has a 'teacher' role.
+     * This is determined by the existence of a document in the /roles_teacher collection.
+     * This is a performant check that costs one read operation.
+     */
+    function isTeacher() {
+      return exists(/databases/$(database)/documents/roles_teacher/$(request.auth.uid));
+    }
+
+    // --------------------------------------------------------------------
+    // User Data Rules
+    // --------------------------------------------------------------------
+
+    /**
+     * @description Manages user profile data. A user can create their own profile
+     *              and can read, update, or delete their own data subsequently.
+     * @path        /users/{userId}
+     * @allow       (create) A new user signing up: `auth.uid` matches `{userId}`.
+     * @deny        (get) A user trying to read another user's profile.
+     * @principle   Enforces strict data ownership and privacy.
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Secures a student's private test results.
+     * @path        /users/{userId}/test_results/{studentTestResultId}
+     * @allow       (create) A user saving a new test result for themselves.
+     * @deny        (get) A user trying to view another user's test results.
+     * @principle   Restricts access to a user's own data tree using path-based ownership.
+     */
+    match /users/{userId}/test_results/{studentTestResultId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.studentId == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.studentId == resource.data.studentId;
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Secures a student's personalized learning path.
+     * @path        /users/{userId}/learning_paths/{personalizedLearningPathId}
+     * @allow       (get) A user retrieving their own learning path.
+     * @deny        (list) A user trying to list another user's learning paths.
+     * @principle   Restricts access to a user's own data tree using path-based ownership.
+     */
+    match /users/{userId}/learning_paths/{personalizedLearningPathId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.studentId == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.studentId == resource.data.studentId;
+      allow delete: if isExistingOwner(userId);
+    }
+
+    // --------------------------------------------------------------------
+    // Role & System Configuration Rules
+    // --------------------------------------------------------------------
+
+    /**
+     * @description System-defined roles (e.g., student, teacher).
+     *              These are read-only for all clients and managed server-side.
+     * @path        /roles/{roleId}
+     * @allow       (get) Any signed-in user reading a role definition.
+     * @deny        (create) Any client trying to create a new role.
+     * @principle   Protects system configuration from client modification.
+     */
+    match /roles/{roleId} {
+      allow get, list: if isSignedIn();
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    /**
+     * @description A lookup collection to identify teachers. Existence of a document
+     *              confers teacher privileges. Read-only for clients.
+     * @path        /roles_teacher/{userId}
+     * @allow       (get) Any signed-in user checking if another user is a teacher.
+     * @deny        (create) Any client trying to grant themselves teacher role.
+     * @principle   Protects a critical authorization lookup table from client modification.
+     */
+    match /roles_teacher/{userId} {
+      allow get, list: if isSignedIn();
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // --------------------------------------------------------------------
+    // Public Content Rules (Teacher-Managed)
+    // --------------------------------------------------------------------
+
+    /**
+     * @description Learning content like videos and articles. Readable by anyone signed in,
+     *              but only manageable by teachers.
+     * @path        /content/{contentId}
+     * @allow       (get) Any signed-in user viewing content.
+     * @deny        (create) A student trying to upload new content.
+     * @principle   Public read access with role-restricted writes.
+     */
+    match /content/{contentId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isTeacher();
+    }
+
+    /**
+     * @description Curriculum topics. Readable by anyone signed in, but only manageable by teachers.
+     * @path        /topics/{topicId}
+     * @allow       (list) Any signed-in user listing available topics.
+     * @deny        (update) A student trying to rename a topic.
+     * @principle   Public read access with role-restricted writes.
+     */
+    match /topics/{topicId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isTeacher();
+    }
+
+    /**
+     * @description Practice questions. Readable by anyone signed in, but only manageable by teachers.
+     * @path        /practice_questions/{practiceQuestionId}
+     * @allow       (get) Any signed-in user fetching a practice question.
+     * @deny        (delete) A student trying to delete a question.
+     * @principle   Public read access with role-restricted writes.
+     */
+    match /practice_questions/{practiceQuestionId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isTeacher();
+    }
+
+    /**
+     * @description Mock tests. Readable by anyone signed in, but only manageable by teachers.
+     * @path        /mock_tests/{mockTestId}
+     * @allow       (get) Any signed-in user viewing details of a mock test.
+     * @deny        (create) A student trying to create a new mock test.
+     * @principle   Public read access with role-restricted writes.
+     */
+    match /mock_tests/{mockTestId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isTeacher();
+    }
+
+    // --------------------------------------------------------------------
+    // Interactive Content Rules (Mixed Ownership)
+    // --------------------------------------------------------------------
+
+    /**
+     * @description Live classes scheduled by teachers. Anyone can view the schedule.
+     *              Only the teacher who created the class can manage it.
+     * @path        /live_classes/{liveClassId}
+     * @allow       (create) A teacher creating a new live class for themselves.
+     * @deny        (update) A teacher trying to modify another teacher's class.
+     * @principle   Public read with denormalized owner-only writes.
+     */
+    match /live_classes/{liveClassId} {
+      allow get, list: if isSignedIn();
+      allow create: if isTeacher() && request.resource.data.teacherId == request.auth.uid;
+      allow update: if resource != null && isOwner(resource.data.teacherId);
+      allow delete: if resource != null && isOwner(resource.data.teacherId);
+    }
+
+    /**
+     * @description Student-submitted doubts. Anyone can read doubts to learn.
+     *              A student owns their doubt, but teachers can update it to add an answer.
+     * @path        /doubts/{doubtId}
+     * @allow       (update) A teacher adding an answer to a student's doubt.
+     * @deny        (update) A student trying to modify another student's doubt.
+     * @principle   Shared read with mixed-ownership writes (owner and role).
+     */
+    match /doubts/{doubtId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.studentId == request.auth.uid;
+      allow update: if resource != null && (isOwner(resource.data.studentId) || isTeacher());
+      allow delete: if resource != null && isOwner(resource.data.studentId);
+    }
+  }
+}

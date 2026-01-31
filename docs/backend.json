@@ -1,0 +1,527 @@
+{
+  "entities": {
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user in the JEE Prep Ace system.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the User entity."
+        },
+        "firstName": {
+          "type": "string",
+          "description": "The first name of the user."
+        },
+        "lastName": {
+          "type": "string",
+          "description": "The last name of the user."
+        },
+        "email": {
+          "type": "string",
+          "description": "The email address of the user.",
+          "format": "email"
+        },
+        "roleId": {
+          "type": "string",
+          "description": "Reference to Role. (Relationship: Role 1:N User)"
+        }
+      },
+      "required": [
+        "id",
+        "firstName",
+        "lastName",
+        "email",
+        "roleId"
+      ]
+    },
+    "Role": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Role",
+      "type": "object",
+      "description": "Represents the role of a user in the system (e.g., student, teacher, admin).",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Role entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the role (e.g., student, teacher, admin)."
+        },
+        "description": {
+          "type": "string",
+          "description": "A description of the role and its permissions."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description"
+      ]
+    },
+    "Content": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Content",
+      "type": "object",
+      "description": "Represents a piece of learning content, such as a video lecture or study material.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Content entity."
+        },
+        "title": {
+          "type": "string",
+          "description": "The title of the content."
+        },
+        "type": {
+          "type": "string",
+          "description": "The type of content (e.g., video, PDF, article)."
+        },
+        "url": {
+          "type": "string",
+          "description": "The URL or location of the content.",
+          "format": "uri"
+        },
+        "topicId": {
+          "type": "string",
+          "description": "Reference to Topic. (Relationship: Topic 1:N Content)"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "type",
+        "url",
+        "topicId"
+      ]
+    },
+    "Topic": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Topic",
+      "type": "object",
+      "description": "Represents a topic or subject area within the IIT JEE curriculum.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Topic entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the topic."
+        },
+        "description": {
+          "type": "string",
+          "description": "A description of the topic."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description"
+      ]
+    },
+    "LiveClass": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "LiveClass",
+      "type": "object",
+      "description": "Represents a live interactive class.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the LiveClass entity."
+        },
+        "title": {
+          "type": "string",
+          "description": "The title of the live class."
+        },
+        "startTime": {
+          "type": "string",
+          "description": "The date and time the live class starts.",
+          "format": "date-time"
+        },
+        "duration": {
+          "type": "number",
+          "description": "The duration of the live class in minutes."
+        },
+        "teacherId": {
+          "type": "string",
+          "description": "Reference to User (Teacher). (Relationship: User 1:N LiveClass)"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "startTime",
+        "duration",
+        "teacherId"
+      ]
+    },
+    "PracticeQuestion": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "PracticeQuestion",
+      "type": "object",
+      "description": "Represents a practice question.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the PracticeQuestion entity."
+        },
+        "questionText": {
+          "type": "string",
+          "description": "The text of the practice question."
+        },
+        "answer": {
+          "type": "string",
+          "description": "The correct answer to the practice question."
+        },
+        "difficultyLevel": {
+          "type": "string",
+          "description": "The difficulty level of the practice question (e.g., easy, medium, hard)."
+        },
+        "topicId": {
+          "type": "string",
+          "description": "Reference to Topic. (Relationship: Topic 1:N PracticeQuestion)"
+        }
+      },
+      "required": [
+        "id",
+        "questionText",
+        "answer",
+        "difficultyLevel",
+        "topicId"
+      ]
+    },
+    "MockTest": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "MockTest",
+      "type": "object",
+      "description": "Represents a mock test.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the MockTest entity."
+        },
+        "title": {
+          "type": "string",
+          "description": "The title of the mock test."
+        },
+        "startTime": {
+          "type": "string",
+          "description": "The date and time the mock test starts.",
+          "format": "date-time"
+        },
+        "duration": {
+          "type": "number",
+          "description": "The duration of the mock test in minutes."
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "startTime",
+        "duration"
+      ]
+    },
+    "StudentTestResult": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "StudentTestResult",
+      "type": "object",
+      "description": "Represents the results of a student taking a mock test.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the StudentTestResult entity."
+        },
+        "studentId": {
+          "type": "string",
+          "description": "Reference to User (Student). (Relationship: User 1:N StudentTestResult)"
+        },
+        "mockTestId": {
+          "type": "string",
+          "description": "Reference to MockTest. (Relationship: MockTest 1:N StudentTestResult)"
+        },
+        "score": {
+          "type": "number",
+          "description": "The score achieved by the student on the mock test."
+        },
+        "submissionTime": {
+          "type": "string",
+          "description": "The date and time the student submitted the mock test.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "studentId",
+        "mockTestId",
+        "score",
+        "submissionTime"
+      ]
+    },
+    "Doubt": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Doubt",
+      "type": "object",
+      "description": "Represents a doubt posted by a student.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Doubt entity."
+        },
+        "studentId": {
+          "type": "string",
+          "description": "Reference to User (Student). (Relationship: User 1:N Doubt)"
+        },
+        "question": {
+          "type": "string",
+          "description": "The question posted by the student."
+        },
+        "answer": {
+          "type": "string",
+          "description": "The answer provided by the instructor."
+        },
+        "topicId": {
+          "type": "string",
+          "description": "Reference to Topic. (Relationship: Topic 1:N Doubt)"
+        }
+      },
+      "required": [
+        "id",
+        "studentId",
+        "question",
+        "answer",
+        "topicId"
+      ]
+    },
+    "PersonalizedLearningPath": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "PersonalizedLearningPath",
+      "type": "object",
+      "description": "Represents a personalized learning path for a student.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the PersonalizedLearningPath entity."
+        },
+        "studentId": {
+          "type": "string",
+          "description": "Reference to User (Student). (Relationship: User 1:N PersonalizedLearningPath)"
+        },
+        "topicIds": {
+          "type": "array",
+          "description": "References to Topics recommended for the student.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "recommendationReason": {
+          "type": "string",
+          "description": "The reason for recommending this learning path (e.g., based on test performance)."
+        }
+      },
+      "required": [
+        "id",
+        "studentId",
+        "topicIds",
+        "recommendationReason"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores user profile information. Path-based ownership ensures only the user or an admin can access this data.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/roles/{roleId}",
+        "definition": {
+          "entityName": "Role",
+          "schema": {
+            "$ref": "#/backend/entities/Role"
+          },
+          "description": "Stores role definitions (e.g., student, teacher, admin).",
+          "params": [
+            {
+              "name": "roleId",
+              "description": "The unique identifier for the role."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/content/{contentId}",
+        "definition": {
+          "entityName": "Content",
+          "schema": {
+            "$ref": "#/backend/entities/Content"
+          },
+          "description": "Stores learning content, such as video lectures and study materials.",
+          "params": [
+            {
+              "name": "contentId",
+              "description": "The unique identifier for the content."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/topics/{topicId}",
+        "definition": {
+          "entityName": "Topic",
+          "schema": {
+            "$ref": "#/backend/entities/Topic"
+          },
+          "description": "Stores topics within the IIT JEE curriculum.",
+          "params": [
+            {
+              "name": "topicId",
+              "description": "The unique identifier for the topic."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/live_classes/{liveClassId}",
+        "definition": {
+          "entityName": "LiveClass",
+          "schema": {
+            "$ref": "#/backend/entities/LiveClass"
+          },
+          "description": "Stores live class information. Includes denormalized teacherId for authorization independence.",
+          "params": [
+            {
+              "name": "liveClassId",
+              "description": "The unique identifier for the live class."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/practice_questions/{practiceQuestionId}",
+        "definition": {
+          "entityName": "PracticeQuestion",
+          "schema": {
+            "$ref": "#/backend/entities/PracticeQuestion"
+          },
+          "description": "Stores practice questions.",
+          "params": [
+            {
+              "name": "practiceQuestionId",
+              "description": "The unique identifier for the practice question."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/mock_tests/{mockTestId}",
+        "definition": {
+          "entityName": "MockTest",
+          "schema": {
+            "$ref": "#/backend/entities/MockTest"
+          },
+          "description": "Stores mock test information.",
+          "params": [
+            {
+              "name": "mockTestId",
+              "description": "The unique identifier for the mock test."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/test_results/{studentTestResultId}",
+        "definition": {
+          "entityName": "StudentTestResult",
+          "schema": {
+            "$ref": "#/backend/entities/StudentTestResult"
+          },
+          "description": "Stores student test results. Uses path-based ownership. studentId is denormalized for authorization independence and easy querying.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user."
+            },
+            {
+              "name": "studentTestResultId",
+              "description": "The unique identifier for the student test result."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/doubts/{doubtId}",
+        "definition": {
+          "entityName": "Doubt",
+          "schema": {
+            "$ref": "#/backend/entities/Doubt"
+          },
+          "description": "Stores student doubts. Includes studentId for identifying the owner.",
+          "params": [
+            {
+              "name": "doubtId",
+              "description": "The unique identifier for the doubt."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/learning_paths/{personalizedLearningPathId}",
+        "definition": {
+          "entityName": "PersonalizedLearningPath",
+          "schema": {
+            "$ref": "#/backend/entities/PersonalizedLearningPath"
+          },
+          "description": "Stores personalized learning paths for students. Path-based ownership to restrict to owner (student).",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user."
+            },
+            {
+              "name": "personalizedLearningPathId",
+              "description": "The unique identifier for the personalized learning path."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/roles_teacher/{userId}",
+        "definition": {
+          "entityName": "teacher",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Documents in this collection indicate that the user with the given ID is a teacher.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the teacher."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore data structure is designed to support the core features of the JEE Prep Ace application, focusing on content delivery, live classes, practice questions, mock tests, doubt resolution, personalized learning paths, and progress tracking. The structure prioritizes authorization independence, clarity, and scalability. To achieve Authorization Independence we denormalize data where necessary. For example, teacher information relevant to a LiveClass is accessible without requiring a separate read. Segregation is used extensively to ensure data with different security requirements are stored in different collections, which simplifies the security rules. Path-based ownership is used for user-specific data to easily control access. The use of membership maps are used to support collaborative data access where needed, although in this specific case collaborative data is not explicitly mentioned in the requirements."
+  }
+}

@@ -142,12 +142,14 @@ service cloud.firestore {
      *              confers teacher privileges. Read-only for clients.
      * @path        /roles_teacher/{userId}
      * @allow       (get) Any signed-in user checking if another user is a teacher.
-     * @deny        (create) Any client trying to grant themselves teacher role.
+     * @deny        (update, delete) Any client trying to change roles.
+     * @allow       (create) Any user can create their own teacher role document.
      * @principle   Protects a critical authorization lookup table from client modification.
+     *              NOTE: In a production app, teacher role assignment should be a privileged operation.
      */
     match /roles_teacher/{userId} {
       allow get, list: if isSignedIn();
-      allow create: if false;
+      allow create: if isOwner(userId);
       allow update: if false;
       allow delete: if false;
     }

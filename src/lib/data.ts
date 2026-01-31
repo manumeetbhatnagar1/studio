@@ -1,10 +1,5 @@
 import type { TestResult } from "@/lib/types";
 
-export const userData = {
-  name: "Rohan Sharma",
-  email: "rohan.sharma@example.com",
-};
-
 export const testResults: TestResult[] = [
   { topic: 'Kinematics', score: 85, maxScore: 100 },
   { topic: 'Laws of Motion', score: 65, maxScore: 100 },

@@ -172,9 +172,16 @@
           "type": "string",
           "description": "The text of the practice question."
         },
-        "answer": {
+        "options": {
+          "type": "array",
+          "description": "An array of 4 multiple choice options.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "correctAnswer": {
           "type": "string",
-          "description": "The correct answer to the practice question."
+          "description": "The correct option from the 'options' array."
         },
         "difficultyLevel": {
           "type": "string",
@@ -193,7 +200,8 @@
       "required": [
         "id",
         "questionText",
-        "answer",
+        "options",
+        "correctAnswer",
         "difficultyLevel",
         "topicId"
       ]

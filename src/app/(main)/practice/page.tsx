@@ -1,6 +1,6 @@
 'use client';
 
-import { useForm } from 'react-hook-form';
+import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
@@ -38,23 +38,31 @@ import DashboardHeader from '@/components/dashboard-header';
 import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
 import { collection, query, orderBy } from 'firebase/firestore';
 import { useState } from 'react';
-import { LoaderCircle, ClipboardList, PlusCircle } from 'lucide-react';
+import { LoaderCircle, ClipboardList, PlusCircle, CheckCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useIsTeacher } from '@/hooks/useIsTeacher';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
+import PdfQuestionExtractor from '@/components/pdf-question-extractor';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { cn } from '@/lib/utils';
 
 const questionSchema = z.object({
   questionText: z.string().min(10, 'Question must be at least 10 characters.'),
-  answer: z.string().min(1, 'Answer is required.'),
+  options: z.array(z.string().min(1, "Option cannot be empty.")).length(4, "You must provide 4 options."),
+  correctAnswer: z.string().min(1, "Please select the correct answer."),
   topicId: z.string().min(1, 'Topic is required.'),
   difficultyLevel: z.enum(['Easy', 'Medium', 'Hard']),
+}).refine(data => data.options.includes(data.correctAnswer), {
+    message: "Correct answer must match one of the options.",
+    path: ['correctAnswer'],
 });
 
 type PracticeQuestion = {
   id: string;
   questionText: string;
-  answer: string;
+  options: string[];
+  correctAnswer: string;
   difficultyLevel: 'Easy' | 'Medium' | 'Hard';
   topicId: string;
 };
@@ -80,9 +88,16 @@ function QuestionItem({ question }: { question: PracticeQuestion }) {
         </div>
       </AccordionTrigger>
       <AccordionContent>
-        <div className="prose prose-sm max-w-none text-card-foreground/90 bg-primary/5 p-4 rounded-md">
-           <p className="font-semibold text-primary">Answer:</p>
-           <p>{question.answer}</p>
+        <div className="prose prose-sm max-w-none text-card-foreground/90 bg-primary/5 p-4 rounded-md space-y-2">
+           <p className="font-semibold text-primary">Options:</p>
+           <ul className='list-disc pl-5 space-y-1'>
+            {question.options.map((option, index) => (
+                <li key={index} className={cn(option === question.correctAnswer && "font-bold text-primary")}>
+                    {option}
+                    {option === question.correctAnswer && <CheckCircle className="inline-block ml-2 h-4 w-4" />}
+                </li>
+            ))}
+           </ul>
         </div>
       </AccordionContent>
     </AccordionItem>
@@ -105,7 +120,12 @@ export default function PracticePage() {
 
   const form = useForm<z.infer<typeof questionSchema>>({
     resolver: zodResolver(questionSchema),
-    defaultValues: { questionText: '', answer: '', topicId: '', difficultyLevel: 'Easy' },
+    defaultValues: { questionText: '', options: ['', '', '', ''], correctAnswer: '', topicId: '', difficultyLevel: 'Easy' },
+  });
+
+  const { fields } = useFieldArray({
+    control: form.control,
+    name: "options",
   });
 
   const onSubmit = (values: z.infer<typeof questionSchema>) => {
@@ -123,96 +143,128 @@ export default function PracticePage() {
     form.reset();
     setIsSubmitting(false);
   };
+  
+  const handleTextExtracted = (text: string) => {
+    form.setValue('questionText', text);
+  }
 
   return (
     <div className="flex flex-col h-full">
       <DashboardHeader title="Practice Questions" />
       <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 grid gap-8">
         {isTeacher && (
-             <Card className="shadow-lg">
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2 font-headline text-2xl">
-                    <PlusCircle className="w-6 h-6" /> Create New Question
-                    </CardTitle>
-                    <CardDescription>Add a new question to the question bank for students to practice.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                        <FormField
-                        control={form.control}
-                        name="questionText"
-                        render={({ field }) => (
-                            <FormItem>
-                            <FormLabel>Question</FormLabel>
-                            <FormControl>
-                                <Textarea placeholder="What is the formula for..." {...field} rows={4} />
-                            </FormControl>
-                            <FormMessage />
-                            </FormItem>
-                        )}
-                        />
-                         <FormField
-                        control={form.control}
-                        name="answer"
-                        render={({ field }) => (
-                            <FormItem>
-                            <FormLabel>Answer</FormLabel>
-                            <FormControl>
-                                <Textarea placeholder="The correct answer is..." {...field} rows={4} />
-                            </FormControl>
-                            <FormMessage />
-                            </FormItem>
-                        )}
-                        />
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                             <FormField
-                                control={form.control}
-                                name="topicId"
-                                render={({ field }) => (
-                                    <FormItem>
-                                    <FormLabel>Topic</FormLabel>
-                                    <FormControl>
-                                        <Input placeholder="e.g., Kinematics" {...field} />
-                                    </FormControl>
-                                    <FormMessage />
-                                    </FormItem>
-                                )}
-                                />
+             <div className='space-y-8'>
+                <PdfQuestionExtractor onTextExtracted={handleTextExtracted} />
+                <Card className="shadow-lg">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2 font-headline text-2xl">
+                        <PlusCircle className="w-6 h-6" /> Create New MCQ Question
+                        </CardTitle>
+                        <CardDescription>Fill out the form below to add a new multiple-choice question.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <Form {...form}>
+                        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                             <FormField
+                            control={form.control}
+                            name="questionText"
+                            render={({ field }) => (
+                                <FormItem>
+                                <FormLabel>Question Text</FormLabel>
+                                <FormControl>
+                                    <Textarea placeholder="The text extracted from the PDF will appear here..." {...field} rows={4} />
+                                </FormControl>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                            />
+
+                            <div className="space-y-4">
+                                <FormLabel>Options & Correct Answer</FormLabel>
+                                <FormField
                                 control={form.control}
-                                name="difficultyLevel"
+                                name="correctAnswer"
                                 render={({ field }) => (
-                                    <FormItem>
-                                    <FormLabel>Difficulty</FormLabel>
-                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                            <FormControl>
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder="Select difficulty" />
-                                                </SelectTrigger>
-                                            </FormControl>
-                                            <SelectContent>
-                                                <SelectItem value="Easy">Easy</SelectItem>
-                                                <SelectItem value="Medium">Medium</SelectItem>
-                                                <SelectItem value="Hard">Hard</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    <FormMessage />
+                                    <FormItem className='space-y-0'>
+                                        <FormControl>
+                                            <RadioGroup
+                                                onValueChange={field.onChange}
+                                                defaultValue={field.value}
+                                                className="grid grid-cols-1 md:grid-cols-2 gap-4"
+                                            >
+                                            {fields.map((item, index) => (
+                                                <FormField
+                                                    key={item.id}
+                                                    control={form.control}
+                                                    name={`options.${index}`}
+                                                    render={({ field: optionField }) => (
+                                                        <FormItem className="flex items-center gap-2 space-y-0 rounded-md border p-4 has-[:checked]:border-primary">
+                                                            <FormControl>
+                                                                <RadioGroupItem value={optionField.value} disabled={!optionField.value} />
+                                                            </FormControl>
+                                                            <Input {...optionField} placeholder={`Option ${index + 1}`} className="border-none p-0 h-auto focus-visible:ring-0 focus-visible:ring-offset-0" />
+                                                            <FormMessage className="col-span-2"/>
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                            ))}
+                                            </RadioGroup>
+                                        </FormControl>
+                                        <FormMessage />
                                     </FormItem>
                                 )}
                                 />
-                        </div>
-                        <Button type="submit" disabled={isSubmitting || isTeacherLoading}>
-                        {isSubmitting ? (
-                            <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> Adding...</>
-                        ) : (
-                            'Add Question'
-                        )}
-                        </Button>
-                    </form>
-                    </Form>
-                </CardContent>
-            </Card>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <FormField
+                                    control={form.control}
+                                    name="topicId"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                        <FormLabel>Topic</FormLabel>
+                                        <FormControl>
+                                            <Input placeholder="e.g., Kinematics" {...field} />
+                                        </FormControl>
+                                        <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="difficultyLevel"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                        <FormLabel>Difficulty</FormLabel>
+                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                <FormControl>
+                                                    <SelectTrigger>
+                                                        <SelectValue placeholder="Select difficulty" />
+                                                    </SelectTrigger>
+                                                </FormControl>
+                                                <SelectContent>
+                                                    <SelectItem value="Easy">Easy</SelectItem>
+                                                    <SelectItem value="Medium">Medium</SelectItem>
+                                                    <SelectItem value="Hard">Hard</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            </div>
+                            <Button type="submit" disabled={isSubmitting || isTeacherLoading}>
+                            {isSubmitting ? (
+                                <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> Adding...</>
+                            ) : (
+                                'Add Question'
+                            )}
+                            </Button>
+                        </form>
+                        </Form>
+                    </CardContent>
+                </Card>
+            </div>
         )}
 
         <Card className="shadow-lg">

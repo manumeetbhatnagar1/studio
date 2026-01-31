@@ -3,6 +3,7 @@
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -49,6 +50,7 @@ import PdfQuestionExtractor from '@/components/pdf-question-extractor';
 
 const questionSchema = z.object({
   questionText: z.string().min(10, 'Question must be at least 10 characters.'),
+  imageUrl: z.string().optional(),
   options: z.array(z.string().min(1, "Option cannot be empty.")).length(4, "You must provide 4 options."),
   correctAnswer: z.string().min(1, "Please select the correct answer."),
   topicId: z.string().min(1, 'Topic is required.'),
@@ -65,6 +67,7 @@ type PracticeQuestion = {
   correctAnswer: string;
   difficultyLevel: 'Easy' | 'Medium' | 'Hard';
   topicId: string;
+  imageUrl?: string;
 };
 
 function QuestionItem({ question }: { question: PracticeQuestion }) {
@@ -88,6 +91,17 @@ function QuestionItem({ question }: { question: PracticeQuestion }) {
         </div>
       </AccordionTrigger>
       <AccordionContent>
+        {question.imageUrl && (
+            <div className="my-4 p-4 border rounded-md flex justify-center bg-muted/50">
+                <Image
+                    src={question.imageUrl}
+                    alt="Question diagram"
+                    width={400}
+                    height={300}
+                    className="rounded-md object-contain"
+                />
+            </div>
+        )}
         <div className="prose prose-sm max-w-none text-card-foreground/90 bg-primary/5 p-4 rounded-md space-y-2">
            <p className="font-semibold text-primary">Options:</p>
            <ul className='list-disc pl-5 space-y-1'>
@@ -120,7 +134,7 @@ export default function PracticePage() {
 
   const form = useForm<z.infer<typeof questionSchema>>({
     resolver: zodResolver(questionSchema),
-    defaultValues: { questionText: '', options: ['', '', '', ''], correctAnswer: '', topicId: '', difficultyLevel: 'Easy' },
+    defaultValues: { questionText: '', options: ['', '', '', ''], correctAnswer: '', topicId: '', difficultyLevel: 'Easy', imageUrl: '' },
   });
 
   const { fields } = useFieldArray({
@@ -144,13 +158,14 @@ export default function PracticePage() {
     setIsSubmitting(false);
   };
   
-  const handleMcqExtracted = (data: { questionText: string; options: string[] }) => {
+  const handleMcqExtracted = (data: { questionText: string; options: string[], imageUrl: string }) => {
     form.setValue('questionText', data.questionText);
     data.options.forEach((option, index) => {
       if (index < 4) {
         form.setValue(`options.${index}`, option);
       }
     });
+    form.setValue('imageUrl', data.imageUrl);
     form.setValue('correctAnswer', '');
   };
 
@@ -184,6 +199,24 @@ export default function PracticePage() {
                                 </FormItem>
                             )}
                             />
+
+                            {form.watch('imageUrl') && (
+                                <FormItem>
+                                    <FormLabel>Image Preview</FormLabel>
+                                    <FormControl>
+                                        <div className="p-4 border rounded-md flex justify-center bg-muted/50">
+                                            <Image 
+                                                src={form.watch('imageUrl')!}
+                                                alt="Extracted image preview"
+                                                width={400}
+                                                height={300}
+                                                className="rounded-md object-contain"
+                                            />
+                                        </div>
+                                    </FormControl>
+                                </FormItem>
+                            )}
+
 
                             <div className="space-y-4">
                                 <FormLabel>Options & Correct Answer</FormLabel>

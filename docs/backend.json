@@ -172,6 +172,11 @@
           "type": "string",
           "description": "The text of the practice question."
         },
+        "imageUrl": {
+          "type": "string",
+          "description": "An optional URL for an image associated with the question.",
+          "format": "uri"
+        },
         "options": {
           "type": "array",
           "description": "An array of 4 multiple choice options.",

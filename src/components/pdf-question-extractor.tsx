@@ -18,7 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 interface PdfQuestionExtractorProps {
-  onMcqExtracted: (data: { questionText: string; options: string[] }) => void;
+  onMcqExtracted: (data: { questionText: string; options: string[], imageUrl: string }) => void;
 }
 
 function centerAspectCrop(mediaWidth: number, mediaHeight: number, aspect: number | undefined) {
@@ -101,16 +101,20 @@ export default function PdfQuestionExtractor({ onMcqExtracted }: PdfQuestionExtr
         description: result.error,
       });
     } else if (result.questionText && result.options?.length === 4) {
-      onMcqExtracted({ questionText: result.questionText, options: result.options });
+      onMcqExtracted({ 
+          questionText: result.questionText, 
+          options: result.options,
+          imageUrl: croppedDataUrl,
+      });
       toast({
-        title: 'Text Extracted!',
-        description: 'The question and options fields have been populated.',
+        title: 'Text & Image Extracted!',
+        description: 'The question, options, and image preview have been populated below.',
       });
     } else {
       toast({
         variant: 'destructive',
         title: 'Extraction Incomplete',
-        description: 'Could not extract a full question and four options from the selected area.',
+        description: 'Could not extract a full question and four options. Try re-cropping.',
       });
     }
     

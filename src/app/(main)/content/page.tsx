@@ -240,7 +240,7 @@ export default function ContentPage() {
 
   const subjectsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'subjects'), orderBy('name')) : null, [firestore]);
   const topicsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'topics'), orderBy('name')) : null, [firestore]);
-  const contentQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'content'), orderBy('subjectId'), orderBy('topicId')) : null, [firestore]);
+  const contentQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'content'), orderBy('subjectId')) : null, [firestore]);
   
   const { data: subjects, isLoading: areSubjectsLoading } = useCollection<Subject>(subjectsQuery);
   const { data: topics, isLoading: areTopicsLoading } = useCollection<Topic>(topicsQuery);

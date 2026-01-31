@@ -23,6 +23,10 @@
           "description": "The email address of the user.",
           "format": "email"
         },
+        "photoURL": {
+          "type": "string",
+          "description": "URL or data URI for the user's profile picture."
+        },
         "roleId": {
           "type": "string",
           "description": "Reference to Role. (Relationship: Role 1:N User)"

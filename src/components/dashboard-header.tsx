@@ -12,7 +12,6 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Bell, LogOut, User } from "lucide-react";
-import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { useAuth, useUser } from "@/firebase";
 import { Skeleton } from "./ui/skeleton";
 import { signOut } from "firebase/auth";
@@ -29,8 +28,6 @@ export default function DashboardHeader({ title }: DashboardHeaderProps) {
   const handleLogout = () => {
     signOut(auth);
   };
-  
-  const userAvatar = PlaceHolderImages.find(img => img.id === 'user-avatar');
 
   const getInitials = (name?: string | null) => {
     if (!name) return '';
@@ -53,11 +50,9 @@ export default function DashboardHeader({ title }: DashboardHeaderProps) {
                 <Skeleton className="h-10 w-10 rounded-full" />
               ) : user ? (
                 <Avatar className="h-10 w-10">
-                  {user.photoURL ? (
+                  {user.photoURL && (
                     <AvatarImage src={user.photoURL} alt={user.displayName || 'User'} />
-                  ) : userAvatar ? (
-                    <AvatarImage src={userAvatar.imageUrl} alt={user.displayName || 'User'} data-ai-hint={userAvatar.imageHint} />
-                  ) : null}
+                  )}
                   <AvatarFallback>{getInitials(user.displayName)}</AvatarFallback>
                 </Avatar>
               ) : (
@@ -105,3 +100,5 @@ export default function DashboardHeader({ title }: DashboardHeaderProps) {
     </header>
   );
 }
+
+    

@@ -18,10 +18,11 @@ import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase, updateDocument
 import { updateProfile } from 'firebase/auth';
 import { doc } from 'firebase/firestore';
 import { useState, useEffect } from 'react';
-import { LoaderCircle } from 'lucide-react';
+import { LoaderCircle, User as UserIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import DashboardHeader from '@/components/dashboard-header';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 const profileFormSchema = z.object({
   firstName: z.string().min(1, 'First name is required'),
@@ -35,6 +36,7 @@ type UserProfile = {
     lastName: string;
     email: string;
     roleId: 'student' | 'teacher';
+    photoURL?: string;
 }
 
 export default function ProfilePage() {
@@ -43,6 +45,9 @@ export default function ProfilePage() {
   const firestore = useFirestore();
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   const userDocRef = useMemoFirebase(() => {
       if (!user || !firestore) return null;
@@ -67,26 +72,50 @@ export default function ProfilePage() {
         lastName: userProfile.lastName,
         email: userProfile.email,
       });
+      if (userProfile.photoURL) {
+        setImagePreview(userProfile.photoURL);
+      }
+    } else if (user?.photoURL) {
+        setImagePreview(user.photoURL);
     }
-  }, [userProfile, form]);
+  }, [userProfile, user, form]);
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+        setImageFile(file);
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            setImagePreview(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+    }
+  };
+
 
   async function onSubmit(values: z.infer<typeof profileFormSchema>) {
     if (!user || !userDocRef) return;
 
     setIsLoading(true);
     try {
+      let newPhotoURL = user.photoURL; // Default to existing URL
+      if (imageFile && imagePreview) {
+        newPhotoURL = imagePreview; // Use the new base64 data URL
+      }
+      
       // Update Firebase Auth profile
       if (auth.currentUser) {
         await updateProfile(auth.currentUser, {
-          displayName: `${values.firstName} ${values.lastName}`
+          displayName: `${values.firstName} ${values.lastName}`,
+          photoURL: newPhotoURL
         });
       }
-
 
       // Update Firestore document
       const updatedData = {
         firstName: values.firstName,
         lastName: values.lastName,
+        photoURL: newPhotoURL || ''
       };
       updateDocumentNonBlocking(userDocRef, updatedData);
 
@@ -94,6 +123,7 @@ export default function ProfilePage() {
         title: 'Profile Updated',
         description: 'Your profile has been successfully updated.',
       });
+      setImageFile(null);
     } catch (error: any) {
       toast({
           variant: 'destructive',
@@ -106,6 +136,17 @@ export default function ProfilePage() {
   }
 
   const showLoading = isUserLoading || isProfileLoading;
+  
+  const getInitials = () => {
+    if (userProfile) {
+        return `${userProfile.firstName[0] || ''}${userProfile.lastName[0] || ''}`;
+    }
+    if (user?.displayName) {
+        return user.displayName.split(' ').map(n => n[0]).join('');
+    }
+    return '';
+  }
+
 
   return (
     <div className="flex flex-col h-full">
@@ -120,6 +161,13 @@ export default function ProfilePage() {
                 <CardContent>
                     {showLoading ? (
                         <div className="space-y-6">
+                            <div className="flex items-center gap-6">
+                                <Skeleton className="h-24 w-24 rounded-full" />
+                                <div className="flex-1 space-y-2">
+                                     <Skeleton className="h-4 w-24" />
+                                     <Skeleton className="h-10 w-full" />
+                                </div>
+                            </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="space-y-2">
                                     <Skeleton className="h-4 w-20" />
@@ -139,6 +187,22 @@ export default function ProfilePage() {
                     ) : (
                         <Form {...form}>
                             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                                <FormItem>
+                                    <FormLabel>Profile Picture</FormLabel>
+                                    <div className="flex items-center gap-6">
+                                        <Avatar className="h-24 w-24">
+                                            <AvatarImage src={imagePreview || undefined} />
+                                            <AvatarFallback>
+                                                {getInitials() || <UserIcon className="h-8 w-8" />}
+                                            </AvatarFallback>
+                                        </Avatar>
+                                        <FormControl>
+                                            <Input type="file" accept="image/*" onChange={handleImageChange} className="max-w-xs" />
+                                        </FormControl>
+                                    </div>
+                                    <FormMessage />
+                                </FormItem>
+
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <FormField
                                     control={form.control}
@@ -194,3 +258,5 @@ export default function ProfilePage() {
     </div>
   );
 }
+
+    

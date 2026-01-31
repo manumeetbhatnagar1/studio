@@ -3,7 +3,7 @@
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import {
-  Film,
+  BookOpen,
   ClipboardList,
   LayoutDashboard,
   MessageSquare,
@@ -25,7 +25,7 @@ import { Badge } from './ui/badge';
 
 const navItems: NavItem[] = [
   { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { title: 'Content', href: '/content', icon: Film },
+  { title: 'Content', href: '/content', icon: BookOpen },
   { title: 'Live Classes', href: '/live-classes', icon: Video },
   { title: 'Practice', href: '/practice', icon: ClipboardList },
   { title: 'Mock Tests', href: '/mock-tests', icon: Target },
@@ -70,5 +70,3 @@ export default function MainSidebar() {
     </>
   );
 }
-
-    

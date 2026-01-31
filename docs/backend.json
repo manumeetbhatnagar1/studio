@@ -106,19 +106,29 @@
         },
         "description": {
           "type": "string",
-          "description": "A detailed description of the video lecture."
+          "description": "A detailed description of the content."
         },
         "type": {
           "type": "string",
-          "description": "The type of content. For this module, it will be 'video'.",
+          "description": "The type of content, e.g., video or PDF.",
           "enum": [
-            "video"
+            "video",
+            "pdf"
           ]
         },
-        "url": {
+        "videoUrl": {
           "type": "string",
-          "description": "The URL of the video. Should be an embeddable URL.",
+          "description": "The URL of the video. Required for 'video' type.",
           "format": "uri"
+        },
+        "fileUrl": {
+          "type": "string",
+          "description": "The URL of the PDF file. Required for 'pdf' type.",
+          "format": "uri"
+        },
+        "subjectId": {
+          "type": "string",
+          "description": "Reference to Subject. (Relationship: Subject 1:N Content)"
         },
         "topicId": {
           "type": "string",
@@ -147,7 +157,7 @@
         "title",
         "description",
         "type",
-        "url",
+        "subjectId",
         "topicId",
         "difficultyLevel",
         "examCategory"
@@ -177,7 +187,6 @@
         }
       },
       "required": [
-        "id",
         "name",
         "description",
         "subjectId"
@@ -221,7 +230,6 @@
         }
       },
       "required": [
-        "id",
         "title",
         "startTime",
         "duration",
@@ -296,7 +304,6 @@
         }
       },
       "required": [
-        "id",
         "questionType",
         "questionText",
         "difficultyLevel",
@@ -337,7 +344,6 @@
         }
       },
       "required": [
-        "id",
         "title",
         "startTime",
         "duration"
@@ -500,5 +506,3 @@
     "reasoning": "The Firestore data structure is designed to support the core features of the JEE Prep Ace application, focusing on content delivery, live classes, practice questions, mock tests, doubt resolution, personalized learning paths, and progress tracking. The structure prioritizes authorization independence, clarity, and scalability. To achieve Authorization Independence we denormalize data where necessary. For example, teacher information relevant to a LiveClass is accessible without requiring a separate read. Segregation is used extensively to ensure data with different security requirements are stored in different collections, which simplifies the security rules. Path-based ownership is used for user-specific data to easily control access. The use of membership maps are used to support collaborative data access where needed, although in this specific case collaborative data is not explicitly mentioned in the requirements."
   }
 }
-
-    

@@ -48,26 +48,44 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
 import PdfQuestionExtractor from '@/components/pdf-question-extractor';
 
-const questionSchema = z.object({
-  questionText: z.string().min(10, 'Question must be at least 10 characters.'),
-  imageUrl: z.string().optional(),
-  options: z.array(z.string().min(1, "Option cannot be empty.")).length(4, "You must provide 4 options."),
-  correctAnswer: z.string().min(1, "Please select the correct answer."),
-  topicId: z.string().min(1, 'Topic is required.'),
-  difficultyLevel: z.enum(['Easy', 'Medium', 'Hard']),
+const baseSchema = z.object({
+    questionText: z.string().min(10, 'Question must be at least 10 characters.'),
+    imageUrl: z.string().optional(),
+    topicId: z.string().min(1, 'Topic is required.'),
+    difficultyLevel: z.enum(['Easy', 'Medium', 'Hard']),
+});
+
+const mcqSchema = baseSchema.extend({
+    questionType: z.literal('MCQ'),
+    options: z.array(z.string().min(1, "Option cannot be empty.")).length(4, "You must provide 4 options."),
+    correctAnswer: z.string().min(1, "Please select the correct answer."),
 }).refine(data => data.options.includes(data.correctAnswer), {
     message: "Correct answer must match one of the options.",
     path: ['correctAnswer'],
 });
 
+const numericalSchema = baseSchema.extend({
+    questionType: z.literal('Numerical'),
+    numericalAnswer: z.coerce.number({ required_error: 'A numerical answer is required.' }),
+});
+
+const questionSchema = z.discriminatedUnion("questionType", [
+    mcqSchema,
+    numericalSchema
+]);
+
 type PracticeQuestion = {
   id: string;
   questionText: string;
-  options: string[];
-  correctAnswer: string;
   difficultyLevel: 'Easy' | 'Medium' | 'Hard';
   topicId: string;
   imageUrl?: string;
+  questionType: 'MCQ' | 'Numerical';
+  // MCQ fields
+  options?: string[];
+  correctAnswer?: string;
+  // Numerical fields
+  numericalAnswer?: number;
 };
 
 function QuestionItem({ question }: { question: PracticeQuestion }) {
@@ -87,6 +105,7 @@ function QuestionItem({ question }: { question: PracticeQuestion }) {
             <Badge variant={difficultyVariant[question.difficultyLevel] || 'default'}>
               {question.difficultyLevel}
             </Badge>
+             <Badge variant="secondary">{question.questionType}</Badge>
           </div>
         </div>
       </AccordionTrigger>
@@ -102,17 +121,24 @@ function QuestionItem({ question }: { question: PracticeQuestion }) {
                 />
             </div>
         )}
-        <div className="prose prose-sm max-w-none text-card-foreground/90 bg-primary/5 p-4 rounded-md space-y-2">
-           <p className="font-semibold text-primary">Options:</p>
-           <ul className='list-disc pl-5 space-y-1'>
-            {question.options.map((option, index) => (
-                <li key={index} className={cn(option === question.correctAnswer && "font-bold text-primary")}>
-                    {option}
-                    {option === question.correctAnswer && <CheckCircle className="inline-block ml-2 h-4 w-4" />}
-                </li>
-            ))}
-           </ul>
-        </div>
+        {question.questionType === 'MCQ' && question.options ? (
+             <div className="prose prose-sm max-w-none text-card-foreground/90 bg-primary/5 p-4 rounded-md space-y-2">
+                <p className="font-semibold text-primary">Options:</p>
+                <ul className='list-disc pl-5 space-y-1'>
+                    {question.options.map((option, index) => (
+                        <li key={index} className={cn(option === question.correctAnswer && "font-bold text-primary")}>
+                            {option}
+                            {option === question.correctAnswer && <CheckCircle className="inline-block ml-2 h-4 w-4" />}
+                        </li>
+                    ))}
+                </ul>
+             </div>
+        ) : question.questionType === 'Numerical' ? (
+            <div className="prose prose-sm max-w-none text-card-foreground/90 bg-primary/5 p-4 rounded-md space-y-2">
+               <p className="font-semibold text-primary">Correct Answer:</p>
+               <p className="font-bold text-2xl">{question.numericalAnswer}</p>
+            </div>
+        ): null}
       </AccordionContent>
     </AccordionItem>
   );
@@ -134,13 +160,23 @@ export default function PracticePage() {
 
   const form = useForm<z.infer<typeof questionSchema>>({
     resolver: zodResolver(questionSchema),
-    defaultValues: { questionText: '', options: ['', '', '', ''], correctAnswer: '', topicId: '', difficultyLevel: 'Easy', imageUrl: '' },
+    defaultValues: { 
+        questionType: 'MCQ',
+        questionText: '', 
+        options: ['', '', '', ''], 
+        correctAnswer: '', 
+        topicId: '', 
+        difficultyLevel: 'Easy', 
+        imageUrl: ''
+    },
   });
 
   const { fields } = useFieldArray({
     control: form.control,
     name: "options",
   });
+  
+  const questionType = form.watch('questionType');
 
   const onSubmit = (values: z.infer<typeof questionSchema>) => {
     if (!isTeacher) {
@@ -179,13 +215,45 @@ export default function PracticePage() {
                 <Card className="shadow-lg">
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2 font-headline text-2xl">
-                        <PlusCircle className="w-6 h-6" /> Create New MCQ Question
+                        <PlusCircle className="w-6 h-6" /> Create New Question
                         </CardTitle>
-                        <CardDescription>Use the tool above to add an image from a PDF, then fill out the form below to create a new multiple-choice question manually.</CardDescription>
+                        <CardDescription>Use the tool above to add an image from a PDF, then fill out the form below to create a new question.</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <Form {...form}>
                         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                            
+                            <FormField
+                                control={form.control}
+                                name="questionType"
+                                render={({ field }) => (
+                                    <FormItem className="space-y-3">
+                                    <FormLabel>Question Type</FormLabel>
+                                    <FormControl>
+                                        <RadioGroup
+                                        onValueChange={field.onChange}
+                                        defaultValue={field.value}
+                                        className="flex flex-row space-x-4"
+                                        >
+                                        <FormItem className="flex items-center space-x-2 space-y-0">
+                                            <FormControl>
+                                            <RadioGroupItem value="MCQ" />
+                                            </FormControl>
+                                            <FormLabel className="font-normal">Multiple Choice</FormLabel>
+                                        </FormItem>
+                                        <FormItem className="flex items-center space-x-2 space-y-0">
+                                            <FormControl>
+                                            <RadioGroupItem value="Numerical" />
+                                            </FormControl>
+                                            <FormLabel className="font-normal">Numerical Answer</FormLabel>
+                                        </FormItem>
+                                        </RadioGroup>
+                                    </FormControl>
+                                    <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+
                             <FormField
                             control={form.control}
                             name="questionText"
@@ -217,43 +285,60 @@ export default function PracticePage() {
                                 </FormItem>
                             )}
 
+                            {questionType === 'MCQ' && (
+                                <div className="space-y-4">
+                                    <FormLabel>Options & Correct Answer</FormLabel>
+                                    <FormField
+                                    control={form.control}
+                                    name="correctAnswer"
+                                    render={({ field }) => (
+                                        <FormItem className='space-y-0'>
+                                            <FormControl>
+                                                <RadioGroup
+                                                    onValueChange={field.onChange}
+                                                    defaultValue={field.value}
+                                                    className="grid grid-cols-1 md:grid-cols-2 gap-4"
+                                                >
+                                                {fields.map((item, index) => (
+                                                    <FormField
+                                                        key={item.id}
+                                                        control={form.control}
+                                                        name={`options.${index}`}
+                                                        render={({ field: optionField }) => (
+                                                            <FormItem className="flex items-center gap-2 space-y-0 rounded-md border p-4 has-[:checked]:border-primary">
+                                                                <FormControl>
+                                                                    <RadioGroupItem value={optionField.value} disabled={!optionField.value} />
+                                                                </FormControl>
+                                                                <Input {...optionField} placeholder={`Option ${index + 1}`} className="border-none p-0 h-auto focus-visible:ring-0 focus-visible:ring-offset-0" />
+                                                                <FormMessage className="col-span-2"/>
+                                                            </FormItem>
+                                                        )}
+                                                    />
+                                                ))}
+                                                </RadioGroup>
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                    />
+                                </div>
+                            )}
 
-                            <div className="space-y-4">
-                                <FormLabel>Options & Correct Answer</FormLabel>
+                            {questionType === 'Numerical' && (
                                 <FormField
-                                control={form.control}
-                                name="correctAnswer"
-                                render={({ field }) => (
-                                    <FormItem className='space-y-0'>
+                                    control={form.control}
+                                    name="numericalAnswer"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                        <FormLabel>Correct Numerical Answer</FormLabel>
                                         <FormControl>
-                                            <RadioGroup
-                                                onValueChange={field.onChange}
-                                                defaultValue={field.value}
-                                                className="grid grid-cols-1 md:grid-cols-2 gap-4"
-                                            >
-                                            {fields.map((item, index) => (
-                                                <FormField
-                                                    key={item.id}
-                                                    control={form.control}
-                                                    name={`options.${index}`}
-                                                    render={({ field: optionField }) => (
-                                                        <FormItem className="flex items-center gap-2 space-y-0 rounded-md border p-4 has-[:checked]:border-primary">
-                                                            <FormControl>
-                                                                <RadioGroupItem value={optionField.value} disabled={!optionField.value} />
-                                                            </FormControl>
-                                                            <Input {...optionField} placeholder={`Option ${index + 1}`} className="border-none p-0 h-auto focus-visible:ring-0 focus-visible:ring-offset-0" />
-                                                            <FormMessage className="col-span-2"/>
-                                                        </FormItem>
-                                                    )}
-                                                />
-                                            ))}
-                                            </RadioGroup>
+                                            <Input type="number" placeholder="e.g., 42" {...field} />
                                         </FormControl>
                                         <FormMessage />
-                                    </FormItem>
-                                )}
+                                        </FormItem>
+                                    )}
                                 />
-                            </div>
+                            )}
                             
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <FormField

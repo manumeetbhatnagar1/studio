@@ -162,11 +162,19 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "PracticeQuestion",
       "type": "object",
-      "description": "Represents a practice question.",
+      "description": "Represents a practice question, which can be a Multiple Choice Question (MCQ) or a Numerical Answer Type question.",
       "properties": {
         "id": {
           "type": "string",
           "description": "Unique identifier for the PracticeQuestion entity."
+        },
+        "questionType": {
+          "type": "string",
+          "description": "The type of question.",
+          "enum": [
+            "MCQ",
+            "Numerical"
+          ]
         },
         "questionText": {
           "type": "string",
@@ -179,7 +187,7 @@
         },
         "options": {
           "type": "array",
-          "description": "An array of 4 multiple choice options.",
+          "description": "An array of 4 multiple choice options. Required for MCQ type.",
           "items": {
             "type": "string"
           },
@@ -188,7 +196,11 @@
         },
         "correctAnswer": {
           "type": "string",
-          "description": "The correct option from the 'options' array."
+          "description": "The correct option from the 'options' array. Required for MCQ type."
+        },
+        "numericalAnswer": {
+          "type": "number",
+          "description": "The correct numerical answer. Required for Numerical type."
         },
         "difficultyLevel": {
           "type": "string",
@@ -206,9 +218,8 @@
       },
       "required": [
         "id",
+        "questionType",
         "questionText",
-        "options",
-        "correctAnswer",
         "difficultyLevel",
         "topicId"
       ]

@@ -9,16 +9,15 @@ import 'react-image-crop/dist/ReactCrop.css';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
-import { FileUp, Scissors, LoaderCircle, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { FileUp, Crop, LoaderCircle, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { extractQuestionFromImage } from '@/app/actions';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 
 // Set up pdfjs worker from an external CDN
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 interface PdfQuestionExtractorProps {
-  onMcqExtracted: (data: { questionText: string; options: string[], imageUrl: string }) => void;
+  onImageCropped: (data: { imageUrl: string }) => void;
 }
 
 function centerAspectCrop(mediaWidth: number, mediaHeight: number, aspect: number | undefined) {
@@ -37,7 +36,7 @@ function centerAspectCrop(mediaWidth: number, mediaHeight: number, aspect: numbe
     );
 }
 
-export default function PdfQuestionExtractor({ onMcqExtracted }: PdfQuestionExtractorProps) {
+export default function PdfQuestionExtractor({ onImageCropped }: PdfQuestionExtractorProps) {
   const [file, setFile] = useState<File | null>(null);
   const [numPages, setNumPages] = useState<number | null>(null);
   const [pageNumber, setPageNumber] = useState(1);
@@ -79,12 +78,12 @@ export default function PdfQuestionExtractor({ onMcqExtracted }: PdfQuestionExtr
     setCrop(centerAspectCrop(width, height, aspect));
   }
 
-  async function handleExtractClick() {
+  async function handleConfirmCrop() {
     if (!completedCrop || !imgRef.current) {
       toast({
         variant: 'destructive',
         title: 'No Crop',
-        description: 'Please select an area of the image to extract text from.',
+        description: 'Please select an area of the image to use.',
       });
       return;
     }
@@ -92,31 +91,9 @@ export default function PdfQuestionExtractor({ onMcqExtracted }: PdfQuestionExtr
     setIsLoading(true);
     const croppedDataUrl = await getCroppedImg(imgRef.current, completedCrop);
     
-    const result = await extractQuestionFromImage({ imageDataUri: croppedDataUrl });
-
-    if (result.error) {
-      toast({
-        variant: 'destructive',
-        title: 'Extraction Failed',
-        description: result.error,
-      });
-    } else if (result.questionText && result.options?.length === 4) {
-      onMcqExtracted({ 
-          questionText: result.questionText, 
-          options: result.options,
-          imageUrl: croppedDataUrl,
-      });
-      toast({
-        title: 'Text & Image Extracted!',
-        description: 'The question, options, and image preview have been populated below.',
-      });
-    } else {
-      toast({
-        variant: 'destructive',
-        title: 'Extraction Incomplete',
-        description: 'Could not extract a full question and four options. Try re-cropping.',
-      });
-    }
+    onImageCropped({ 
+        imageUrl: croppedDataUrl,
+    });
     
     setIsLoading(false);
   }
@@ -157,9 +134,9 @@ export default function PdfQuestionExtractor({ onMcqExtracted }: PdfQuestionExtr
     <Card className="shadow-lg">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 font-headline text-2xl">
-          <FileUp className="w-6 h-6" /> Extract Question from PDF
+          <FileUp className="w-6 h-6" /> Add Question Image from PDF
         </CardTitle>
-        <CardDescription>Upload a PDF, select a question by cropping, and let AI extract the text for you.</CardDescription>
+        <CardDescription>Upload a PDF, crop an image for your question, and then manually fill in the details below.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <Input type="file" accept="application/pdf" onChange={onFileChange} />
@@ -208,20 +185,20 @@ export default function PdfQuestionExtractor({ onMcqExtracted }: PdfQuestionExtr
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Instructions</AlertTitle>
               <AlertDescription>
-                Drag the selection box over the question text and its options. Then click the "Extract Text" button.
+                Drag the selection box over the image you want to include. Then click the "Confirm Crop" button.
               </AlertDescription>
             </Alert>
 
-            <Button onClick={handleExtractClick} disabled={isLoading || !completedCrop}>
+            <Button onClick={handleConfirmCrop} disabled={isLoading || !completedCrop}>
               {isLoading ? (
                 <>
                   <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-                  Extracting...
+                  Cropping...
                 </>
               ) : (
                 <>
-                  <Scissors className="mr-2 h-4 w-4" />
-                  Extract Text from Selection
+                  <Crop className="mr-2 h-4 w-4" />
+                  Confirm Crop
                 </>
               )}
             </Button>

@@ -158,15 +158,15 @@ export default function PracticePage() {
     setIsSubmitting(false);
   };
   
-  const handleMcqExtracted = (data: { questionText: string; options: string[], imageUrl: string }) => {
-    form.setValue('questionText', data.questionText);
-    data.options.forEach((option, index) => {
-      if (index < 4) {
-        form.setValue(`options.${index}`, option);
-      }
-    });
+  const handleImageCropped = (data: { imageUrl: string }) => {
     form.setValue('imageUrl', data.imageUrl);
+    form.setValue('questionText', '');
+    form.setValue('options', ['', '', '', '']);
     form.setValue('correctAnswer', '');
+    toast({
+      title: 'Image Added',
+      description: 'The image is ready. Please fill in the question details manually.',
+    });
   };
 
   return (
@@ -175,13 +175,13 @@ export default function PracticePage() {
       <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 grid gap-8">
         {isTeacher && (
              <div className='space-y-8'>
-                <PdfQuestionExtractor onMcqExtracted={handleMcqExtracted} />
+                <PdfQuestionExtractor onImageCropped={handleImageCropped} />
                 <Card className="shadow-lg">
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2 font-headline text-2xl">
                         <PlusCircle className="w-6 h-6" /> Create New MCQ Question
                         </CardTitle>
-                        <CardDescription>Fill out the form below to add a new multiple-choice question manually, or use the tool above to extract from a PDF.</CardDescription>
+                        <CardDescription>Use the tool above to add an image from a PDF, then fill out the form below to create a new multiple-choice question manually.</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <Form {...form}>

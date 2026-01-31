@@ -251,12 +251,10 @@ service cloud.firestore {
      * @principle   Shared read with mixed-ownership writes (owner and role).
      */
     match /study_requirements/{requirementId} {
-      allow get, list: if isSignedIn();
+      allow read: if isSignedIn();
       allow create: if isOwner(request.resource.data.studentId);
       allow update: if (resource != null && isOwner(resource.data.studentId)) || isTeacher();
       allow delete: if resource != null && isOwner(resource.data.studentId);
     }
   }
 }
-
-    

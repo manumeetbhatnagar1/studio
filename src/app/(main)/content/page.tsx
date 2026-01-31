@@ -247,23 +247,32 @@ export default function ContentPage() {
   const { data: content, isLoading: areContentLoading } = useCollection<Content>(contentQuery);
 
   const contentTree = useMemo(() => {
-    if (!content || !topics || !subjects) return {};
+    if (!topics || !subjects) return {};
 
-    const tree: Record<string, { subjectId: string; topics: Record<string, { topicId: string, items: Content[] }> }> = {};
+    const tree: Record<string, { subjectId: string; topics: Record<string, { topicId: string; items: Content[] }> }> = {};
 
+    // 1. Initialize with all subjects
     for (const subject of subjects) {
-        tree[subject.name] = { subjectId: subject.id, topics: {} };
+      tree[subject.name] = { subjectId: subject.id, topics: {} };
     }
 
-    for (const item of content) {
-        const topic = topics.find(t => t.id === item.topicId);
+    // 2. Initialize all topics under their subjects
+    for (const topic of topics) {
+      const subject = subjects.find(s => s.id === topic.subjectId);
+      if (subject && tree[subject.name]) {
+        tree[subject.name].topics[topic.name] = { topicId: topic.id, items: [] };
+      }
+    }
+
+    // 3. Populate content into the tree
+    if (content) {
+      for (const item of content) {
         const subject = subjects.find(s => s.id === item.subjectId);
-        if (topic && subject && tree[subject.name]) {
-            if (!tree[subject.name].topics[topic.name]) {
-                tree[subject.name].topics[topic.name] = { topicId: topic.id, items: [] };
-            }
-            tree[subject.name].topics[topic.name].items.push(item);
+        const topic = topics.find(t => t.id === item.topicId);
+        if (subject && topic && tree[subject.name] && tree[subject.name].topics[topic.name]) {
+          tree[subject.name].topics[topic.name].items.push(item);
         }
+      }
     }
 
     return tree;
@@ -321,16 +330,22 @@ export default function ContentPage() {
                             <AccordionItem value={topicName} key={contentTree[subjectName].topics[topicName].topicId}>
                               <AccordionTrigger className="text-lg font-medium">{topicName}</AccordionTrigger>
                               <AccordionContent>
-                                <div className="grid gap-4 pt-2">
-                                  {contentTree[subjectName].topics[topicName].items.map(item => <ContentListItem key={item.id} contentItem={item} />)}
-                                </div>
+                                {contentTree[subjectName].topics[topicName].items.length > 0 ? (
+                                  <div className="grid gap-4 pt-2">
+                                    {contentTree[subjectName].topics[topicName].items.map(item => <ContentListItem key={item.id} contentItem={item} />)}
+                                  </div>
+                                ) : (
+                                  <div className="text-center text-muted-foreground py-4">
+                                    <p>No content has been added for this topic yet.</p>
+                                  </div>
+                                )}
                               </AccordionContent>
                             </AccordionItem>
                           ))}
                         </Accordion>
                       ) : (
                         <div className="text-center text-muted-foreground py-4">
-                          <p>No study materials have been added for this subject yet.</p>
+                          <p>No topics have been added for this subject yet.</p>
                         </div>
                       )}
                     </AccordionContent>

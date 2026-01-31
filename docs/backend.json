@@ -449,6 +449,40 @@
         "currentPeriodStart",
         "currentPeriodEnd"
       ]
+    },
+    "Doubt": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Doubt",
+      "type": "object",
+      "description": "Represents a student's doubt or question.",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier." },
+        "studentId": { "type": "string", "description": "Reference to the student User." },
+        "teacherId": { "type": "string", "description": "Reference to the assigned teacher User." },
+        "topicId": { "type": "string", "description": "Reference to the relevant Topic." },
+        "question": { "type": "string", "description": "The student's question." },
+        "answer": { "type": "string", "description": "The teacher's answer." },
+        "status": { "type": "string", "enum": ["open", "answered", "closed"], "description": "The status of the doubt." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp of when the doubt was created." }
+      },
+      "required": ["studentId", "topicId", "question", "status", "createdAt"]
+    },
+    "StudentTestResult": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "StudentTestResult",
+      "type": "object",
+      "description": "Stores the results of a student's attempt at a mock test.",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier." },
+        "testId": { "type": "string", "description": "Reference to the MockTest." },
+        "score": { "type": "number", "description": "The final score." },
+        "timeTaken": { "type": "number", "description": "Time taken in minutes." },
+        "answers": {
+          "type": "object",
+          "description": "A map of question IDs to the student's answers."
+        }
+      },
+      "required": ["testId", "score", "timeTaken"]
     }
   },
   "auth": {
@@ -492,6 +526,20 @@
               "name": "subscriptionId",
               "description": "The unique identifier for the subscription record."
             }
+          ]
+        }
+      },
+       {
+        "path": "/users/{userId}/test_results/{resultId}",
+        "definition": {
+          "entityName": "StudentTestResult",
+          "schema": {
+            "$ref": "#/backend/entities/StudentTestResult"
+          },
+          "description": "Stores results for mock tests taken by the user. Path-based ownership.",
+          "params": [
+            { "name": "userId", "description": "The user's unique ID." },
+            { "name": "resultId", "description": "The unique ID for the test result." }
           ]
         }
       },
@@ -638,10 +686,21 @@
             }
           ]
         }
+      },
+      {
+        "path": "/doubts/{doubtId}",
+        "definition": {
+          "entityName": "Doubt",
+          "schema": {
+            "$ref": "#/backend/entities/Doubt"
+          },
+          "description": "Stores student doubts. Students can create, teachers can update/answer.",
+          "params": [
+            { "name": "doubtId", "description": "The unique ID for the doubt." }
+          ]
+        }
       }
     ],
     "reasoning": "The Firestore data structure is designed to support the core features of the JEE Prep Ace application, focusing on content delivery, live classes, practice questions, mock tests, doubt resolution, personalized learning paths, and progress tracking. The structure prioritizes authorization independence, clarity, and scalability. To achieve Authorization Independence we denormalize data where necessary. For example, teacher information relevant to a LiveClass is accessible without requiring a separate read. Segregation is used extensively to ensure data with different security requirements are stored in different collections, which simplifies the security rules. Path-based ownership is used for user-specific data to easily control access. The use of membership maps are used to support collaborative data access where needed, although in this specific case collaborative data is not explicitly mentioned in the requirements."
   }
 }
-
-    

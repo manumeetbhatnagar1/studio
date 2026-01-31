@@ -43,7 +43,6 @@ import { useToast } from '@/hooks/use-toast';
 import { useIsTeacher } from '@/hooks/useIsTeacher';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import PdfQuestionExtractor from '@/components/pdf-question-extractor';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
 
@@ -144,9 +143,6 @@ export default function PracticePage() {
     setIsSubmitting(false);
   };
   
-  const handleTextExtracted = (text: string) => {
-    form.setValue('questionText', text);
-  }
 
   return (
     <div className="flex flex-col h-full">
@@ -154,7 +150,6 @@ export default function PracticePage() {
       <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 grid gap-8">
         {isTeacher && (
              <div className='space-y-8'>
-                <PdfQuestionExtractor onTextExtracted={handleTextExtracted} />
                 <Card className="shadow-lg">
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2 font-headline text-2xl">
@@ -172,7 +167,7 @@ export default function PracticePage() {
                                 <FormItem>
                                 <FormLabel>Question Text</FormLabel>
                                 <FormControl>
-                                    <Textarea placeholder="The text extracted from the PDF will appear here..." {...field} rows={4} />
+                                    <Textarea placeholder="e.g., What is the formula for..." {...field} rows={4} />
                                 </FormControl>
                                 <FormMessage />
                                 </FormItem>

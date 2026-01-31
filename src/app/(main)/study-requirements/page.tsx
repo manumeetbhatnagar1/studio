@@ -87,7 +87,7 @@ function StudentRequirementList() {
                     <div className="flex-1">
                         <p className="font-semibold text-lg">{req.subject}</p>
                         <p className="text-muted-foreground text-sm">
-                            Exam: {req.examType} &bull; Preference: {req.classPreference} &bull; Posted {formatDistanceToNow(req.createdAt.toDate(), { addSuffix: true })}
+                            Exam: {req.examType} &bull; Preference: {req.classPreference} &bull; Posted {req.createdAt ? formatDistanceToNow(req.createdAt.toDate(), { addSuffix: true }) : 'just now'}
                         </p>
                     </div>
                     <div className="flex items-center gap-4">
@@ -139,7 +139,7 @@ function TeacherRequirementList() {
                     <div className="text-muted-foreground text-sm space-y-1 mt-1">
                         <p><strong>Student:</strong> {req.studentName}</p>
                         <p><strong>Exam:</strong> {req.examType} &bull; <strong>Preference:</strong> {req.classPreference}</p>
-                        <p><strong>Posted:</strong> {formatDistanceToNow(req.createdAt.toDate(), { addSuffix: true })}</p>
+                        <p><strong>Posted:</strong> {req.createdAt ? formatDistanceToNow(req.createdAt.toDate(), { addSuffix: true }) : 'just now'}</p>
                     </div>
                 </div>
                  <div className="flex flex-col items-end gap-2">

@@ -23,5 +23,5 @@ export type StudyRequirement = {
   examType: string;
   classPreference: 'Online' | 'Offline';
   status: 'Open' | 'Closed';
-  createdAt: Timestamp;
+  createdAt?: Timestamp;
 };

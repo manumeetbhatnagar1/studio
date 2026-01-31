@@ -377,10 +377,6 @@
       "type": "object",
       "description": "Represents a student's requirement for a course or tutoring.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the StudyRequirement entity."
-        },
         "studentId": {
           "type": "string",
           "description": "Reference to User (Student)."
@@ -390,7 +386,10 @@
           "description": "Denormalized name of the student."
         },
         "studentEmail": {
-          "type": "string",
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "Denormalized email of the student."
         },
         "subject": {
@@ -423,10 +422,8 @@
         }
       },
       "required": [
-        "id",
         "studentId",
         "studentName",
-        "studentEmail",
         "subject",
         "examType",
         "classPreference",

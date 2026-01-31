@@ -143,11 +143,11 @@ function TeacherRequirementList() {
                     </div>
                 </div>
                  <div className="flex flex-col items-end gap-2">
-                    <a href={`mailto:${req.studentEmail}`} className="w-full">
-                        <Button variant="outline" className="w-full">
+                    <Button asChild variant="outline" className="w-full" disabled={!req.studentEmail}>
+                        <a href={req.studentEmail ? `mailto:${req.studentEmail}` : undefined}>
                             <Mail className="mr-2 h-4 w-4" /> Contact
-                        </Button>
-                    </a>
+                        </a>
+                    </Button>
                     {req.status === 'Open' && (
                         <Button onClick={() => handleMarkAsClosed(req.id)} className="w-full">
                             <CheckCircle className="mr-2 h-4 w-4" /> Mark as Closed
@@ -224,7 +224,7 @@ export default function StudyRequirementsPage() {
       ...values,
       studentId: user.uid,
       studentName: user.displayName || 'Anonymous',
-      studentEmail: user.email,
+      studentEmail: user.email || null,
       status: 'Open',
       createdAt: serverTimestamp(),
     });

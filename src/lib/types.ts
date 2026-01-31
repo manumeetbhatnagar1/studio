@@ -18,7 +18,7 @@ export type StudyRequirement = {
   id: string;
   studentId: string;
   studentName: string;
-  studentEmail: string;
+  studentEmail: string | null;
   subject: string;
   examType: string;
   classPreference: 'Online' | 'Offline';

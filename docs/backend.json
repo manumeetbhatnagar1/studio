@@ -365,6 +365,90 @@
         "startTime",
         "duration"
       ]
+    },
+    "SubscriptionPlan": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "SubscriptionPlan",
+      "type": "object",
+      "description": "Defines a subscription plan available for users.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the SubscriptionPlan entity (e.g., 'basic', 'pro')."
+        },
+        "name": {
+          "type": "string",
+          "description": "The display name of the subscription plan (e.g., 'Pro Plan')."
+        },
+        "price": {
+          "type": "number",
+          "description": "The cost of the plan."
+        },
+        "billingInterval": {
+          "type": "string",
+          "description": "The billing frequency.",
+          "enum": [
+            "monthly",
+            "yearly"
+          ]
+        },
+        "features": {
+          "type": "array",
+          "description": "A list of features included in this plan.",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "price",
+        "billingInterval"
+      ]
+    },
+    "UserSubscription": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "UserSubscription",
+      "type": "object",
+      "description": "Represents a user's subscription to a specific plan.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the UserSubscription entity."
+        },
+        "planId": {
+          "type": "string",
+          "description": "Reference to SubscriptionPlan. (Relationship: SubscriptionPlan 1:N UserSubscription)"
+        },
+        "status": {
+          "type": "string",
+          "description": "The status of the subscription.",
+          "enum": [
+            "active",
+            "canceled",
+            "past_due",
+            "trialing"
+          ]
+        },
+        "currentPeriodStart": {
+          "type": "string",
+          "description": "The start date of the current billing period.",
+          "format": "date-time"
+        },
+        "currentPeriodEnd": {
+          "type": "string",
+          "description": "The end date of the current billing period.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "planId",
+        "status",
+        "currentPeriodStart",
+        "currentPeriodEnd"
+      ]
     }
   },
   "auth": {
@@ -387,6 +471,26 @@
             {
               "name": "userId",
               "description": "The unique identifier for the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/subscriptions/{subscriptionId}",
+        "definition": {
+          "entityName": "UserSubscription",
+          "schema": {
+            "$ref": "#/backend/entities/UserSubscription"
+          },
+          "description": "Stores the user's active subscription details. Path-based ownership ensures privacy.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user."
+            },
+            {
+              "name": "subscriptionId",
+              "description": "The unique identifier for the subscription record."
             }
           ]
         }
@@ -518,8 +622,26 @@
             }
           ]
         }
+      },
+      {
+        "path": "/subscription_plans/{planId}",
+        "definition": {
+          "entityName": "SubscriptionPlan",
+          "schema": {
+            "$ref": "#/backend/entities/SubscriptionPlan"
+          },
+          "description": "Stores all available subscription plans. Publicly readable.",
+          "params": [
+            {
+              "name": "planId",
+              "description": "The unique identifier for the subscription plan."
+            }
+          ]
+        }
       }
     ],
     "reasoning": "The Firestore data structure is designed to support the core features of the JEE Prep Ace application, focusing on content delivery, live classes, practice questions, mock tests, doubt resolution, personalized learning paths, and progress tracking. The structure prioritizes authorization independence, clarity, and scalability. To achieve Authorization Independence we denormalize data where necessary. For example, teacher information relevant to a LiveClass is accessible without requiring a separate read. Segregation is used extensively to ensure data with different security requirements are stored in different collections, which simplifies the security rules. Path-based ownership is used for user-specific data to easily control access. The use of membership maps are used to support collaborative data access where needed, although in this specific case collaborative data is not explicitly mentioned in the requirements."
   }
 }
+
+    

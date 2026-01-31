@@ -84,8 +84,22 @@ service cloud.firestore {
       allow create: if isOwner(userId) && request.resource.data.id == userId;
       allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
       allow delete: if isExistingOwner(userId);
+      
+       /**
+       * @description Manages a user's subscription data. Only the user can read their
+       *              own subscription status. Writes should be handled by a secure backend.
+       * @path        /users/{userId}/subscriptions/{subscriptionId}
+       * @allow       (get) The owner of the user document.
+       * @deny        (write) All client-side writes are forbidden for security.
+       * @principle   Protects sensitive billing information and subscription status.
+       */
+      match /subscriptions/{subscriptionId} {
+        allow get, list: if isOwner(userId);
+        allow create, update, delete: if false;
+      }
     }
-
+    
+    
     // --------------------------------------------------------------------
     // Role & System Configuration Rules
     // --------------------------------------------------------------------
@@ -216,5 +230,24 @@ service cloud.firestore {
 
       allow delete: if resource != null && isOwner(resource.data.teacherId);
     }
+    
+    // --------------------------------------------------------------------
+    // Subscription & Billing Rules
+    // --------------------------------------------------------------------
+    
+    /**
+     * @description Defines the available subscription plans. Readable by all signed-in
+     *              users to display on a pricing page. Writable only from the backend.
+     * @path        /subscription_plans/{planId}
+     * @allow       (get) Any signed-in user.
+     * @deny        (write) All client-side writes.
+     * @principle   Protects plan definitions from client modification.
+     */
+    match /subscription_plans/{planId} {
+        allow get, list: if isSignedIn();
+        allow create, update, delete: if false;
+    }
   }
 }
+
+    

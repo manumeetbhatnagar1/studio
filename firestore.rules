@@ -240,21 +240,5 @@ service cloud.firestore {
       allow update: if resource != null && (isOwner(resource.data.studentId) || isTeacher());
       allow delete: if resource != null && isOwner(resource.data.studentId);
     }
-
-    /**
-     * @description Student-submitted study requirements. Anyone can read.
-     *              A student owns their requirement. Teachers can update to close it.
-     * @path        /study_requirements/{requirementId}
-     * @allow       (read) Any signed-in user viewing requirements.
-     * @allow       (create) A student posting a new requirement for themselves.
-     * @deny        (update) A student trying to modify another student's requirement.
-     * @principle   Shared read with mixed-ownership writes (owner and role).
-     */
-    match /study_requirements/{requirementId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.studentId == request.auth.uid;
-      allow update: if resource != null && (isOwner(resource.data.studentId) || isTeacher()) && request.resource.data.studentId == resource.data.studentId;
-      allow delete: if resource != null && isOwner(resource.data.studentId);
-    }
   }
 }

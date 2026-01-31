@@ -7,7 +7,6 @@ import {
   Target,
   Video,
   ArrowRight,
-  PencilRuler,
 } from "lucide-react";
 import {
   Card,
@@ -54,13 +53,6 @@ const links = [
     description: "Get your questions answered.",
     icon: MessageSquare,
     imageId: "doubt-resolution",
-  },
-  {
-    title: "Study Requirements",
-    href: "/study-requirements",
-    description: "Post your learning needs for teachers.",
-    icon: PencilRuler,
-    imageId: "study-requirements",
   },
 ];
 

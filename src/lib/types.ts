@@ -13,15 +13,3 @@ export type TestResult = {
   score: number;
   maxScore: number;
 };
-
-export type StudyRequirement = {
-  id: string;
-  studentId: string;
-  studentName: string;
-  studentEmail: string | null;
-  subject: string;
-  examType: string;
-  classPreference: 'Online' | 'Offline';
-  status: 'Open' | 'Closed';
-  createdAt?: Timestamp;
-};

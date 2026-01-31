@@ -35,12 +35,6 @@
       "description": "Card image for doubt resolution section",
       "imageUrl": "https://images.unsplash.com/photo-1606595898127-a06c52b4e2b3?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw5fHxxdWVzdGlvbiUyMG1hcmt8ZW58MHx8fHwxNzY5ODQzNzE3fDA&ixlib=rb-4.1.0&q=80&w=1080",
       "imageHint": "question mark"
-    },
-    {
-      "id": "study-requirements",
-      "description": "Card image for study requirements section",
-      "imageUrl": "https://images.unsplash.com/photo-1516321497487-e288fb19713f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHxzdHVkZW50JTIwY29sbGFib3JhdGlvbnxlbnwwfHx8fDE3Njk4NTg5MDV8MA&ixlib=rb-4.1.0&q=80&w=1080",
-      "imageHint": "student collaboration"
     }
   ]
 }

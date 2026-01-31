@@ -43,6 +43,13 @@ const requirementSchema = z.object({
   classPreference: z.enum(['Online', 'Offline'], { required_error: "You need to select a class preference."}),
 });
 
+const getPostedDate = (timestamp?: Timestamp) => {
+    if (timestamp && typeof timestamp.toDate === 'function') {
+        return formatDistanceToNow(timestamp.toDate(), { addSuffix: true });
+    }
+    return 'just now';
+}
+
 function StudentRequirementList() {
     const { user } = useUser();
     const firestore = useFirestore();
@@ -87,7 +94,7 @@ function StudentRequirementList() {
                     <div className="flex-1">
                         <p className="font-semibold text-lg">{req.subject}</p>
                         <p className="text-muted-foreground text-sm">
-                            Exam: {req.examType} &bull; Preference: {req.classPreference} &bull; Posted {req.createdAt ? formatDistanceToNow(req.createdAt.toDate(), { addSuffix: true }) : 'just now'}
+                            Exam: {req.examType} &bull; Preference: {req.classPreference} &bull; Posted {getPostedDate(req.createdAt)}
                         </p>
                     </div>
                     <div className="flex items-center gap-4">
@@ -139,7 +146,7 @@ function TeacherRequirementList() {
                     <div className="text-muted-foreground text-sm space-y-1 mt-1">
                         <p><strong>Student:</strong> {req.studentName}</p>
                         <p><strong>Exam:</strong> {req.examType} &bull; <strong>Preference:</strong> {req.classPreference}</p>
-                        <p><strong>Posted:</strong> {req.createdAt ? formatDistanceToNow(req.createdAt.toDate(), { addSuffix: true }) : 'just now'}</p>
+                        <p><strong>Posted:</strong> {getPostedDate(req.createdAt)}</p>
                     </div>
                 </div>
                  <div className="flex flex-col items-end gap-2">

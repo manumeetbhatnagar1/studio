@@ -104,18 +104,34 @@
           "type": "string",
           "description": "The title of the content."
         },
+        "description": {
+          "type": "string",
+          "description": "A detailed description of the video lecture."
+        },
         "type": {
           "type": "string",
-          "description": "The type of content (e.g., video, PDF, article)."
+          "description": "The type of content. For this module, it will be 'video'.",
+          "enum": [
+            "video"
+          ]
         },
         "url": {
           "type": "string",
-          "description": "The URL or location of the content.",
+          "description": "The URL of the video. Should be an embeddable URL.",
           "format": "uri"
         },
         "topicId": {
           "type": "string",
           "description": "Reference to Topic. (Relationship: Topic 1:N Content)"
+        },
+        "difficultyLevel": {
+          "type": "string",
+          "description": "The difficulty level of the content.",
+          "enum": [
+            "Easy",
+            "Medium",
+            "Hard"
+          ]
         },
         "examCategory": {
           "type": "string",
@@ -128,11 +144,13 @@
         }
       },
       "required": [
-        "id",
         "title",
+        "description",
         "type",
         "url",
-        "topicId"
+        "topicId",
+        "difficultyLevel",
+        "examCategory"
       ]
     },
     "Topic": {
@@ -482,3 +500,5 @@
     "reasoning": "The Firestore data structure is designed to support the core features of the JEE Prep Ace application, focusing on content delivery, live classes, practice questions, mock tests, doubt resolution, personalized learning paths, and progress tracking. The structure prioritizes authorization independence, clarity, and scalability. To achieve Authorization Independence we denormalize data where necessary. For example, teacher information relevant to a LiveClass is accessible without requiring a separate read. Segregation is used extensively to ensure data with different security requirements are stored in different collections, which simplifies the security rules. Path-based ownership is used for user-specific data to easily control access. The use of membership maps are used to support collaborative data access where needed, although in this specific case collaborative data is not explicitly mentioned in the requirements."
   }
 }
+
+    

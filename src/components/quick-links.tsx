@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import {
-  BookOpen,
+  Film,
   ClipboardList,
   MessageSquare,
   Target,
@@ -23,7 +23,7 @@ const links = [
     title: "Content",
     href: "/content",
     description: "Access video lectures and notes.",
-    icon: BookOpen,
+    icon: Film,
     imageId: "content-delivery",
   },
   {
@@ -90,3 +90,5 @@ export default function QuickLinks() {
     </div>
   );
 }
+
+    

@@ -1,3 +1,40 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "user-avatar",
+      "description": "User avatar",
+      "imageUrl": "https://images.unsplash.com/photo-1517256673644-36ad11246d21?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw0fHxzdHVkZW50JTIwcG9ydHJhaXR8ZW58MHx8fHwxNzY5ODE1MDUyfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "student portrait"
+    },
+    {
+      "id": "content-delivery",
+      "description": "Card image for content delivery section",
+      "imageUrl": "https://images.unsplash.com/photo-1536985576470-b7e4a0363a19?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw4fHxib29rcyUyMGxpYnJhcnl8ZW58MHx8fHwxNzY5ODQ0NjEyfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "books library"
+    },
+    {
+      "id": "live-classes",
+      "description": "Card image for live classes section",
+      "imageUrl": "https://images.unsplash.com/photo-1762784574791-ded574c44c1f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw5fHxvbmxpbmUlMjBjb25mZXJlbmNlfGVufDB8fHx8MTc2OTg1ODkwM3ww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "online conference"
+    },
+    {
+      "id": "practice-questions",
+      "description": "Card image for practice questions section",
+      "imageUrl": "https://images.unsplash.com/photo-1597011770032-32243bed61f7?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw0fHx0ZXN0JTIwcGFwZXJ8ZW58MHx8fHwxNzY5ODU4OTA0fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "test paper"
+    },
+    {
+      "id": "mock-tests",
+      "description": "Card image for mock tests section",
+      "imageUrl": "https://images.unsplash.com/photo-1764946192307-8fbd83126af3?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHxzdG9wd2F0Y2glMjBleGFtfGVufDB8fHx8MTc2OTg1ODkwM3ww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "stopwatch exam"
+    },
+    {
+      "id": "doubt-resolution",
+      "description": "Card image for doubt resolution section",
+      "imageUrl": "https://images.unsplash.com/photo-1606595898127-a06c52b4e2b3?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw5fHxxdWVzdGlvbiUyMG1hcmt8ZW58MHx8fHwxNzY5ODQzNzE3fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "question mark"
+    }
+  ]
 }

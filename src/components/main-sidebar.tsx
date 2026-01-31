@@ -30,6 +30,7 @@ const navItems: NavItem[] = [
   { title: 'Live Classes', href: '/live-classes', icon: Video },
   { title: 'Practice', href: '/practice', icon: ClipboardList },
   { title: 'Mock Tests', href: '/mock-tests', icon: Target },
+  { title: 'Doubts', href: '/doubts', icon: MessageSquare },
   { title: 'Subscription', href: '/subscription', icon: CreditCard },
 ];
 

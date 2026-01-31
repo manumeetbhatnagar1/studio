@@ -41,11 +41,11 @@ const links = [
     imageId: "practice-questions",
   },
   {
-    title: "Mock Tests",
-    href: "/mock-tests",
-    description: "Simulate exam conditions.",
-    icon: Target,
-    imageId: "mock-tests",
+    title: "Doubts",
+    href: "/doubts",
+    description: "Get your questions answered by experts.",
+    icon: MessageSquare,
+    imageId: "doubt-resolution",
   },
 ];
 
@@ -53,7 +53,7 @@ export default function QuickLinks() {
   return (
     <div>
       <h2 className="font-headline text-2xl font-semibold mb-4">Quick Access</h2>
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {links.map((link) => {
           const image = PlaceHolderImages.find((img) => img.id === link.imageId);
           return (

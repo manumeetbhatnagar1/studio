@@ -232,6 +232,33 @@ service cloud.firestore {
     }
     
     // --------------------------------------------------------------------
+    // Doubt Resolution Rules
+    // --------------------------------------------------------------------
+    /**
+     * @description Manages student doubts. Students can create their own doubts.
+     *              The student who created it, or any teacher, can update it (e.g., answer/close).
+     * @path        /doubts/{doubtId}
+     * @allow       (create) The student creating their own doubt.
+     * @allow       (get, list) Any signed-in user.
+     * @allow       (update) The student owner or any teacher.
+     * @allow       (delete) The student owner.
+     * @principle   Facilitates a Q&A forum while protecting data integrity.
+     */
+    match /doubts/{doubtId} {
+      allow get, list: if isSignedIn();
+
+      allow create: if isSignedIn()
+                    && request.resource.data.studentId == request.auth.uid
+                    && request.resource.data.question is string && request.resource.data.question.size() > 0
+                    && request.resource.data.status == 'open';
+
+      allow update: if resource != null
+                    && (isOwner(resource.data.studentId) || isTeacher());
+                    
+      allow delete: if resource != null && isOwner(resource.data.studentId);
+    }
+
+    // --------------------------------------------------------------------
     // Subscription & Billing Rules
     // --------------------------------------------------------------------
     

@@ -1,5 +1,5 @@
 /**
- * This Firestore Security Ruleset is designed for the JEE Prep Ace application.
+ * This Firestore Security Ruleset is designed for the DCAM Classes application.
  *
  * Core Philosophy:
  * The security model is based on a clear separation between public, read-only educational

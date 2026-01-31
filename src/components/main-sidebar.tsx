@@ -43,7 +43,7 @@ export default function MainSidebar() {
         <Link href="/dashboard" className="flex items-center gap-2">
           <Logo className="w-8 h-8 text-primary" />
           <span className="font-headline text-2xl font-semibold text-primary">
-            JEE Prep Ace
+            DCAM Classes
           </span>
         </Link>
       </SidebarHeader>
@@ -73,5 +73,3 @@ export default function MainSidebar() {
     </>
   );
 }
-
-    

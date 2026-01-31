@@ -4,8 +4,8 @@ import "./globals.css";
 import { FirebaseClientProvider } from "@/firebase/client-provider";
 
 export const metadata: Metadata = {
-  title: "JEE Prep Ace",
-  description: "Your partner in acing the IIT JEE.",
+  title: "DCAM Classes",
+  description: "Your partner in acing your exams.",
 };
 
 export default function RootLayout({

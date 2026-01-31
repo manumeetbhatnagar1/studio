@@ -45,6 +45,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
+import PdfQuestionExtractor from '@/components/pdf-question-extractor';
 
 const questionSchema = z.object({
   questionText: z.string().min(10, 'Question must be at least 10 characters.'),
@@ -143,6 +144,9 @@ export default function PracticePage() {
     setIsSubmitting(false);
   };
   
+  const handleTextExtracted = (text: string) => {
+    form.setValue('questionText', text);
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -150,12 +154,13 @@ export default function PracticePage() {
       <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 grid gap-8">
         {isTeacher && (
              <div className='space-y-8'>
+                <PdfQuestionExtractor onTextExtracted={handleTextExtracted} />
                 <Card className="shadow-lg">
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2 font-headline text-2xl">
                         <PlusCircle className="w-6 h-6" /> Create New MCQ Question
                         </CardTitle>
-                        <CardDescription>Fill out the form below to add a new multiple-choice question.</CardDescription>
+                        <CardDescription>Fill out the form below to add a new multiple-choice question manually, or use the tool above to extract from a PDF.</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <Form {...form}>

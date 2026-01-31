@@ -59,9 +59,6 @@ const mcqSchema = baseSchema.extend({
     questionType: z.literal('MCQ'),
     options: z.array(z.string().min(1, "Option cannot be empty.")).length(4, "You must provide 4 options."),
     correctAnswer: z.string().min(1, "Please select the correct answer."),
-}).refine(data => data.options.includes(data.correctAnswer), {
-    message: "Correct answer must match one of the options.",
-    path: ['correctAnswer'],
 });
 
 const numericalSchema = baseSchema.extend({
@@ -72,7 +69,17 @@ const numericalSchema = baseSchema.extend({
 const questionSchema = z.discriminatedUnion("questionType", [
     mcqSchema,
     numericalSchema
-]);
+]).superRefine((data, ctx) => {
+    if (data.questionType === 'MCQ') {
+        if (data.options && !data.options.includes(data.correctAnswer)) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "Correct answer must match one of the options.",
+                path: ['correctAnswer'],
+            });
+        }
+    }
+});
 
 type PracticeQuestion = {
   id: string;
@@ -231,7 +238,14 @@ export default function PracticePage() {
                                     <FormLabel>Question Type</FormLabel>
                                     <FormControl>
                                         <RadioGroup
-                                        onValueChange={field.onChange}
+                                        onValueChange={(value) => {
+                                            field.onChange(value);
+                                            if (value === 'MCQ') {
+                                                form.reset({ ...form.getValues(), numericalAnswer: undefined, options: ['', '', '', ''], correctAnswer: '' });
+                                            } else {
+                                                form.reset({ ...form.getValues(), options: undefined, correctAnswer: undefined });
+                                            }
+                                        }}
                                         defaultValue={field.value}
                                         className="flex flex-row space-x-4"
                                         >
@@ -332,7 +346,7 @@ export default function PracticePage() {
                                         <FormItem>
                                         <FormLabel>Correct Numerical Answer</FormLabel>
                                         <FormControl>
-                                            <Input type="number" placeholder="e.g., 42" {...field} />
+                                            <Input type="number" placeholder="e.g., 42" {...field} onChange={event => field.onChange(+event.target.value)} />
                                         </FormControl>
                                         <FormMessage />
                                         </FormItem>

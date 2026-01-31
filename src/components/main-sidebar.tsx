@@ -52,16 +52,17 @@ export default function MainSidebar() {
         <SidebarMenu>
           {navItems.map((item) => (
             <SidebarMenuItem key={item.title}>
-              <Link href={item.href} legacyBehavior passHref>
-                <SidebarMenuButton
-                  isActive={pathname === item.href}
-                  tooltip={{ children: item.title }}
-                >
+              <SidebarMenuButton
+                asChild
+                isActive={pathname === item.href}
+                tooltip={{ children: item.title }}
+              >
+                <Link href={item.href}>
                   <item.icon />
                   <span>{item.title}</span>
                   {item.label && <Badge variant="destructive" className="ml-auto">{item.label}</Badge>}
-                </SidebarMenuButton>
-              </Link>
+                </Link>
+              </SidebarMenuButton>
             </SidebarMenuItem>
           ))}
         </SidebarMenu>
@@ -72,5 +73,3 @@ export default function MainSidebar() {
     </>
   );
 }
-
-    

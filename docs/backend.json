@@ -366,6 +366,65 @@
         "topicIds",
         "recommendationReason"
       ]
+    },
+    "StudyRequirement": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "StudyRequirement",
+      "type": "object",
+      "description": "Represents a student's requirement for tutoring or classes.",
+      "properties": {
+        "studentId": {
+          "type": "string",
+          "description": "Reference to User (Student)."
+        },
+        "studentName": {
+          "type": "string",
+          "description": "Denormalized name of the student who posted the requirement."
+        },
+        "studentEmail": {
+          "type": "string",
+          "description": "Denormalized email of the student for contact.",
+          "format": "email"
+        },
+        "subject": {
+          "type": "string",
+          "description": "The subject the student needs help with."
+        },
+        "examType": {
+          "type": "string",
+          "description": "The target examination (e.g., IIT JEE, CBSE)."
+        },
+        "classType": {
+          "type": "string",
+          "description": "The preferred mode of class.",
+          "enum": [
+            "Online",
+            "Offline"
+          ]
+        },
+        "createdAt": {
+          "type": "object",
+          "description": "Timestamp for when the requirement was created."
+        },
+        "status": {
+          "type": "string",
+          "description": "The status of the requirement.",
+          "enum": [
+            "Open",
+            "Closed"
+          ]
+        }
+      },
+      "required": [
+        "studentId",
+        "studentName",
+        "studentEmail",
+        "subject",
+        "examType",
+        "classType",
+        "createdAt",
+        "status"
+      ]
     }
   },
   "auth": {
@@ -559,8 +618,26 @@
             }
           ]
         }
+      },
+      {
+        "path": "/study_requirements/{requirementId}",
+        "definition": {
+          "entityName": "StudyRequirement",
+          "schema": {
+            "$ref": "#/backend/entities/StudyRequirement"
+          },
+          "description": "Stores student study requirements. Publicly readable by teachers, writable only by the student owner.",
+          "params": [
+            {
+              "name": "requirementId",
+              "description": "The unique identifier for the study requirement."
+            }
+          ]
+        }
       }
     ],
     "reasoning": "The Firestore data structure is designed to support the core features of the JEE Prep Ace application, focusing on content delivery, live classes, practice questions, mock tests, doubt resolution, personalized learning paths, and progress tracking. The structure prioritizes authorization independence, clarity, and scalability. To achieve Authorization Independence we denormalize data where necessary. For example, teacher information relevant to a LiveClass is accessible without requiring a separate read. Segregation is used extensively to ensure data with different security requirements are stored in different collections, which simplifies the security rules. Path-based ownership is used for user-specific data to easily control access. The use of membership maps are used to support collaborative data access where needed, although in this specific case collaborative data is not explicitly mentioned in the requirements."
   }
 }
+
+    

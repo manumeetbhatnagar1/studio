@@ -9,6 +9,7 @@ import {
   MessageSquare,
   Target,
   Video,
+  PenSquare,
 } from 'lucide-react';
 import { Logo } from '@/components/icons';
 import type { NavItem } from '@/lib/types';
@@ -30,6 +31,7 @@ const navItems: NavItem[] = [
   { title: 'Practice', href: '/practice', icon: ClipboardList },
   { title: 'Mock Tests', href: '/mock-tests', icon: Target },
   { title: 'Doubts', href: '/doubts', icon: MessageSquare },
+  { title: 'Study Requirements', href: '/study-requirements', icon: PenSquare },
 ];
 
 export default function MainSidebar() {
@@ -70,3 +72,5 @@ export default function MainSidebar() {
     </>
   );
 }
+
+    

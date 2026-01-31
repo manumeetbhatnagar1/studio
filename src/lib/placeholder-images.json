@@ -35,6 +35,12 @@
       "description": "Card image for doubt resolution section",
       "imageUrl": "https://images.unsplash.com/photo-1606595898127-a06c52b4e2b3?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw5fHxxdWVzdGlvbiUyMG1hcmt8ZW58MHx8fHwxNzY5ODQzNzE3fDA&ixlib=rb-4.1.0&q=80&w=1080",
       "imageHint": "question mark"
+    },
+    {
+      "id": "study-requirement",
+      "description": "Card image for study requirement",
+      "imageUrl": "https://images.unsplash.com/photo-1524178232363-1fb2b075b655?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw1fHxzdHVkZW50JTIwcmFpc2luZyUyMGhhbmR8ZW58MHx8fHwxNzEwNDk5Mjc3fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "student hand"
     }
   ]
 }

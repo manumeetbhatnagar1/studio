@@ -14,7 +14,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -23,9 +22,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { PlusCircle, LoaderCircle, MessageSquare, User, HelpCircle, CheckCircle } from 'lucide-react';
 import type { Timestamp } from 'firebase/firestore';
+import { Input } from '@/components/ui/input';
 
 // Data types
-type Topic = { id: string; name: string };
 type Doubt = {
   id: string;
   studentId: string;
@@ -43,12 +42,12 @@ type Doubt = {
 
 // Zod schema for the doubt form
 const doubtSchema = z.object({
-  topicId: z.string().min(1, 'Please select a topic.'),
+  topicId: z.string().min(1, 'Please enter a topic.'),
   question: z.string().min(20, 'Your question must be at least 20 characters long.'),
 });
 
 // Component for the "Ask a Doubt" form
-const AskDoubtForm: FC<{ topics: Topic[]; setOpen: (open: boolean) => void }> = ({ topics, setOpen }) => {
+const AskDoubtForm: FC<{ setOpen: (open: boolean) => void }> = ({ setOpen }) => {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -85,10 +84,9 @@ const AskDoubtForm: FC<{ topics: Topic[]; setOpen: (open: boolean) => void }> = 
         <FormField control={form.control} name="topicId" render={({ field }) => (
           <FormItem>
             <FormLabel>Topic</FormLabel>
-            <Select onValueChange={field.onChange} defaultValue={field.value}>
-              <FormControl><SelectTrigger><SelectValue placeholder="Select a relevant topic" /></SelectTrigger></FormControl>
-              <SelectContent>{topics.map(topic => <SelectItem key={topic.id} value={topic.id}>{topic.name}</SelectItem>)}</SelectContent>
-            </Select>
+            <FormControl>
+                <Input placeholder="e.g., Kinematics, Thermodynamics" {...field} />
+            </FormControl>
             <FormMessage />
           </FormItem>
         )} />
@@ -156,10 +154,8 @@ export default function DoubtsPage() {
   const firestore = useFirestore();
   const [isFormOpen, setIsFormOpen] = useState(false);
 
-  const topicsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'topics'), orderBy('name')) : null, [firestore]);
   const doubtsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'doubts'), orderBy('createdAt', 'desc')) : null, [firestore]);
 
-  const { data: topics, isLoading: areTopicsLoading } = useCollection<Topic>(topicsQuery);
   const { data: doubts, isLoading: areDoubtsLoading } = useCollection<Doubt>(doubtsQuery);
 
   const filteredDoubts = useMemo(() => {
@@ -172,7 +168,7 @@ export default function DoubtsPage() {
     };
   }, [doubts, user]);
   
-  const isLoading = areTopicsLoading || areDoubtsLoading || isTeacherLoading;
+  const isLoading = areDoubtsLoading || isTeacherLoading;
 
   const getStatus = (doubt: Doubt) => {
     switch (doubt.status) {
@@ -251,14 +247,14 @@ export default function DoubtsPage() {
                 {!isTeacher && (
                     <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
                         <DialogTrigger asChild>
-                            <Button disabled={areTopicsLoading}><PlusCircle className="mr-2"/>Ask a New Doubt</Button>
+                            <Button><PlusCircle className="mr-2"/>Ask a New Doubt</Button>
                         </DialogTrigger>
                         <DialogContent>
                             <DialogHeader>
                                 <DialogTitle>Ask a New Doubt</DialogTitle>
                                 <DialogDescription>Our experts will get back to you shortly.</DialogDescription>
                             </DialogHeader>
-                            <AskDoubtForm topics={topics || []} setOpen={setIsFormOpen} />
+                            <AskDoubtForm setOpen={setIsFormOpen} />
                         </DialogContent>
                     </Dialog>
                 )}

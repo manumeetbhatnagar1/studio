@@ -6,9 +6,9 @@ import {
   type PersonalizedLearningPathOutput,
 } from "@/ai/flows/personalized-learning-path";
 import {
-  extractTextFromImage,
-  type ExtractTextFromImageInput,
-  type ExtractTextFromImageOutput,
+  extractMcqFromImage,
+  type ExtractMcqFromImageInput,
+  type ExtractMcqFromImageOutput,
 } from "@/ai/flows/extract-text-from-image";
 
 
@@ -39,27 +39,30 @@ export async function getRecommendations(
   }
 }
 
-type ExtractTextResult = ExtractTextFromImageOutput & {
+type ExtractMcqResult = ExtractMcqFromImageOutput & {
   error?: string;
 };
 
 export async function extractQuestionFromImage(
-  input: ExtractTextFromImageInput
-): Promise<ExtractTextResult> {
+  input: ExtractMcqFromImageInput
+): Promise<ExtractMcqResult> {
   try {
-    const result = await extractTextFromImage(input);
+    const result = await extractMcqFromImage(input);
     if (!result) {
       return { 
-        error: "Failed to extract text. The AI model did not return a result.",
-        extractedText: "",
+        error: "Failed to extract MCQ data. The AI model did not return a result.",
+        questionText: "",
+        options: [],
       };
     }
     return result;
   } catch (error) {
-    console.error("Error extracting text:", error);
+    console.error("Error extracting MCQ data:", error);
+    const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred while extracting MCQ data.";
     return { 
-        error: "An unexpected error occurred while extracting text.",
-        extractedText: "",
+        error: errorMessage,
+        questionText: "",
+        options: [],
      };
   }
 }

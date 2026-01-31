@@ -144,8 +144,14 @@ export default function PracticePage() {
     setIsSubmitting(false);
   };
   
-  const handleTextExtracted = (text: string) => {
-    form.setValue('questionText', text);
+  const handleMcqExtracted = (data: { questionText: string; options: string[] }) => {
+    form.setValue('questionText', data.questionText);
+    data.options.forEach((option, index) => {
+      if (index < 4) {
+        form.setValue(`options.${index}`, option);
+      }
+    });
+    form.setValue('correctAnswer', '');
   };
 
   return (
@@ -154,7 +160,7 @@ export default function PracticePage() {
       <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 grid gap-8">
         {isTeacher && (
              <div className='space-y-8'>
-                <PdfQuestionExtractor onTextExtracted={handleTextExtracted} />
+                <PdfQuestionExtractor onMcqExtracted={handleMcqExtracted} />
                 <Card className="shadow-lg">
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2 font-headline text-2xl">

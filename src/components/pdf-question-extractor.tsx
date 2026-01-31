@@ -18,7 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 interface PdfQuestionExtractorProps {
-  onTextExtracted: (text: string) => void;
+  onMcqExtracted: (data: { questionText: string; options: string[] }) => void;
 }
 
 function centerAspectCrop(mediaWidth: number, mediaHeight: number, aspect: number | undefined) {
@@ -37,7 +37,7 @@ function centerAspectCrop(mediaWidth: number, mediaHeight: number, aspect: numbe
     );
 }
 
-export default function PdfQuestionExtractor({ onTextExtracted }: PdfQuestionExtractorProps) {
+export default function PdfQuestionExtractor({ onMcqExtracted }: PdfQuestionExtractorProps) {
   const [file, setFile] = useState<File | null>(null);
   const [numPages, setNumPages] = useState<number | null>(null);
   const [pageNumber, setPageNumber] = useState(1);
@@ -100,17 +100,17 @@ export default function PdfQuestionExtractor({ onTextExtracted }: PdfQuestionExt
         title: 'Extraction Failed',
         description: result.error,
       });
-    } else if (result.extractedText) {
-      onTextExtracted(result.extractedText);
+    } else if (result.questionText && result.options?.length === 4) {
+      onMcqExtracted({ questionText: result.questionText, options: result.options });
       toast({
         title: 'Text Extracted!',
-        description: 'The question field has been populated.',
+        description: 'The question and options fields have been populated.',
       });
     } else {
       toast({
         variant: 'destructive',
-        title: 'No Text Found',
-        description: 'Could not extract any text from the selected area.',
+        title: 'Extraction Incomplete',
+        description: 'Could not extract a full question and four options from the selected area.',
       });
     }
     
@@ -204,7 +204,7 @@ export default function PdfQuestionExtractor({ onTextExtracted }: PdfQuestionExt
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Instructions</AlertTitle>
               <AlertDescription>
-                Drag the selection box over the question text you want to extract. Then click the "Extract Text" button.
+                Drag the selection box over the question text and its options. Then click the "Extract Text" button.
               </AlertDescription>
             </Alert>
 

@@ -12,11 +12,8 @@ import { LoaderCircle, UploadCloud, Scissors, ChevronsLeft, ChevronsRight } from
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { FormLabel } from './ui/form';
 
-// Configure pdfjs worker
-pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.min.mjs',
-  import.meta.url,
-).toString();
+// Configure pdfjs worker from CDN
+pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 type PdfQuestionExtractorProps = {
   onTextExtracted: (text: string) => void;

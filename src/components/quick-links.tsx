@@ -7,6 +7,7 @@ import {
   Target,
   Video,
   ArrowRight,
+  PencilRuler,
 } from "lucide-react";
 import {
   Card,
@@ -54,6 +55,13 @@ const links = [
     icon: MessageSquare,
     imageId: "doubt-resolution",
   },
+  {
+    title: "Study Requirements",
+    href: "/study-requirements",
+    description: "Post your learning needs for teachers.",
+    icon: PencilRuler,
+    imageId: "study-requirements",
+  },
 ];
 
 export default function QuickLinks() {
@@ -97,5 +105,3 @@ export default function QuickLinks() {
     </div>
   );
 }
-
-    

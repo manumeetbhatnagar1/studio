@@ -219,6 +219,20 @@
           "type": "string",
           "description": "Reference to User (Teacher). (Relationship: User 1:N LiveClass)"
         },
+        "teacherName": {
+          "type": "string",
+          "description": "The name of the teacher conducting the class (denormalized)."
+        },
+        "teacherPhotoUrl": {
+          "type": "string",
+          "description": "URL for the teacher's profile picture (denormalized).",
+          "format": "uri"
+        },
+        "meetingUrl": {
+          "type": "string",
+          "description": "The URL for the video conference meeting.",
+          "format": "uri"
+        },
         "examCategory": {
           "type": "string",
           "description": "Specifies if the class is for JEE Main, Advanced, or both.",
@@ -233,7 +247,10 @@
         "title",
         "startTime",
         "duration",
-        "teacherId"
+        "teacherId",
+        "teacherName",
+        "meetingUrl",
+        "examCategory"
       ]
     },
     "PracticeQuestion": {

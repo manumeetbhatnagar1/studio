@@ -306,6 +306,10 @@
             "Hard"
           ]
         },
+        "subjectId": {
+          "type": "string",
+          "description": "Reference to Subject. (Relationship: Subject 1:N PracticeQuestion)"
+        },
         "topicId": {
           "type": "string",
           "description": "Reference to Topic. (Relationship: Topic 1:N PracticeQuestion)"
@@ -324,6 +328,7 @@
         "questionType",
         "questionText",
         "difficultyLevel",
+        "subjectId",
         "topicId"
       ]
     },
@@ -483,6 +488,72 @@
         }
       },
       "required": ["testId", "score", "timeTaken"]
+    },
+    "CustomMockTest": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "CustomMockTest",
+      "type": "object",
+      "description": "Represents a custom mock test created by a student.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier."
+        },
+        "studentId": {
+          "type": "string",
+          "description": "Reference to the student User."
+        },
+        "title": {
+          "type": "string",
+          "description": "The title of the custom test."
+        },
+        "config": {
+          "type": "object",
+          "properties": {
+            "subjects": {
+              "type": "array",
+              "description": "Configuration for each subject in the test.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "subjectId": {
+                    "type": "string"
+                  },
+                  "subjectName": {
+                    "type": "string"
+                  },
+                  "numQuestions": {
+                    "type": "number"
+                  },
+                  "duration": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "subjectId",
+                  "subjectName",
+                  "numQuestions",
+                  "duration"
+                ]
+              }
+            }
+          },
+          "required": [
+            "subjects"
+          ]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of creation."
+        }
+      },
+      "required": [
+        "studentId",
+        "title",
+        "config",
+        "createdAt"
+      ]
     }
   },
   "auth": {
@@ -540,6 +611,26 @@
           "params": [
             { "name": "userId", "description": "The user's unique ID." },
             { "name": "resultId", "description": "The unique ID for the test result." }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/custom_tests/{testId}",
+        "definition": {
+          "entityName": "CustomMockTest",
+          "schema": {
+            "$ref": "#/backend/entities/CustomMockTest"
+          },
+          "description": "Stores custom mock tests created by students. Path-based ownership.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The user's unique ID."
+            },
+            {
+              "name": "testId",
+              "description": "The unique ID for the custom test."
+            }
           ]
         }
       },

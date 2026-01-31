@@ -5,40 +5,16 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from '@/components/ui/card';
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from '@/components/ui/accordion';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import DashboardHeader from '@/components/dashboard-header';
 import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
 import { collection, query, orderBy } from 'firebase/firestore';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { LoaderCircle, ClipboardList, PlusCircle, CheckCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useIsTeacher } from '@/hooks/useIsTeacher';
@@ -51,6 +27,7 @@ import PdfQuestionExtractor from '@/components/pdf-question-extractor';
 const baseSchema = z.object({
     questionText: z.string().min(10, 'Question must be at least 10 characters.'),
     imageUrl: z.string().optional(),
+    subjectId: z.string().min(1, 'Subject is required.'),
     topicId: z.string().min(1, 'Topic is required.'),
     difficultyLevel: z.enum(['Easy', 'Medium', 'Hard']),
 });
@@ -85,17 +62,19 @@ type PracticeQuestion = {
   id: string;
   questionText: string;
   difficultyLevel: 'Easy' | 'Medium' | 'Hard';
+  subjectId: string;
   topicId: string;
   imageUrl?: string;
   questionType: 'MCQ' | 'Numerical';
-  // MCQ fields
   options?: string[];
   correctAnswer?: string;
-  // Numerical fields
   numericalAnswer?: number;
 };
+type Subject = { id: string; name: string; };
+type Topic = { id: string; name: string; subjectId: string; };
 
-function QuestionItem({ question }: { question: PracticeQuestion }) {
+
+function QuestionItem({ question, topicMap }: { question: PracticeQuestion; topicMap: Record<string, string> }) {
   const difficultyVariant = {
     'Easy': 'default',
     'Medium': 'secondary',
@@ -108,7 +87,7 @@ function QuestionItem({ question }: { question: PracticeQuestion }) {
         <div className="flex-1 text-left">
           <p className="font-medium">{question.questionText}</p>
           <div className="flex items-center gap-2 mt-2">
-            <Badge variant="outline">{question.topicId}</Badge>
+            <Badge variant="outline">{topicMap[question.topicId] || question.topicId}</Badge>
             <Badge variant={difficultyVariant[question.difficultyLevel] || 'default'}>
               {question.difficultyLevel}
             </Badge>
@@ -158,12 +137,23 @@ export default function PracticePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { isTeacher, isLoading: isTeacherLoading } = useIsTeacher();
 
-  const questionsCollectionRef = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return query(collection(firestore, 'practice_questions'), orderBy('topicId'));
-  }, [firestore]);
+  const questionsCollectionRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'practice_questions'), orderBy('topicId')) : null, [firestore]);
+  const subjectsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'subjects'), orderBy('name')) : null, [firestore]);
+  const topicsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'topics'), orderBy('name')) : null, [firestore]);
 
   const { data: questions, isLoading: areQuestionsLoading } = useCollection<PracticeQuestion>(questionsCollectionRef);
+  const { data: subjects, isLoading: areSubjectsLoading } = useCollection<Subject>(subjectsQuery);
+  const { data: topics, isLoading: areTopicsLoading } = useCollection<Topic>(topicsQuery);
+  
+  const topicMap = useMemo(() => {
+    if (!topics) return {};
+    return topics.reduce((acc, topic) => {
+      acc[topic.id] = topic.name;
+      return acc;
+    }, {} as Record<string, string>);
+  }, [topics]);
+  
+  const isLoading = isTeacherLoading || areQuestionsLoading || areSubjectsLoading || areTopicsLoading;
 
   const form = useForm<z.infer<typeof questionSchema>>({
     resolver: zodResolver(questionSchema),
@@ -172,18 +162,22 @@ export default function PracticePage() {
         questionText: '', 
         options: ['', '', '', ''], 
         correctAnswer: '', 
+        subjectId: '',
         topicId: '', 
         difficultyLevel: 'Easy', 
         imageUrl: ''
     },
   });
 
-  const { fields } = useFieldArray({
-    control: form.control,
-    name: "options",
-  });
+  const { fields } = useFieldArray({ control: form.control, name: "options" });
   
   const questionType = form.watch('questionType');
+  const selectedSubject = form.watch('subjectId');
+
+  const filteredTopics = useMemo(() => {
+    if (!selectedSubject || !topics) return [];
+    return topics.filter(topic => topic.subjectId === selectedSubject);
+  }, [selectedSubject, topics]);
 
   const onSubmit = (values: z.infer<typeof questionSchema>) => {
     if (!isTeacher) {
@@ -227,179 +221,53 @@ export default function PracticePage() {
                         <CardDescription>Use the tool above to add an image from a PDF, then fill out the form below to create a new question.</CardDescription>
                     </CardHeader>
                     <CardContent>
+                      {isLoading ? (<Skeleton className="h-64 w-full" />) : (
                         <Form {...form}>
-                        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                            
-                            <FormField
-                                control={form.control}
-                                name="questionType"
-                                render={({ field }) => (
-                                    <FormItem className="space-y-3">
-                                    <FormLabel>Question Type</FormLabel>
-                                    <FormControl>
-                                        <RadioGroup
-                                        onValueChange={(value) => {
-                                            field.onChange(value);
-                                            if (value === 'MCQ') {
-                                                form.reset({ ...form.getValues(), numericalAnswer: undefined, options: ['', '', '', ''], correctAnswer: '' });
-                                            } else {
-                                                form.reset({ ...form.getValues(), options: undefined, correctAnswer: undefined });
-                                            }
-                                        }}
-                                        defaultValue={field.value}
-                                        className="flex flex-row space-x-4"
-                                        >
-                                        <FormItem className="flex items-center space-x-2 space-y-0">
-                                            <FormControl>
-                                            <RadioGroupItem value="MCQ" />
-                                            </FormControl>
-                                            <FormLabel className="font-normal">Multiple Choice</FormLabel>
-                                        </FormItem>
-                                        <FormItem className="flex items-center space-x-2 space-y-0">
-                                            <FormControl>
-                                            <RadioGroupItem value="Numerical" />
-                                            </FormControl>
-                                            <FormLabel className="font-normal">Numerical Answer</FormLabel>
-                                        </FormItem>
-                                        </RadioGroup>
-                                    </FormControl>
-                                    <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-
-                            <FormField
-                            control={form.control}
-                            name="questionText"
-                            render={({ field }) => (
-                                <FormItem>
-                                <FormLabel>Question Text</FormLabel>
-                                <FormControl>
-                                    <Textarea placeholder="e.g., What is the formula for..." {...field} rows={4} />
-                                </FormControl>
-                                <FormMessage />
-                                </FormItem>
-                            )}
-                            />
-
-                            {form.watch('imageUrl') && (
-                                <FormItem>
-                                    <FormLabel>Image Preview</FormLabel>
-                                    <FormControl>
-                                        <div className="p-4 border rounded-md flex justify-center bg-muted/50">
-                                            <Image 
-                                                src={form.watch('imageUrl')!}
-                                                alt="Extracted image preview"
-                                                width={400}
-                                                height={300}
-                                                className="rounded-md object-contain"
-                                            />
-                                        </div>
-                                    </FormControl>
-                                </FormItem>
-                            )}
-
-                            {questionType === 'MCQ' && (
-                                <div className="space-y-4">
-                                    <FormLabel>Options & Correct Answer</FormLabel>
-                                    <FormField
-                                    control={form.control}
-                                    name="correctAnswer"
-                                    render={({ field }) => (
-                                        <FormItem className='space-y-0'>
-                                            <FormControl>
-                                                <RadioGroup
-                                                    onValueChange={field.onChange}
-                                                    defaultValue={field.value}
-                                                    className="grid grid-cols-1 md:grid-cols-2 gap-4"
-                                                >
-                                                {fields.map((item, index) => (
-                                                    <FormField
-                                                        key={item.id}
-                                                        control={form.control}
-                                                        name={`options.${index}`}
-                                                        render={({ field: optionField }) => (
-                                                            <FormItem className="flex items-center gap-2 space-y-0 rounded-md border p-4 has-[:checked]:border-primary">
-                                                                <FormControl>
-                                                                    <RadioGroupItem value={optionField.value} disabled={!optionField.value} />
-                                                                </FormControl>
-                                                                <Input {...optionField} placeholder={`Option ${index + 1}`} className="border-none p-0 h-auto focus-visible:ring-0 focus-visible:ring-offset-0" />
-                                                                <FormMessage className="col-span-2"/>
-                                                            </FormItem>
-                                                        )}
-                                                    />
-                                                ))}
-                                                </RadioGroup>
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                    />
-                                </div>
-                            )}
-
-                            {questionType === 'Numerical' && (
-                                <FormField
-                                    control={form.control}
-                                    name="numericalAnswer"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                        <FormLabel>Correct Numerical Answer</FormLabel>
-                                        <FormControl>
-                                            <Input type="number" placeholder="e.g., 42" {...field} onChange={event => field.onChange(+event.target.value)} />
-                                        </FormControl>
-                                        <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                            )}
-                            
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <FormField
-                                    control={form.control}
-                                    name="topicId"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                        <FormLabel>Topic</FormLabel>
-                                        <FormControl>
-                                            <Input placeholder="e.g., Kinematics" {...field} />
-                                        </FormControl>
-                                        <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                                <FormField
-                                    control={form.control}
-                                    name="difficultyLevel"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                        <FormLabel>Difficulty</FormLabel>
-                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                                <FormControl>
-                                                    <SelectTrigger>
-                                                        <SelectValue placeholder="Select difficulty" />
-                                                    </SelectTrigger>
-                                                </FormControl>
-                                                <SelectContent>
-                                                    <SelectItem value="Easy">Easy</SelectItem>
-                                                    <SelectItem value="Medium">Medium</SelectItem>
-                                                    <SelectItem value="Hard">Hard</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                            </div>
-                            <Button type="submit" disabled={isSubmitting || isTeacherLoading}>
-                            {isSubmitting ? (
-                                <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> Adding...</>
-                            ) : (
-                                'Add Question'
-                            )}
-                            </Button>
-                        </form>
+                          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                              <FormField control={form.control} name="questionType" render={({ field }) => (
+                                  <FormItem className="space-y-3"><FormLabel>Question Type</FormLabel>
+                                      <FormControl>
+                                          <RadioGroup onValueChange={(value) => { field.onChange(value);
+                                              if (value === 'MCQ') { form.reset({ ...form.getValues(), numericalAnswer: undefined, options: ['', '', '', ''], correctAnswer: '' });
+                                              } else { form.reset({ ...form.getValues(), options: undefined, correctAnswer: undefined }); }
+                                          }} defaultValue={field.value} className="flex flex-row space-x-4">
+                                          <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="MCQ" /></FormControl><FormLabel className="font-normal">Multiple Choice</FormLabel></FormItem>
+                                          <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="Numerical" /></FormControl><FormLabel className="font-normal">Numerical Answer</FormLabel></FormItem>
+                                          </RadioGroup>
+                                      </FormControl>
+                                      <FormMessage />
+                                  </FormItem>
+                              )} />
+                              <FormField control={form.control} name="questionText" render={({ field }) => (<FormItem><FormLabel>Question Text</FormLabel><FormControl><Textarea placeholder="e.g., What is the formula for..." {...field} rows={4} /></FormControl><FormMessage /></FormItem>)} />
+                              {form.watch('imageUrl') && (<FormItem><FormLabel>Image Preview</FormLabel><FormControl><div className="p-4 border rounded-md flex justify-center bg-muted/50"><Image src={form.watch('imageUrl')!} alt="Extracted image preview" width={400} height={300} className="rounded-md object-contain" /></div></FormControl></FormItem>)}
+                              {questionType === 'MCQ' && (
+                                  <div className="space-y-4">
+                                      <FormLabel>Options & Correct Answer</FormLabel>
+                                      <FormField control={form.control} name="correctAnswer" render={({ field }) => (
+                                          <FormItem className='space-y-0'><FormControl>
+                                              <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                              {fields.map((item, index) => (<FormField key={item.id} control={form.control} name={`options.${index}`} render={({ field: optionField }) => (<FormItem className="flex items-center gap-2 space-y-0 rounded-md border p-4 has-[:checked]:border-primary"><FormControl><RadioGroupItem value={optionField.value} disabled={!optionField.value} /></FormControl><Input {...optionField} placeholder={`Option ${index + 1}`} className="border-none p-0 h-auto focus-visible:ring-0 focus-visible:ring-offset-0" /><FormMessage className="col-span-2"/></FormItem>)} />))}
+                                              </RadioGroup>
+                                          </FormControl><FormMessage /></FormItem>
+                                      )} />
+                                  </div>
+                              )}
+                              {questionType === 'Numerical' && (<FormField control={form.control} name="numericalAnswer" render={({ field }) => (<FormItem><FormLabel>Correct Numerical Answer</FormLabel><FormControl><Input type="number" placeholder="e.g., 42" {...field} onChange={event => field.onChange(+event.target.value)} /></FormControl><FormMessage /></FormItem>)} />)}
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <FormField control={form.control} name="subjectId" render={({ field }) => (
+                                  <FormItem><FormLabel>Subject</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a subject" /></SelectTrigger></FormControl><SelectContent>{subjects?.map(subject => <SelectItem key={subject.id} value={subject.id}>{subject.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+                                )} />
+                                <FormField control={form.control} name="topicId" render={({ field }) => (
+                                  <FormItem><FormLabel>Topic</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value} disabled={!selectedSubject}><FormControl><SelectTrigger><SelectValue placeholder="Select a topic" /></SelectTrigger></FormControl><SelectContent>{filteredTopics.map(topic => <SelectItem key={topic.id} value={topic.id}>{topic.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+                                )} />
+                                <FormField control={form.control} name="difficultyLevel" render={({ field }) => (
+                                  <FormItem><FormLabel>Difficulty</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select difficulty" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Easy">Easy</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Hard">Hard</SelectItem></SelectContent></Select><FormMessage /></FormItem>
+                                )} />
+                              </div>
+                              <Button type="submit" disabled={isSubmitting || isTeacherLoading}>{isSubmitting ? (<><LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> Adding...</>) : ('Add Question')}</Button>
+                          </form>
                         </Form>
+                      )}
                     </CardContent>
                 </Card>
             </div>
@@ -422,7 +290,7 @@ export default function PracticePage() {
                 ) : questions && questions.length > 0 ? (
                     <Accordion type="single" collapsible className="w-full">
                         {questions.map(q => (
-                            <QuestionItem key={q.id} question={q} />
+                            <QuestionItem key={q.id} question={q} topicMap={topicMap} />
                         ))}
                     </Accordion>
                 ) : (
@@ -437,5 +305,3 @@ export default function PracticePage() {
     </div>
   );
 }
-
-    

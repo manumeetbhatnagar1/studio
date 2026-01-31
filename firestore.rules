@@ -109,6 +109,16 @@ service cloud.firestore {
         allow get, list, create: if isOwner(userId);
         allow update, delete: if false;
       }
+
+      /**
+       * @description Stores custom mock tests created by the user.
+       * @path        /users/{userId}/custom_tests/{testId}
+       * @allow       (create, get, list, update, delete) The owner of the user document.
+       * @principle   Enforces data ownership for custom tests.
+       */
+      match /custom_tests/{testId} {
+        allow read, write: if isOwner(userId);
+      }
     }
     
     

@@ -176,7 +176,7 @@ export default function DoubtsPage() {
       answer: '',
     });
     toast({
-      title: 'Doubt Submitted!',
+      title: 'Enquiry Submitted!',
       description: 'Your question has been posted for our teachers to see.',
     });
     form.reset();
@@ -185,14 +185,14 @@ export default function DoubtsPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <DashboardHeader title="Doubt Resolution" />
+      <DashboardHeader title="Enquiries" />
       <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 grid gap-8">
         <Card className="shadow-lg">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 font-headline text-2xl">
               <MessageSquare className="w-6 h-6" /> Ask a Question
             </CardTitle>
-            <CardDescription>Have a doubt? Post it here and get it cleared by our expert instructors.</CardDescription>
+            <CardDescription>Have a question? Post it here and get it cleared by our expert instructors.</CardDescription>
           </CardHeader>
           <CardContent>
             <Form {...form}>
@@ -227,7 +227,7 @@ export default function DoubtsPage() {
                   {isSubmitting ? (
                     <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> Submitting...</>
                   ) : (
-                    <><Send className="mr-2 h-4 w-4" /> Post Doubt</>
+                    <><Send className="mr-2 h-4 w-4" /> Post Enquiry</>
                   )}
                 </Button>
               </form>
@@ -237,7 +237,7 @@ export default function DoubtsPage() {
 
         <Card className="shadow-lg">
             <CardHeader>
-                <CardTitle className="font-headline text-2xl">Asked Doubts</CardTitle>
+                <CardTitle className="font-headline text-2xl">Recent Enquiries</CardTitle>
                 <CardDescription>Browse previously asked questions and answers.</CardDescription>
             </CardHeader>
             <CardContent>
@@ -255,7 +255,7 @@ export default function DoubtsPage() {
                     </Accordion>
                 ) : (
                     <div className="text-center text-muted-foreground py-8">
-                        <p>No doubts have been asked yet. Be the first one!</p>
+                        <p>No enquiries have been posted yet. Be the first one!</p>
                     </div>
                 )}
             </CardContent>

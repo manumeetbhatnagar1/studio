@@ -274,6 +274,14 @@
           "type": "string",
           "description": "Reference to User (Student). (Relationship: User 1:N Doubt)"
         },
+        "studentName": {
+          "type": "string",
+          "description": "Denormalized name of the student who asked the question."
+        },
+        "createdAt": {
+          "type": "object",
+          "description": "Timestamp for when the doubt was created."
+        },
         "question": {
           "type": "string",
           "description": "The question posted by the student."
@@ -288,11 +296,11 @@
         }
       },
       "required": [
-        "id",
         "studentId",
+        "studentName",
         "question",
-        "answer",
-        "topicId"
+        "topicId",
+        "createdAt"
       ]
     },
     "PersonalizedLearningPath": {

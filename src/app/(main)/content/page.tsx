@@ -265,19 +265,6 @@ export default function ContentPage() {
             tree[subject.name].topics[topic.name].items.push(item);
         }
     }
-    
-    // Clean up empty subjects and topics
-    Object.keys(tree).forEach(subjectName => {
-        const subject = tree[subjectName];
-        Object.keys(subject.topics).forEach(topicName => {
-            if (subject.topics[topicName].items.length === 0) {
-                delete subject.topics[topicName];
-            }
-        });
-        if (Object.keys(subject.topics).length === 0) {
-            delete tree[subjectName];
-        }
-    });
 
     return tree;
   }, [content, topics, subjects]);
@@ -328,18 +315,24 @@ export default function ContentPage() {
                   <AccordionItem value={subjectName} key={contentTree[subjectName].subjectId} className="border rounded-lg">
                     <AccordionTrigger className="text-xl font-semibold px-6">{subjectName}</AccordionTrigger>
                     <AccordionContent className="px-6">
-                      <Accordion type="multiple" className="w-full">
-                        {Object.keys(contentTree[subjectName].topics).sort().map(topicName => (
-                          <AccordionItem value={topicName} key={contentTree[subjectName].topics[topicName].topicId}>
-                            <AccordionTrigger className="text-lg font-medium">{topicName}</AccordionTrigger>
-                            <AccordionContent>
-                              <div className="grid gap-4 pt-2">
-                                {contentTree[subjectName].topics[topicName].items.map(item => <ContentListItem key={item.id} contentItem={item} />)}
-                              </div>
-                            </AccordionContent>
-                          </AccordionItem>
-                        ))}
-                      </Accordion>
+                      {contentTree[subjectName] && Object.keys(contentTree[subjectName].topics).length > 0 ? (
+                        <Accordion type="multiple" className="w-full">
+                          {Object.keys(contentTree[subjectName].topics).sort().map(topicName => (
+                            <AccordionItem value={topicName} key={contentTree[subjectName].topics[topicName].topicId}>
+                              <AccordionTrigger className="text-lg font-medium">{topicName}</AccordionTrigger>
+                              <AccordionContent>
+                                <div className="grid gap-4 pt-2">
+                                  {contentTree[subjectName].topics[topicName].items.map(item => <ContentListItem key={item.id} contentItem={item} />)}
+                                </div>
+                              </AccordionContent>
+                            </AccordionItem>
+                          ))}
+                        </Accordion>
+                      ) : (
+                        <div className="text-center text-muted-foreground py-4">
+                          <p>No study materials have been added for this subject yet.</p>
+                        </div>
+                      )}
                     </AccordionContent>
                   </AccordionItem>
                 ))}

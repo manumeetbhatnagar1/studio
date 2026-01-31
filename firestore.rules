@@ -97,6 +97,18 @@ service cloud.firestore {
         allow get, list: if isOwner(userId);
         allow create, update, delete: if false;
       }
+      
+      /**
+       * @description Stores results for mock tests taken by the user.
+       * @path        /users/{userId}/test_results/{resultId}
+       * @allow       (create, get, list) The owner of the user document.
+       * @deny        (update, delete) Client-side updates/deletes are forbidden.
+       * @principle   Enforces data ownership for test results.
+       */
+      match /test_results/{resultId} {
+        allow get, list, create: if isOwner(userId);
+        allow update, delete: if false;
+      }
     }
     
     

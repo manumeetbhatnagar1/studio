@@ -33,7 +33,7 @@ const formSchema = z.object({
   password: z.string().min(8, 'Password must be at least 8 characters'),
 });
 
-export default function TeacherRegistrationPage() {
+export default function StudentRegistrationPage() {
   const auth = useAuth();
   const firestore = useFirestore();
   const [isLoading, setIsLoading] = useState(false);
@@ -66,16 +66,14 @@ export default function TeacherRegistrationPage() {
         firstName: values.firstName,
         lastName: values.lastName,
         email: values.email,
-        roleId: 'teacher' 
+        roleId: 'student' 
       };
+      
       setDocumentNonBlocking(userRef, userData, { merge: false });
 
-      const teacherRoleRef = doc(firestore, 'roles_teacher', user.uid);
-      setDocumentNonBlocking(teacherRoleRef, { createdAt: new Date().toISOString() }, { merge: false });
-      
       toast({
         title: 'Registration Successful',
-        description: 'Your teacher account has been created.',
+        description: 'Your student account has been created.',
       });
       router.push('/dashboard');
     } catch (error: any) {
@@ -98,8 +96,8 @@ export default function TeacherRegistrationPage() {
                 JEE Prep Ace
               </span>
             </Link>
-            <CardTitle className="text-2xl">Teacher Registration</CardTitle>
-            <CardDescription>Create your teacher account to get started.</CardDescription>
+            <CardTitle className="text-2xl">Student Registration</CardTitle>
+            <CardDescription>Create your student account to get started.</CardDescription>
         </CardHeader>
         <CardContent>
             <Form {...form}>
@@ -112,7 +110,7 @@ export default function TeacherRegistrationPage() {
                         <FormItem className="flex-1">
                         <FormLabel>First Name</FormLabel>
                         <FormControl>
-                            <Input placeholder="Rohan" {...field} />
+                            <Input placeholder="Anjali" {...field} />
                         </FormControl>
                         <FormMessage />
                         </FormItem>
@@ -125,7 +123,7 @@ export default function TeacherRegistrationPage() {
                         <FormItem className="flex-1">
                         <FormLabel>Last Name</FormLabel>
                         <FormControl>
-                            <Input placeholder="Sharma" {...field} />
+                            <Input placeholder="Patel" {...field} />
                         </FormControl>
                         <FormMessage />
                         </FormItem>
@@ -139,7 +137,7 @@ export default function TeacherRegistrationPage() {
                     <FormItem>
                     <FormLabel>Email</FormLabel>
                     <FormControl>
-                        <Input placeholder="teacher@example.com" {...field} />
+                        <Input placeholder="student@example.com" {...field} />
                     </FormControl>
                     <FormMessage />
                     </FormItem>
@@ -170,9 +168,9 @@ export default function TeacherRegistrationPage() {
                     Log in
                 </Link>
             </p>
-             <p className="mt-2 text-center text-sm text-muted-foreground">
-                Are you a student?{' '}
-                <Link href="/student-registration" className="font-medium text-primary hover:underline">
+            <p className="mt-2 text-center text-sm text-muted-foreground">
+                Are you a teacher?{' '}
+                <Link href="/teacher-registration" className="font-medium text-primary hover:underline">
                     Register here
                 </Link>
             </p>

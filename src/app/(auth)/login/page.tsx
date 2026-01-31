@@ -108,12 +108,19 @@ export default function LoginPage() {
                 </Button>
             </form>
             </Form>
-            <p className="mt-4 text-center text-sm text-muted-foreground">
-            Don&apos;t have a teacher account?{' '}
-            <Link href="/teacher-registration" className="font-medium text-primary hover:underline">
-                Register here
-            </Link>
-            </p>
+            <div className="mt-4 text-center text-sm text-muted-foreground">
+                <p>
+                    Don&apos;t have an account?
+                </p>
+                <div className="flex justify-center gap-4 mt-2">
+                    <Link href="/student-registration" className="font-medium text-primary hover:underline">
+                        Register as Student
+                    </Link>
+                    <Link href="/teacher-registration" className="font-medium text-primary hover:underline">
+                        Register as Teacher
+                    </Link>
+                </div>
+            </div>
         </CardContent>
     </Card>
   );

@@ -7,9 +7,3 @@ export type NavItem = {
   icon: LucideIcon;
   label?: string;
 };
-
-export type TestResult = {
-  topic: string;
-  score: number;
-  maxScore: number;
-};

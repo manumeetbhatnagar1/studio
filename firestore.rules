@@ -9,7 +9,6 @@
  *
  * Data Structure:
  * - /users/{userId}: Private user profile data.
- * - /users/{userId}/...: Subcollections for user-specific data like test results and learning paths.
  * - /roles_teacher/{userId}: A lookup collection to identify users with the 'teacher' role.
  * - Top-level collections (e.g., /content, /topics, /live_classes): Shared educational
  *   materials accessible to all authenticated users.
@@ -23,12 +22,9 @@
  *   prevents students from modifying the curriculum.
  * - Public Content Accessibility: All signed-in users (students and teachers) can read shared
  *   educational content to facilitate learning.
- * - Denormalization for Authorization: Ownership fields like 'studentId' and 'teacherId' are
+ * - Denormalization for Authorization: Ownership fields like 'teacherId' are
  *   denormalized onto documents. This allows for fast, efficient security checks without
  *   requiring slow and costly `get()` calls to other documents for most rules.
- * - Structural Segregation: Private data (e.g., `test_results`) is stored in a user-specific
- *   subcollection, which is more secure and performant than storing it in a top-level
- *   collection with UID-based query rules.
  */
 rules_version = '2';
 service cloud.firestore {
@@ -87,34 +83,6 @@ service cloud.firestore {
       allow list: if false;
       allow create: if isOwner(userId) && request.resource.data.id == userId;
       allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
-      allow delete: if isExistingOwner(userId);
-    }
-
-    /**
-     * @description Secures a student's private test results.
-     * @path        /users/{userId}/test_results/{studentTestResultId}
-     * @allow       (create) A user saving a new test result for themselves.
-     * @deny        (get) A user trying to view another user's test results.
-     * @principle   Restricts access to a user's own data tree using path-based ownership.
-     */
-    match /users/{userId}/test_results/{studentTestResultId} {
-      allow get, list: if isOwner(userId);
-      allow create: if isOwner(userId) && request.resource.data.studentId == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.studentId == resource.data.studentId;
-      allow delete: if isExistingOwner(userId);
-    }
-
-    /**
-     * @description Secures a student's personalized learning path.
-     * @path        /users/{userId}/learning_paths/{personalizedLearningPathId}
-     * @allow       (get) A user retrieving their own learning path.
-     * @deny        (list) A user trying to list another user's learning paths.
-     * @principle   Restricts access to a user's own data tree using path-based ownership.
-     */
-    match /users/{userId}/learning_paths/{personalizedLearningPathId} {
-      allow get, list: if isOwner(userId);
-      allow create: if isOwner(userId) && request.resource.data.studentId == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.studentId == resource.data.studentId;
       allow delete: if isExistingOwner(userId);
     }
 
@@ -182,6 +150,17 @@ service cloud.firestore {
       allow get, list: if isSignedIn();
       allow create, update, delete: if isTeacher();
     }
+    
+    /**
+     * @description Subject definitions. Readable by anyone signed in.
+     * @path        /subjects/{subjectId}
+     * @allow       (list) Any signed-in user listing available subjects.
+     * @principle   Public read access.
+     */
+    match /subjects/{subjectId} {
+        allow get, list: if isSignedIn();
+        allow create, update, delete: if isTeacher();
+    }
 
     /**
      * @description Practice questions. Readable by anyone signed in, but only manageable by teachers.
@@ -224,21 +203,6 @@ service cloud.firestore {
       allow create: if isTeacher() && request.resource.data.teacherId == request.auth.uid;
       allow update: if resource != null && isOwner(resource.data.teacherId);
       allow delete: if resource != null && isOwner(resource.data.teacherId);
-    }
-
-    /**
-     * @description Student-submitted doubts. Anyone can read doubts to learn.
-     *              A student owns their doubt, but teachers can update it to add an answer.
-     * @path        /doubts/{doubtId}
-     * @allow       (update) A teacher adding an answer to a student's doubt.
-     * @deny        (update) A student trying to modify another student's doubt.
-     * @principle   Shared read with mixed-ownership writes (owner and role).
-     */
-    match /doubts/{doubtId} {
-      allow get, list: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.studentId == request.auth.uid;
-      allow update: if resource != null && (isOwner(resource.data.studentId) || isTeacher());
-      allow delete: if resource != null && isOwner(resource.data.studentId);
     }
   }
 }

@@ -47,13 +47,6 @@ const links = [
     icon: Target,
     imageId: "mock-tests",
   },
-  {
-    title: "Doubts",
-    href: "/doubts",
-    description: "Get your questions answered.",
-    icon: MessageSquare,
-    imageId: "doubt-resolution",
-  },
 ];
 
 export default function QuickLinks() {

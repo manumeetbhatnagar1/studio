@@ -36,16 +36,12 @@ const formSchema = z.object({
   duration: z.coerce.number().min(1, 'Duration must be at least 1 minute.'),
   totalQuestions: z.coerce.number().int().min(1, 'Total questions must be at least 1.'),
   subjectConfigs: z.array(subjectConfigSchema).min(1, 'At least one subject must be configured.'),
-  questionIds: z.array(z.string()),
 }).refine(data => {
     const totalFromSubjects = data.subjectConfigs.reduce((sum, config) => sum + config.numQuestions, 0);
     return totalFromSubjects === data.totalQuestions;
 }, {
     message: 'The sum of questions from each subject must equal the total number of questions.',
     path: ['totalQuestions'],
-}).refine(data => data.questionIds.length === data.totalQuestions, {
-    message: 'The number of selected questions must match the total questions configured.',
-    path: ['questionIds'],
 });
 
 
@@ -76,7 +72,6 @@ export default function CreateCustomTestPage() {
       duration: 60,
       totalQuestions: 0,
       subjectConfigs: [],
-      questionIds: [],
     },
   });
 
@@ -85,30 +80,13 @@ export default function CreateCustomTestPage() {
     name: "subjectConfigs"
   });
 
-  const selectedQuestionIds = form.watch('questionIds');
   const subjectConfigs = form.watch('subjectConfigs');
 
-  const handleAutoSelect = () => {
-    const { subjectConfigs, accessLevel, totalQuestions } = form.getValues();
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    if(!user) return;
+    setIsSubmitting(true);
 
-    if (!subjectConfigs || subjectConfigs.length === 0 || !totalQuestions || totalQuestions === 0) {
-      toast({
-        variant: 'destructive',
-        title: 'Incomplete Configuration',
-        description: 'Please define the total questions and subject structure first.',
-      });
-      return;
-    }
-    
-    const sumOfSubjectQs = subjectConfigs.reduce((acc, c) => acc + c.numQuestions, 0);
-    if (sumOfSubjectQs !== totalQuestions) {
-            toast({
-            variant: 'destructive',
-            title: 'Configuration Mismatch',
-            description: 'The sum of questions per subject does not match the total questions.',
-        });
-        return;
-    }
+    const { subjectConfigs, accessLevel, totalQuestions } = values;
 
     const availableQuestions = (allQuestions || []).filter(
       q => q.accessLevel === accessLevel
@@ -124,49 +102,42 @@ export default function CreateCustomTestPage() {
 
     let selectedIds: string[] = [];
     let possible = true;
+    let errorMessages: string[] = [];
 
     for (const config of subjectConfigs) {
       const subjectQuestionPool = questionsBySubject[config.subjectId] || [];
       if (subjectQuestionPool.length < config.numQuestions) {
         const subject = subjects?.find(s => s.id === config.subjectId);
+        errorMessages.push(`Not enough questions for ${subject?.name || 'a subject'}. Found ${subjectQuestionPool.length}, need ${config.numQuestions}.`);
+        possible = false;
+      } else {
+         const shuffled = [...subjectQuestionPool].sort(() => 0.5 - Math.random());
+         const selectedForSubject = shuffled.slice(0, config.numQuestions).map(q => q.id);
+         selectedIds.push(...selectedForSubject);
+      }
+    }
+    
+    if (!possible) {
         toast({
           variant: 'destructive',
-          title: 'Not Enough Questions',
-          description: `Not enough questions available for ${subject?.name || 'the selected subject'}. Found ${subjectQuestionPool.length}, need ${config.numQuestions}.`,
+          title: 'Cannot Create Test',
+          description: errorMessages.join(' '),
         });
-        possible = false;
-        break;
-      }
-
-      // Shuffle and pick, ensuring no duplicates if this function is ever called multiple times
-      const shuffled = [...subjectQuestionPool].filter(q => !selectedIds.includes(q.id)).sort(() => 0.5 - Math.random());
-      const selectedForSubject = shuffled.slice(0, config.numQuestions).map(q => q.id);
-      selectedIds.push(...selectedForSubject);
+        setIsSubmitting(false);
+        return;
     }
     
     const finalIds = [...new Set(selectedIds)];
 
-    if (possible) {
-        if(finalIds.length !== totalQuestions) {
-             toast({
-                variant: 'destructive',
-                title: 'Selection Error',
-                description: `Could only select ${finalIds.length} out of ${totalQuestions} questions. Please check question availability.`,
-            });
-            form.setValue('questionIds', finalIds, { shouldValidate: true });
-        } else {
-            form.setValue('questionIds', finalIds, { shouldValidate: true });
-            toast({
-                title: 'Questions Auto-Selected',
-                description: `${finalIds.length} questions have been automatically selected for your test.`,
-            });
-        }
+    if (finalIds.length !== totalQuestions) {
+        toast({
+            variant: 'destructive',
+            title: 'Selection Error',
+            description: `Could only select ${finalIds.length} out of ${totalQuestions} required questions. Please adjust your configuration or add more questions to the bank.`,
+        });
+        setIsSubmitting(false);
+        return;
     }
-  };
-
-  async function onSubmit(values: z.infer<typeof formSchema>) {
-    if(!user) return;
-    setIsSubmitting(true);
 
     try {
       const customTestsRef = collection(firestore, 'users', user.uid, 'custom_tests');
@@ -176,7 +147,7 @@ export default function CreateCustomTestPage() {
           title: values.title,
           accessLevel: values.accessLevel,
           config: {
-              questionIds: values.questionIds,
+              questionIds: finalIds,
               duration: values.duration,
               totalQuestions: values.totalQuestions,
               subjectConfigs: values.subjectConfigs,
@@ -217,7 +188,7 @@ export default function CreateCustomTestPage() {
             <CardHeader>
               <CardTitle className="font-headline text-2xl">Design Your Test</CardTitle>
               <CardDescription>
-                Build a personalized mock test by selecting questions from the question bank.
+                Build a personalized mock test by defining its structure. Questions will be automatically selected for you.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -252,10 +223,7 @@ export default function CreateCustomTestPage() {
                                 </FormDescription>
                                 <FormControl>
                                     <RadioGroup
-                                    onValueChange={(value) => {
-                                        field.onChange(value);
-                                        form.setValue('questionIds', []); // Reset questions on change
-                                    }}
+                                    onValueChange={field.onChange}
                                     defaultValue={field.value}
                                     className="flex gap-4 pt-2"
                                     >
@@ -291,7 +259,7 @@ export default function CreateCustomTestPage() {
 
                      <div>
                         <FormLabel className="text-lg font-semibold">Test Structure</FormLabel>
-                        <FormDescription>Define the subjects and number of questions for your test.</FormDescription>
+                        <FormDescription>Define the subjects and number of questions for your test. Questions will be selected automatically.</FormDescription>
                         <div className="space-y-4 pt-4">
                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <FormField control={form.control} name="totalQuestions" render={({ field }) => (
@@ -314,26 +282,10 @@ export default function CreateCustomTestPage() {
                             </Button>
                         </div>
                     </div>
-                    
-                    <FormItem>
-                        <FormLabel className="text-lg font-semibold">Question Selection</FormLabel>
-                        <Card className='p-4'>
-                            <div className='flex items-center justify-between'>
-                                <div>
-                                <p className='text-muted-foreground'>Selected <span className='font-bold text-foreground'>{selectedQuestionIds.length} / {form.getValues('totalQuestions') || 0}</span> question(s).</p>
-                                <FormDescription>
-                                    Click "Auto-select" to randomly fill the test with questions based on your structure.
-                                </FormDescription>
-                                <FormMessage>{form.formState.errors.questionIds?.message}</FormMessage>
-                                </div>
-                                <Button type="button" variant="secondary" onClick={handleAutoSelect}>Auto-select Questions</Button>
-                            </div>
-                        </Card>
-                    </FormItem>
 
                     <Button type="submit" disabled={isSubmitting} size="lg">
                       {isSubmitting ? (
-                        <><LoaderCircle className="mr-2 animate-spin" /> Saving Test...</>
+                        <><LoaderCircle className="mr-2 animate-spin" /> Creating Test...</>
                       ) : (
                         'Create and Save Test'
                       )}

@@ -88,6 +88,25 @@
         "description"
       ]
     },
+    "Class": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Class",
+      "type": "object",
+      "description": "Represents a class, such as 'Class 11' or 'CBSE Class 10'.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Class entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the class (e.g., Class 11)."
+        }
+      },
+      "required": [
+        "name"
+      ]
+    },
     "Subject": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Subject",
@@ -100,17 +119,16 @@
         },
         "name": {
           "type": "string",
-          "description": "The name of the subject.",
-          "enum": [
-            "Physics",
-            "Chemistry",
-            "Mathematics"
-          ]
+          "description": "The name of the subject."
+        },
+        "classId": {
+          "type": "string",
+          "description": "Reference to the Class this subject belongs to."
         }
       },
       "required": [
-        "id",
-        "name"
+        "name",
+        "classId"
       ]
     },
     "Content": {
@@ -700,13 +718,29 @@
         }
       },
       {
+        "path": "/classes/{classId}",
+        "definition": {
+          "entityName": "Class",
+          "schema": {
+            "$ref": "#/backend/entities/Class"
+          },
+          "description": "Stores class definitions (e.g., Class 11, CBSE Class 10). Teachers can create, update, and delete classes.",
+          "params": [
+            {
+              "name": "classId",
+              "description": "The unique identifier for the class."
+            }
+          ]
+        }
+      },
+      {
         "path": "/subjects/{subjectId}",
         "definition": {
           "entityName": "Subject",
           "schema": {
             "$ref": "#/backend/entities/Subject"
           },
-          "description": "Stores subject definitions (Physics, Chemistry, Mathematics).",
+          "description": "Stores subject definitions. Belongs to a class. Teachers can manage subjects.",
           "params": [
             {
               "name": "subjectId",

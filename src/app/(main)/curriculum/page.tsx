@@ -17,11 +17,16 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { PlusCircle, LoaderCircle, Book, Library, ListTree } from 'lucide-react';
+import { PlusCircle, LoaderCircle, Book, Library, ListTree, BookCopy } from 'lucide-react';
 
 // Zod schemas
+const classSchema = z.object({
+  name: z.string().min(2, 'Class name must be at least 2 characters.'),
+});
+
 const subjectSchema = z.object({
   name: z.string().min(2, 'Subject name must be at least 2 characters.'),
+  classId: z.string().min(1, 'You must select a class.'),
 });
 
 const topicSchema = z.object({
@@ -31,18 +36,60 @@ const topicSchema = z.object({
 });
 
 // Data types
-type Subject = { id: string; name: string; };
+type Class = { id: string; name: string; };
+type Subject = { id: string; name: string; classId: string };
 type Topic = { id: string; name: string; description?: string; subjectId: string; };
 
+// Add Class Form
+const AddClassForm: FC<{ onFormSubmit: () => void }> = ({ onFormSubmit }) => {
+  const firestore = useFirestore();
+  const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const form = useForm<z.infer<typeof classSchema>>({
+    resolver: zodResolver(classSchema),
+    defaultValues: { name: '' },
+  });
+
+  function onSubmit(values: z.infer<typeof classSchema>) {
+    setIsSubmitting(true);
+    const classesRef = collection(firestore, 'classes');
+    addDocumentNonBlocking(classesRef, values);
+    toast({ title: 'Class Added!', description: `"${values.name}" has been added.` });
+    form.reset();
+    onFormSubmit();
+    setIsSubmitting(false);
+  }
+
+  return (
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <FormField control={form.control} name="name" render={({ field }) => (
+          <FormItem>
+            <FormLabel>Class Name</FormLabel>
+            <FormControl><Input placeholder="e.g., CBSE Class 10" {...field} /></FormControl>
+            <FormMessage />
+          </FormItem>
+        )} />
+        <Button type="submit" disabled={isSubmitting}>
+          {isSubmitting ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
+          Add Class
+        </Button>
+      </form>
+    </Form>
+  );
+};
+
+
 // Add Subject Form
-const AddSubjectForm: FC<{ onFormSubmit: () => void }> = ({ onFormSubmit }) => {
+const AddSubjectForm: FC<{ classes: Class[], onFormSubmit: () => void }> = ({ classes, onFormSubmit }) => {
   const firestore = useFirestore();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<z.infer<typeof subjectSchema>>({
     resolver: zodResolver(subjectSchema),
-    defaultValues: { name: '' },
+    defaultValues: { name: '', classId: '' },
   });
 
   function onSubmit(values: z.infer<typeof subjectSchema>) {
@@ -58,6 +105,16 @@ const AddSubjectForm: FC<{ onFormSubmit: () => void }> = ({ onFormSubmit }) => {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <FormField control={form.control} name="classId" render={({ field }) => (
+            <FormItem>
+                <FormLabel>Class</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl><SelectTrigger><SelectValue placeholder="Select a class" /></SelectTrigger></FormControl>
+                    <SelectContent>{classes.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                </Select>
+                <FormMessage />
+            </FormItem>
+        )} />
         <FormField control={form.control} name="name" render={({ field }) => (
           <FormItem>
             <FormLabel>Subject Name</FormLabel>
@@ -137,38 +194,38 @@ export default function CurriculumPage() {
   const firestore = useFirestore();
   const [formKey, setFormKey] = useState(0);
 
+  const classesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'classes'), orderBy('name')) : null, [firestore]);
   const subjectsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'subjects'), orderBy('name')) : null, [firestore]);
   const topicsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'topics'), orderBy('name')) : null, [firestore]);
   
+  const { data: classes, isLoading: areClassesLoading } = useCollection<Class>(classesQuery);
   const { data: subjects, isLoading: areSubjectsLoading } = useCollection<Subject>(subjectsQuery);
   const { data: topics, isLoading: areTopicsLoading } = useCollection<Topic>(topicsQuery);
 
   const curriculumTree = useMemo(() => {
-    if (!subjects) return {};
+    if (!classes || !subjects || !topics) return [];
 
-    const tree: Record<string, { subjectId: string; name: string; topics: Topic[] }> = {};
+    const sortedClasses = [...classes].sort((a,b) => a.name.localeCompare(b.name));
     
-    subjects.forEach(subject => {
-        tree[subject.id] = { subjectId: subject.id, name: subject.name, topics: [] };
+    return sortedClasses.map(c => {
+        const classSubjects = [...subjects]
+            .filter(s => s.classId === c.id)
+            .sort((a,b) => a.name.localeCompare(b.name));
+
+        const subjectsWithTopics = classSubjects.map(s => {
+            const subjectTopics = [...topics]
+                .filter(t => t.subjectId === s.id)
+                .sort((a,b) => a.name.localeCompare(b.name));
+            return { ...s, topics: subjectTopics };
+        });
+
+        return { ...c, subjects: subjectsWithTopics };
     });
 
-    if (topics) {
-        topics.forEach(topic => {
-            if (tree[topic.subjectId]) {
-                tree[topic.subjectId].topics.push(topic);
-            }
-        });
-    }
+  }, [classes, subjects, topics]);
 
-    return tree;
-  }, [subjects, topics]);
 
-  const sortedSubjects = useMemo(() => {
-    if (!subjects) return [];
-    return [...subjects].sort((a, b) => a.name.localeCompare(b.name));
-  }, [subjects]);
-
-  const isLoading = isTeacherLoading || areSubjectsLoading || areTopicsLoading;
+  const isLoading = isTeacherLoading || areClassesLoading || areSubjectsLoading || areTopicsLoading;
   const onFormSubmit = () => setFormKey(prev => prev + 1);
 
   return (
@@ -176,20 +233,29 @@ export default function CurriculumPage() {
       <DashboardHeader title="Curriculum Management" />
       <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 grid gap-8">
         {isTeacher && (
-          <div className="grid md:grid-cols-2 gap-8">
+          <div className="grid md:grid-cols-3 gap-8">
+            <Card className="shadow-lg">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 font-headline text-xl"><BookCopy />Add New Class</CardTitle>
+                <CardDescription>Add a new class, e.g., "Class 11".</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {isLoading ? <Skeleton className="h-24 w-full" /> : <AddClassForm key={`class-${formKey}`} onFormSubmit={onFormSubmit} />}
+              </CardContent>
+            </Card>
             <Card className="shadow-lg">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 font-headline text-xl"><Book />Add New Subject</CardTitle>
-                <CardDescription>Add a new high-level subject like "Physics".</CardDescription>
+                <CardDescription>Add a new subject to a class.</CardDescription>
               </CardHeader>
               <CardContent>
-                {isLoading ? <Skeleton className="h-24 w-full" /> : <AddSubjectForm key={`subject-${formKey}`} onFormSubmit={onFormSubmit} />}
+                {isLoading ? <Skeleton className="h-40 w-full" /> : <AddSubjectForm key={`subject-${formKey}`} classes={classes || []} onFormSubmit={onFormSubmit} />}
               </CardContent>
             </Card>
             <Card className="shadow-lg">
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2 font-headline text-xl"><ListTree />Add New Topic</CardTitle>
-                    <CardDescription>Add a new topic within an existing subject.</CardDescription>
+                    <CardDescription>Add a new topic to a subject.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     {isLoading ? <Skeleton className="h-48 w-full" /> : <AddTopicForm key={`topic-${formKey}`} subjects={subjects || []} onFormSubmit={onFormSubmit} />}
@@ -201,7 +267,7 @@ export default function CurriculumPage() {
         <Card className="shadow-lg">
           <CardHeader>
             <CardTitle className="font-headline text-2xl flex items-center gap-2"><Library />Curriculum Overview</CardTitle>
-            <CardDescription>Browse all subjects and their corresponding topics.</CardDescription>
+            <CardDescription>Browse all classes, subjects, and topics.</CardDescription>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -210,24 +276,39 @@ export default function CurriculumPage() {
                 <Skeleton className="h-16 w-full" />
                 <Skeleton className="h-16 w-full" />
               </div>
-            ) : sortedSubjects.length > 0 ? (
+            ) : curriculumTree.length > 0 ? (
               <Accordion type="multiple" className="w-full space-y-2">
-                {sortedSubjects.map(subject => (
-                  <AccordionItem value={subject.id} key={subject.id} className="border rounded-lg">
-                    <AccordionTrigger className="text-xl font-semibold px-6">{subject.name}</AccordionTrigger>
+                {curriculumTree.map(c => (
+                  <AccordionItem value={c.id} key={c.id} className="border rounded-lg">
+                    <AccordionTrigger className="text-xl font-semibold px-6">{c.name}</AccordionTrigger>
                     <AccordionContent className="px-6">
-                      {curriculumTree[subject.id]?.topics.length > 0 ? (
-                        <ul className="list-disc pl-5 space-y-2 pt-2">
-                            {curriculumTree[subject.id].topics.map(topic => (
-                                <li key={topic.id}>
-                                    <p className="font-medium">{topic.name}</p>
-                                    {topic.description && <p className="text-sm text-muted-foreground">{topic.description}</p>}
-                                </li>
+                      {c.subjects.length > 0 ? (
+                        <Accordion type="multiple" className="w-full space-y-2" defaultValue={c.subjects.map(s => s.id)}>
+                            {c.subjects.map(s => (
+                                <AccordionItem value={s.id} key={s.id} className="border-l-2 pl-4 border-muted">
+                                    <AccordionTrigger className="text-lg font-medium">{s.name}</AccordionTrigger>
+                                    <AccordionContent className="pl-4">
+                                      {s.topics.length > 0 ? (
+                                        <ul className="list-disc pl-5 space-y-2 pt-2">
+                                            {s.topics.map(topic => (
+                                                <li key={topic.id}>
+                                                    <p className="font-medium">{topic.name}</p>
+                                                    {topic.description && <p className="text-sm text-muted-foreground">{topic.description}</p>}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                      ) : (
+                                        <div className="text-center text-muted-foreground py-4">
+                                          <p>No topics have been added for this subject yet.</p>
+                                        </div>
+                                      )}
+                                    </AccordionContent>
+                                </AccordionItem>
                             ))}
-                        </ul>
+                        </Accordion>
                       ) : (
                         <div className="text-center text-muted-foreground py-4">
-                          <p>No topics have been added for this subject yet.</p>
+                          <p>No subjects have been added for this class yet.</p>
                         </div>
                       )}
                     </AccordionContent>
@@ -236,8 +317,8 @@ export default function CurriculumPage() {
               </Accordion>
             ) : (
               <div className="text-center text-muted-foreground py-8 border-2 border-dashed rounded-lg">
-                <p className='font-medium'>No subjects available yet.</p>
-                {isTeacher && <p className='text-sm'>Add a subject above to get started!</p>}
+                <p className='font-medium'>No curriculum available yet.</p>
+                {isTeacher && <p className='text-sm'>Add a class above to get started!</p>}
               </div>
             )}
           </CardContent>

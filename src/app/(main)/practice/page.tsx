@@ -74,6 +74,7 @@ const practiceQuizSchema = z.object({
     subjectId: z.string().optional(),
     topicId: z.string().optional(),
     difficultyLevel: z.string().optional(),
+    examCategory: z.string().optional(),
     accessLevel: z.enum(['free', 'paid']),
     count: z.coerce.number().min(1, "Please enter at least 1 question.").max(50, "You can practice a maximum of 50 questions at a time."),
 });
@@ -142,7 +143,7 @@ function QuestionItem({ question, topicMap, classMap, isTeacher, canViewPaidCont
                 <Lock className="mx-auto h-6 w-6 mb-2"/>
                 <p>This is a premium question. <Link href="/subscription" className="text-primary hover:underline">Subscribe</Link> to view the answer.</p>
             </div>
-        ) : (
+        ) : isTeacher ? (
             <>
                 {question.imageUrl && (
                     <div className="my-4 p-4 border rounded-md flex justify-center bg-muted/50">
@@ -174,6 +175,10 @@ function QuestionItem({ question, topicMap, classMap, isTeacher, canViewPaidCont
                     </div>
                 ): null}
             </>
+        ) : (
+            <div className="text-center text-muted-foreground py-4">
+              <p>To see the answer, start a practice session for this topic.</p>
+            </div>
         )}
       </AccordionContent>
     </AccordionItem>
@@ -336,6 +341,7 @@ const StartPracticeForm: FC<{
             subjectId: '',
             topicId: '',
             difficultyLevel: 'Medium',
+            examCategory: 'Both',
             accessLevel: 'free',
             count: 10,
         }
@@ -389,6 +395,9 @@ const StartPracticeForm: FC<{
                     )} />
                     <FormField control={form.control} name="difficultyLevel" render={({ field }) => (
                         <FormItem><FormLabel>Difficulty</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select difficulty" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Easy">Easy</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Hard">Hard</SelectItem></SelectContent></Select></FormItem>
+                    )} />
+                     <FormField control={form.control} name="examCategory" render={({ field }) => (
+                        <FormItem><FormLabel>Exam Category</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger></FormControl><SelectContent><SelectItem value="JEE Main">JEE Main</SelectItem><SelectItem value="JEE Advanced">JEE Advanced</SelectItem><SelectItem value="Both">Both</SelectItem></SelectContent></Select></FormItem>
                     )} />
                     <FormField control={form.control} name="count" render={({ field }) => (
                         <FormItem><FormLabel>Number of Questions</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>
@@ -720,7 +729,7 @@ export default function PracticePage() {
                         <CardTitle className="font-headline text-2xl flex items-center gap-2">
                             <ClipboardList className="w-6 h-6" /> All Practice Questions
                         </CardTitle>
-                        <CardDescription>Browse the question bank by curriculum. Click on a question to view the answer.</CardDescription>
+                        <CardDescription>Browse the question bank by curriculum. Click on a topic to start a practice session.</CardDescription>
                     </CardHeader>
                     <CardContent>
                         {isLoading ? (
@@ -747,6 +756,13 @@ export default function PracticePage() {
                                                                             <AccordionItem value={t.id} key={t.id} className="border-l-2 pl-4 border-muted">
                                                                                 <AccordionTrigger>{t.name} ({t.questions.length} questions)</AccordionTrigger>
                                                                                 <AccordionContent className="pl-4 pt-2">
+                                                                                    <div className="flex justify-end mb-4">
+                                                                                        <Button asChild size="sm">
+                                                                                            <Link href={`/practice/session?topicId=${t.id}${!isSubscribed ? '&accessLevel=free' : ''}`}>
+                                                                                                <Rocket className="mr-2 h-4 w-4" /> Practice Topic
+                                                                                            </Link>
+                                                                                        </Button>
+                                                                                    </div>
                                                                                     <Accordion type="single" collapsible className="w-full space-y-2">
                                                                                         {t.questions.map(q => (
                                                                                             <QuestionItem key={q.id} question={q} topicMap={topicMap} classMap={classMap} isTeacher={false} canViewPaidContent={canViewPaidContent} onEdit={()=>{}} onDelete={()=>{}}/>

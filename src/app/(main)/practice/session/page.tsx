@@ -47,6 +47,7 @@ const fetchPracticeQuestions = async (firestore: any, params: URLSearchParams): 
     if (params.get('topicId')) q = query(q, where('topicId', '==', params.get('topicId')));
     if (params.get('difficultyLevel')) q = query(q, where('difficultyLevel', '==', params.get('difficultyLevel')));
     if (params.get('accessLevel')) q = query(q, where('accessLevel', '==', params.get('accessLevel')));
+    if (params.get('examCategory')) q = query(q, where('examCategory', '==', params.get('examCategory')));
     
     const allMatchingQuestionsSnap = await getDocs(q);
 
@@ -63,9 +64,15 @@ const fetchPracticeQuestions = async (firestore: any, params: URLSearchParams): 
         } as PracticeQuestion;
     });
 
-    const count = parseInt(params.get('count') || '10', 10);
+    const countParam = params.get('count');
     const shuffled = [...allMatchingQuestions].sort(() => 0.5 - Math.random());
-    return shuffled.slice(0, count);
+    
+    if (countParam) {
+      const count = parseInt(countParam, 10);
+      return shuffled.slice(0, count);
+    }
+    
+    return shuffled;
 };
 
 

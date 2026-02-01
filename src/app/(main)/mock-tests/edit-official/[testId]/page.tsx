@@ -96,7 +96,7 @@ export default function EditOfficialMockTestPage() {
         examCategory: testData.examCategory,
         accessLevel: testData.accessLevel,
         duration: testData.config.duration,
-        questionIds: testData.config.questionIds,
+        questionIds: testData.config.questionIds || [],
       });
     }
   }, [testData, form]);

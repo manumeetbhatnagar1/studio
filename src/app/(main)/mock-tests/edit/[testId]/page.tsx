@@ -91,7 +91,7 @@ export default function EditCustomMockTestPage() {
         title: testData.title,
         accessLevel: testData.accessLevel,
         duration: testData.config.duration,
-        questionIds: testData.config.questionIds,
+        questionIds: testData.config.questionIds || [],
       });
     }
   }, [testData, form]);

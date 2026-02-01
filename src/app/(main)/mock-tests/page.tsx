@@ -1,18 +1,21 @@
 'use client';
 
 import DashboardHeader from "@/components/dashboard-header";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileText, Clock, ArrowRight, PlusCircle, Lock } from "lucide-react";
+import { FileText, Clock, ArrowRight, PlusCircle, Lock, Edit, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, where } from 'firebase/firestore';
+import { useUser, useFirestore, useCollection, useMemoFirebase, deleteDocumentNonBlocking } from '@/firebase';
+import { collection, query, orderBy, where, doc } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useMemo } from "react";
+import { useState, useMemo } from "react";
 import { formatDistanceToNow, format } from "date-fns";
 import { useIsTeacher } from "@/hooks/useIsTeacher";
 import { useIsSubscribed } from "@/hooks/useIsSubscribed";
 import { Badge } from "@/components/ui/badge";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
 type CustomTest = {
   id: string;
@@ -48,6 +51,8 @@ export default function MockTestsPage() {
   const firestore = useFirestore();
   const { isTeacher, isLoading: isTeacherLoading } = useIsTeacher();
   const { isSubscribed, isLoading: isSubscribedLoading } = useIsSubscribed();
+  const { toast } = useToast();
+  const [testToDelete, setTestToDelete] = useState<{ id: string; type: 'official' | 'custom'; title: string } | null>(null);
 
   // Fetch custom tests for the current user
   const customTestsQuery = useMemoFirebase(() => {
@@ -69,6 +74,29 @@ export default function MockTestsPage() {
   const totalDuration = (test: CustomTest | OfficialTest) => test.config.subjects.reduce((sum, s) => sum + s.duration, 0);
   
   const isLoading = areCustomTestsLoading || isTeacherLoading || areOfficialTestsLoading || isSubscribedLoading;
+
+  const handleDeleteRequest = (id: string, type: 'official' | 'custom', title: string) => {
+    setTestToDelete({ id, type, title });
+  };
+
+  const confirmDelete = () => {
+    if (!testToDelete || !firestore || !user) return;
+    
+    let docRef;
+    if (testToDelete.type === 'official') {
+        docRef = doc(firestore, 'mock_tests', testToDelete.id);
+    } else {
+        docRef = doc(firestore, 'users', user.uid, 'custom_tests', testToDelete.id);
+    }
+
+    deleteDocumentNonBlocking(docRef);
+    toast({
+        title: 'Test Deleted',
+        description: `"${testToDelete.title}" has been removed.`,
+    });
+    setTestToDelete(null);
+  };
+
 
   return (
     <div className="flex flex-col h-full">
@@ -128,7 +156,7 @@ export default function MockTestsPage() {
                               Subjects: {test.config.subjects.map(s => s.subjectName).join(', ')}
                           </div>
                       </CardContent>
-                      <CardFooter>
+                      <CardFooter className="flex-col items-stretch gap-2">
                           {canTakeTest ? (
                               <Button asChild className="w-full" disabled={isUpcoming}>
                                   <Link href={`/test/${test.id}`}>
@@ -143,6 +171,18 @@ export default function MockTestsPage() {
                                         Subscribe to Unlock
                                     </Link>
                                 </Button>
+                          )}
+                          {isTeacher && (
+                              <div className="flex justify-end gap-2 border-t pt-2 mt-2">
+                                  <Button asChild variant="ghost" size="sm">
+                                      <Link href={`/mock-tests/edit-official/${test.id}`}>
+                                          <Edit className="mr-2 h-4 w-4" /> Edit
+                                      </Link>
+                                  </Button>
+                                  <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => handleDeleteRequest(test.id, 'official', test.title)}>
+                                      <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                  </Button>
+                              </div>
                           )}
                       </CardFooter>
                     </Card>
@@ -186,10 +226,20 @@ export default function MockTestsPage() {
                                 Subjects: {test.config.subjects.map(s => s.subjectName).join(', ')}
                             </div>
                         </CardContent>
-                        <CardFooter>
+                        <CardFooter className="flex-col items-stretch gap-2">
                             <Button asChild className="w-full">
-                            <Link href={`/test/${test.id}?type=custom`}>Start Test <ArrowRight className="ml-2"/></Link>
+                                <Link href={`/test/${test.id}?type=custom`}>Start Test <ArrowRight className="ml-2"/></Link>
                             </Button>
+                            <div className="flex justify-end gap-2 border-t pt-2 mt-2">
+                                <Button asChild variant="ghost" size="sm">
+                                    <Link href={`/mock-tests/edit/${test.id}`}>
+                                        <Edit className="mr-2 h-4 w-4" /> Edit
+                                    </Link>
+                                </Button>
+                                <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => handleDeleteRequest(test.id, 'custom', test.title)}>
+                                    <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                </Button>
+                            </div>
                         </CardFooter>
                         </Card>
                     ))}
@@ -203,6 +253,22 @@ export default function MockTestsPage() {
           </div>
 
         </div>
+
+        <AlertDialog open={!!testToDelete} onOpenChange={(open) => !open && setTestToDelete(null)}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        This action cannot be undone. This will permanently delete the test titled "{testToDelete?.title}".
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel onClick={() => setTestToDelete(null)}>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={confirmDelete} className={cn(buttonVariants({ variant: "destructive" }))}>Delete</AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+
       </main>
     </div>
   );

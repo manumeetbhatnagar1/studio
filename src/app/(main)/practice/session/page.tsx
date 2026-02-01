@@ -89,7 +89,6 @@ function PracticeSession() {
 
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
     const [answers, setAnswers] = useState<Map<string | number, Answer>>(new Map());
-    const [timeLeft, setTimeLeft] = useState(0);
     const [isSubmitDialogOpen, setIsSubmitDialogOpen] = useState(false);
 
     useEffect(() => {
@@ -98,26 +97,10 @@ function PracticeSession() {
             setIsLoading(true);
             const fetchedQuestions = await fetchPracticeQuestions(firestore, searchParams);
             setQuestions(fetchedQuestions);
-            setTimeLeft(fetchedQuestions.length * 120); // 2 minutes per question
             setIsLoading(false);
         };
         loadTest();
     }, [searchParams, user, firestore]);
-
-    useEffect(() => {
-        if (isLoading || isFinished || timeLeft <= 0) return;
-        const timer = setInterval(() => {
-            setTimeLeft((prev) => {
-                if (prev <= 1) {
-                    clearInterval(timer);
-                    handleSubmitTest();
-                    return 0;
-                }
-                return prev - 1;
-            });
-        }, 1000);
-        return () => clearInterval(timer);
-    }, [timeLeft, isLoading, isFinished]);
 
     const sections = useMemo(() => {
         if (!questions.length) return [];
@@ -195,8 +178,6 @@ function PracticeSession() {
             case QuestionStatus.NotVisited: return 'bg-gray-200 text-gray-800';
         }
     };
-
-    const formatTime = (seconds: number) => `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
     
     const summary = useMemo(() => {
         const summaryData = { answered: 0, notAnswered: 0, notVisited: questions.length, markedForReview: 0, answeredAndMarked: 0 };
@@ -236,7 +217,7 @@ function PracticeSession() {
 
     if(isFinished) {
         return (
-            <div className="flex flex-col items-center justify-center min-h-screen">
+            <div className="flex flex-col items-center justify-center min-h-screen py-8">
                 <Card className="w-full max-w-2xl text-center shadow-2xl">
                     <CardHeader>
                         <CardTitle className="font-headline text-3xl">Practice Session Finished!</CardTitle>
@@ -245,9 +226,9 @@ function PracticeSession() {
                         <p className="text-lg text-muted-foreground">Here's how you did:</p>
                         <div className="text-6xl font-bold text-primary">{score} / {questions.length}</div>
                         <p className="font-semibold text-2xl">
-                            {((score / questions.length) * 100).toFixed(2)}%
+                            {questions.length > 0 ? ((score / questions.length) * 100).toFixed(2) : '0.00'}%
                         </p>
-                        <div className="grid grid-cols-2 gap-4 text-left pt-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-left pt-4 max-h-96 overflow-y-auto">
                             {questions.map((q, i) => {
                                 const ans = answers.get(q.id);
                                 const isCorrect = (q.questionType === 'MCQ' && q.correctAnswer === ans?.value) || (q.questionType === 'Numerical' && Number(q.numericalAnswer) === Number(ans?.value));
@@ -301,7 +282,6 @@ function PracticeSession() {
                 {/* Right Panel: Info and Navigation */}
                 <div className="flex flex-col gap-4">
                     <Card><CardContent className="p-4 flex items-center gap-4"><Avatar className="h-12 w-12"><AvatarImage src={user?.photoURL || undefined} /><AvatarFallback><User /></AvatarFallback></Avatar><div><p className="font-semibold">{user?.displayName}</p><p className="text-sm text-muted-foreground">JEE Main Aspirant</p></div></CardContent></Card>
-                    <Card className="text-center"><CardHeader><CardTitle className="flex items-center justify-center gap-2"><Timer />Time Left</CardTitle></CardHeader><CardContent><p className="font-mono text-4xl font-bold">{formatTime(timeLeft)}</p></CardContent></Card>
                     <Card><CardHeader><CardTitle>Question Palette</CardTitle></CardHeader>
                         <CardContent>
                             <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm mb-4">

@@ -30,6 +30,15 @@
         "roleId": {
           "type": "string",
           "description": "Reference to Role. (Relationship: Role 1:N User)"
+        },
+        "classLevel": {
+          "type": "string",
+          "description": "The class level of the student, if applicable.",
+          "enum": [
+            "Class 11",
+            "Class 12",
+            "Dropper"
+          ]
         }
       },
       "required": [
@@ -151,6 +160,16 @@
             "JEE Advanced",
             "Both"
           ]
+        },
+        "classLevel": {
+          "type": "string",
+          "description": "Specifies the target class level for the content.",
+          "enum": [
+            "Class 11",
+            "Class 12",
+            "Dropper",
+            "All"
+          ]
         }
       },
       "required": [
@@ -160,7 +179,8 @@
         "subjectId",
         "topicId",
         "difficultyLevel",
-        "examCategory"
+        "examCategory",
+        "classLevel"
       ]
     },
     "Topic": {

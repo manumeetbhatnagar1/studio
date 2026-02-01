@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, FC } from 'react';
+import { useState, useMemo, FC, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -132,15 +132,26 @@ const AddSubjectForm: FC<{ classes: Class[], onFormSubmit: () => void }> = ({ cl
 };
 
 // Add Topic Form
-const AddTopicForm: FC<{ subjects: Subject[]; onFormSubmit: () => void }> = ({ subjects, onFormSubmit }) => {
+const AddTopicForm: FC<{ classes: Class[]; subjects: Subject[]; onFormSubmit: () => void }> = ({ classes, subjects, onFormSubmit }) => {
     const firestore = useFirestore();
     const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
   
-    const form = useForm<z.infer<typeof topicSchema>>({
+    const form = useForm<z.infer<typeof topicSchema> & { classId: string }>({
       resolver: zodResolver(topicSchema),
-      defaultValues: { name: '', description: '', subjectId: '' },
+      defaultValues: { name: '', description: '', subjectId: '', classId: '' },
     });
+
+    const selectedClassId = form.watch('classId');
+
+    const filteredSubjects = useMemo(() => {
+        if (!selectedClassId) return [];
+        return subjects.filter(s => s.classId === selectedClassId);
+    }, [selectedClassId, subjects]);
+
+    useEffect(() => {
+        form.setValue('subjectId', '');
+    }, [selectedClassId, form]);
   
     function onSubmit(values: z.infer<typeof topicSchema>) {
       setIsSubmitting(true);
@@ -155,12 +166,22 @@ const AddTopicForm: FC<{ subjects: Subject[]; onFormSubmit: () => void }> = ({ s
     return (
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField control={form.control} name="classId" render={({ field }) => (
+                <FormItem>
+                    <FormLabel>Class</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl><SelectTrigger><SelectValue placeholder="Select a class" /></SelectTrigger></FormControl>
+                        <SelectContent>{classes.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                    <FormMessage />
+                </FormItem>
+            )} />
             <FormField control={form.control} name="subjectId" render={({ field }) => (
                 <FormItem>
                     <FormLabel>Subject</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value} disabled={!selectedClassId}>
                         <FormControl><SelectTrigger><SelectValue placeholder="Select a subject" /></SelectTrigger></FormControl>
-                        <SelectContent>{subjects.map(subject => <SelectItem key={subject.id} value={subject.id}>{subject.name}</SelectItem>)}</SelectContent>
+                        <SelectContent>{filteredSubjects.map(subject => <SelectItem key={subject.id} value={subject.id}>{subject.name}</SelectItem>)}</SelectContent>
                     </Select>
                     <FormMessage />
                 </FormItem>
@@ -179,7 +200,7 @@ const AddTopicForm: FC<{ subjects: Subject[]; onFormSubmit: () => void }> = ({ s
                     <FormMessage />
                 </FormItem>
             )} />
-            <Button type="submit" disabled={isSubmitting}>
+            <Button type="submit" disabled={isSubmitting || !form.watch('subjectId')}>
             {isSubmitting ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
             Add Topic
             </Button>
@@ -258,7 +279,7 @@ export default function CurriculumPage() {
                     <CardDescription>Add a new topic to a subject.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    {isLoading ? <Skeleton className="h-48 w-full" /> : <AddTopicForm key={`topic-${formKey}`} subjects={subjects || []} onFormSubmit={onFormSubmit} />}
+                    {isLoading ? <Skeleton className="h-48 w-full" /> : <AddTopicForm key={`topic-${formKey}`} classes={classes || []} subjects={subjects || []} onFormSubmit={onFormSubmit} />}
                 </CardContent>
             </Card>
           </div>

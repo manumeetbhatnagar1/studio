@@ -18,13 +18,12 @@ import { useRouter, useParams } from 'next/navigation';
 import { useIsSubscribed } from '@/hooks/useIsSubscribed';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription, SheetFooter, SheetClose } from '@/components/ui/sheet';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
 
-type Question = { id: string; questionText: string; classId: string; subjectId: string; topicId: string; };
+type Question = { id: string; questionText: string; classId: string; subjectId: string; topicId: string; accessLevel: 'free' | 'paid', examCategory: 'JEE Main' | 'JEE Advanced' | 'Both', difficultyLevel: 'Easy' | 'Medium' | 'Hard' };
 type Class = { id: string; name: string };
 type Subject = { id: string; name: string; classId: string };
 type Topic = { id: string; name: string; subjectId: string };
@@ -33,17 +32,19 @@ const formSchema = z.object({
   title: z.string().min(5, 'Test title must be at least 5 characters long.'),
   accessLevel: z.enum(['free', 'paid']),
   duration: z.coerce.number().min(1, 'Duration must be at least 1 minute.'),
-  questionIds: z.array(z.string()).min(1, 'You must select at least one question.'),
+  examCategory: z.enum(['JEE Main', 'JEE Advanced', 'Both', 'All']),
+  difficultyLevel: z.enum(['Easy', 'Medium', 'Hard', 'All']),
 });
 
 type CustomTest = {
-    id: string;
-    title: string;
-    accessLevel: 'free' | 'paid';
-    config: {
-        questionIds: string[];
-        duration: number;
-    };
+  id: string;
+  title: string;
+  accessLevel: 'free' | 'paid';
+  examCategory: 'JEE Main' | 'JEE Advanced' | 'Both' | 'All';
+  config: {
+      questionIds: string[];
+      duration: number;
+  };
 }
 
 
@@ -55,6 +56,7 @@ export default function EditCustomMockTestPage() {
   const { testId } = useParams() as { testId: string };
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { isSubscribed, isLoading: isSubscribedLoading } = useIsSubscribed();
+  const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
 
   const testDocRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -63,7 +65,7 @@ export default function EditCustomMockTestPage() {
 
   const { data: testData, isLoading: isTestLoading } = useDoc<CustomTest>(testDocRef);
   
-  // Data fetching for filters and questions
+  // Data fetching
   const classesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'classes'), orderBy('name')) : null, [firestore]);
   const subjectsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'subjects'), orderBy('name')) : null, [firestore]);
   const topicsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'topics'), orderBy('name')) : null, [firestore]);
@@ -74,49 +76,112 @@ export default function EditCustomMockTestPage() {
   const { data: topics, isLoading: areTopicsLoading } = useCollection<Topic>(topicsQuery);
   const { data: allQuestions, isLoading: areQuestionsLoading } = useCollection<Question>(questionsQuery);
 
-
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       title: '',
       accessLevel: 'free',
       duration: 60,
-      questionIds: [],
+      examCategory: 'All',
+      difficultyLevel: 'All',
     },
   });
 
   useEffect(() => {
-    if (testData) {
+    if (testData && allQuestions) {
       form.reset({
         title: testData.title,
         accessLevel: testData.accessLevel,
         duration: testData.config.duration,
-        questionIds: testData.config.questionIds || [],
+        examCategory: testData.examCategory || 'All',
+        difficultyLevel: 'All', // We don't store difficulty in the test itself
       });
+      
+      const topicIdsFromQuestions = new Set(
+        testData.config.questionIds
+          .map(qId => allQuestions.find(q => q.id === qId)?.topicId)
+          .filter((id): id is string => !!id)
+      );
+      setSelectedTopics(Array.from(topicIdsFromQuestions));
     }
-  }, [testData, form]);
+  }, [testData, allQuestions, form]);
 
-  const selectedQuestionIds = form.watch('questionIds');
+  const { watch } = form;
+  const accessLevelFilter = watch('accessLevel');
+  const examCategoryFilter = watch('examCategory');
+  const difficultyLevelFilter = watch('difficultyLevel');
+
+  const curriculumTree = useMemo(() => {
+    if (!classes || !subjects || !topics) return [];
+
+    return classes.map(c => ({
+      ...c,
+      subjects: subjects
+        .filter(s => s.classId === c.id)
+        .map(s => ({
+          ...s,
+          topics: topics.filter(t => t.subjectId === s.id),
+        })),
+    }));
+  }, [classes, subjects, topics]);
+
+  const filteredQuestions = useMemo(() => {
+    if (!allQuestions) return [];
+    return allQuestions.filter(q => {
+      if (!selectedTopics.includes(q.topicId)) return false;
+      if (q.accessLevel !== accessLevelFilter) return false;
+      if (examCategoryFilter !== 'All' && q.examCategory !== examCategoryFilter) return false;
+      if (difficultyLevelFilter !== 'All' && q.difficultyLevel !== difficultyLevelFilter) return false;
+      return true;
+    });
+  }, [allQuestions, selectedTopics, accessLevelFilter, examCategoryFilter, difficultyLevelFilter]);
+
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     if(!user || !testDocRef) return;
+
+    if (filteredQuestions.length === 0) {
+      toast({
+        variant: 'destructive',
+        title: 'No Questions Found',
+        description: 'Your new selection and filters did not match any questions. Please adjust your criteria.',
+      });
+      return;
+    }
+    
     setIsSubmitting(true);
 
-    updateDocumentNonBlocking(testDocRef, {
-        title: values.title,
-        accessLevel: values.accessLevel,
-        config: {
-            questionIds: values.questionIds,
-            duration: values.duration,
-        },
-    });
-    
-    toast({
-      title: 'Custom Test Updated!',
-      description: `${values.title} has been saved.`,
-    });
-    router.push('/mock-tests');
-    setIsSubmitting(false);
+    try {
+        const questionIds = filteredQuestions.map(q => q.id);
+        
+        await updateDocumentNonBlocking(testDocRef, {
+            title: values.title,
+            accessLevel: values.accessLevel,
+            examCategory: values.examCategory,
+            config: {
+                questionIds,
+                duration: values.duration,
+            },
+        });
+        
+        toast({
+          title: 'Custom Test Updated!',
+          description: `${values.title} has been saved with ${questionIds.length} questions.`,
+        });
+        router.push('/mock-tests');
+    } catch (error: any) {
+        toast({
+            variant: 'destructive',
+            title: 'Update Failed',
+            description: error.message || 'An unexpected error occurred.',
+        });
+    } finally {
+        setIsSubmitting(false);
+    }
+  }
+  
+  const handleTopicToggle = (topicId: string, isChecked: boolean) => {
+    setSelectedTopics(prev => isChecked ? [...prev, topicId] : prev.filter(id => id !== topicId));
   }
 
   const isLoading = areSubjectsLoading || isSubscribedLoading || isTestLoading || areClassesLoading || areTopicsLoading || areQuestionsLoading;
@@ -139,85 +204,75 @@ export default function EditCustomMockTestPage() {
               ) : (
                 <Form {...form}>
                   <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-                    <FormField
-                      control={form.control}
-                      name="title"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-lg font-semibold">Test Title</FormLabel>
-                          <FormControl>
-                            <Input placeholder="e.g., My Weekly Physics & Math Practice" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <FormField
-                            control={form.control}
-                            name="accessLevel"
-                            render={({ field }) => (
-                                <FormItem>
-                                <FormLabel className="text-lg font-semibold">Question Access Level</FormLabel>
-                                <FormDescription>
-                                    Paid tests will only use paid questions from the question bank. You need a subscription to create paid tests.
-                                </FormDescription>
-                                <FormControl>
-                                    <RadioGroup
-                                    onValueChange={field.onChange}
-                                    value={field.value}
-                                    className="flex gap-4 pt-2"
-                                    >
-                                    <FormItem className="flex items-center space-x-2">
-                                        <FormControl><RadioGroupItem value="free" /></FormControl>
-                                        <FormLabel className="font-normal">Free</FormLabel>
-                                    </FormItem>
-                                    <FormItem className="flex items-center space-x-2">
-                                        <FormControl><RadioGroupItem value="paid" disabled={!isSubscribed} /></FormControl>
-                                        <FormLabel className={cn("font-normal", !isSubscribed && "text-muted-foreground")}>
-                                            Paid
-                                            {!isSubscribed && ' (Subscription required)'}
-                                        </FormLabel>
-                                    </FormItem>
-                                    </RadioGroup>
-                                </FormControl>
-                                <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                         <FormField
-                            control={form.control}
-                            name="duration"
-                            render={({ field }) => (
-                                <FormItem>
-                                <FormLabel className="text-lg font-semibold">Total Duration (minutes)</FormLabel>
-                                <FormDescription>Set the total time limit for the entire test.</FormDescription>
-                                <FormControl><Input type="number" placeholder="e.g., 180" {...field} /></FormControl>
-                                <FormMessage />
-                                </FormItem>
-                            )}
-                        />
+                    {/* Basic Info */}
+                    <div className="space-y-4">
+                        <FormField control={form.control} name="title" render={({ field }) => (
+                            <FormItem><FormLabel className="text-lg font-semibold">Test Title</FormLabel><FormControl><Input placeholder="e.g., My Weekly Physics & Math Practice" {...field} /></FormControl><FormMessage /></FormItem>
+                        )} />
+                        <FormField control={form.control} name="duration" render={({ field }) => (
+                            <FormItem><FormLabel className="text-lg font-semibold">Total Duration (minutes)</FormLabel><FormControl><Input type="number" placeholder="e.g., 180" {...field} /></FormControl><FormMessage /></FormItem>
+                        )} />
                     </div>
 
-                    <FormItem>
-                        <FormLabel className="text-lg font-semibold">Questions</FormLabel>
-                        <Card className='p-4'>
-                            <div className='flex items-center justify-between'>
-                                <p className='text-muted-foreground'>You have selected <span className='font-bold text-foreground'>{selectedQuestionIds.length}</span> question(s).</p>
-                                <QuestionSelector
-                                    allQuestions={allQuestions || []}
-                                    classes={classes || []}
-                                    subjects={subjects || []}
-                                    topics={topics || []}
-                                    selectedQuestionIds={selectedQuestionIds}
-                                    setSelectedQuestionIds={(ids) => form.setValue('questionIds', ids, { shouldValidate: true })}
-                                />
-                            </div>
+                    {/* Filters */}
+                    <div className="space-y-4 rounded-lg border p-4">
+                        <h3 className="text-lg font-semibold">Filter Questions</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <FormField control={form.control} name="accessLevel" render={({ field }) => (
+                                <FormItem><FormLabel>Access Level</FormLabel><FormControl>
+                                    <RadioGroup onValueChange={field.onChange} value={field.value} className="flex gap-4 pt-2">
+                                        <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="free" /></FormControl><FormLabel className="font-normal">Free</FormLabel></FormItem>
+                                        <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="paid" disabled={!isSubscribed} /></FormControl><FormLabel className={cn("font-normal", !isSubscribed && "text-muted-foreground")}>Paid {!isSubscribed && ' (Pro)'}</FormLabel></FormItem>
+                                    </RadioGroup>
+                                </FormControl></FormItem>
+                            )} />
+                            <FormField control={form.control} name="examCategory" render={({ field }) => (
+                                <FormItem><FormLabel>Exam Category</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="All">All</SelectItem><SelectItem value="JEE Main">JEE Main</SelectItem><SelectItem value="JEE Advanced">JEE Advanced</SelectItem><SelectItem value="Both">Both</SelectItem></SelectContent></Select></FormItem>
+                            )} />
+                            <FormField control={form.control} name="difficultyLevel" render={({ field }) => (
+                                <FormItem><FormLabel>Difficulty</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="All">All</SelectItem><SelectItem value="Easy">Easy</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Hard">Hard</SelectItem></SelectContent></Select></FormItem>
+                            )} />
+                        </div>
+                    </div>
+                    
+                    {/* Topic Selector */}
+                    <div className="space-y-4">
+                        <FormLabel className="text-lg font-semibold">Select Topics</FormLabel>
+                        <FormDescription>Choose one or more topics to include in your test.</FormDescription>
+                        <Card>
+                            <CardContent className='p-4 max-h-96 overflow-y-auto'>
+                                <Accordion type="multiple" className="w-full">
+                                    {curriculumTree.map(c => (
+                                    <AccordionItem value={c.id} key={c.id}>
+                                        <AccordionTrigger>{c.name}</AccordionTrigger>
+                                        <AccordionContent>
+                                        <Accordion type="multiple" className="w-full pl-4">
+                                            {c.subjects.map(s => (
+                                            <AccordionItem value={s.id} key={s.id}>
+                                                <AccordionTrigger>{s.name}</AccordionTrigger>
+                                                <AccordionContent className='pl-4'>
+                                                    <div className="space-y-2">
+                                                        {s.topics.map(t => (
+                                                            <div key={t.id} className="flex items-center space-x-2">
+                                                                <Checkbox id={t.id} onCheckedChange={(checked) => handleTopicToggle(t.id, !!checked)} checked={selectedTopics.includes(t.id)}/>
+                                                                <label htmlFor={t.id} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">{t.name}</label>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </AccordionContent>
+                                            </AccordionItem>
+                                            ))}
+                                        </Accordion>
+                                        </AccordionContent>
+                                    </AccordionItem>
+                                    ))}
+                                </Accordion>
+                            </CardContent>
+                            <CardFooter>
+                                <Badge>Selected Questions: {filteredQuestions.length}</Badge>
+                            </CardFooter>
                         </Card>
-                        <FormMessage>{form.formState.errors.questionIds?.message}</FormMessage>
-                    </FormItem>
-
+                    </div>
 
                     <Button type="submit" disabled={isSubmitting} size="lg">
                       {isSubmitting ? (
@@ -235,96 +290,4 @@ export default function EditCustomMockTestPage() {
       </main>
     </div>
   );
-}
-
-function QuestionSelector({
-    allQuestions,
-    classes,
-    subjects,
-    topics,
-    selectedQuestionIds,
-    setSelectedQuestionIds
-}: {
-    allQuestions: Question[],
-    classes: Class[],
-    subjects: Subject[],
-    topics: Topic[],
-    selectedQuestionIds: string[],
-    setSelectedQuestionIds: (ids: string[]) => void
-}) {
-    const [open, setOpen] = useState(false);
-    const [classFilter, setClassFilter] = useState('');
-    const [subjectFilter, setSubjectFilter] = useState('');
-    const [topicFilter, setTopicFilter] = useState('');
-
-    const filteredSubjects = useMemo(() => subjects.filter(s => s.classId === classFilter), [subjects, classFilter]);
-    const filteredTopics = useMemo(() => topics.filter(t => t.subjectId === subjectFilter), [topics, subjectFilter]);
-    
-    const filteredQuestions = useMemo(() => {
-        return allQuestions.filter(q => {
-            if (topicFilter && q.topicId !== topicFilter) return false;
-            if (subjectFilter && q.subjectId !== subjectFilter) return false;
-            if (classFilter && q.classId !== classFilter) return false;
-            return true;
-        });
-    }, [allQuestions, classFilter, subjectFilter, topicFilter]);
-
-    const handleToggleQuestion = (questionId: string) => {
-        const newIds = selectedQuestionIds.includes(questionId)
-            ? selectedQuestionIds.filter(id => id !== questionId)
-            : [...selectedQuestionIds, questionId];
-        setSelectedQuestionIds(newIds);
-    }
-    
-    return (
-        <Sheet open={open} onOpenChange={setOpen}>
-            <SheetTrigger asChild>
-                <Button variant="outline">Select Questions</Button>
-            </SheetTrigger>
-            <SheetContent className="sm:max-w-2xl w-full flex flex-col">
-                <SheetHeader>
-                    <SheetTitle>Select Practice Questions</SheetTitle>
-                    <SheetDescription>Filter and select the questions to include in your test.</SheetDescription>
-                </SheetHeader>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 py-4">
-                    <Select value={classFilter} onValueChange={v => { setClassFilter(v); setSubjectFilter(''); setTopicFilter(''); }}>
-                        <SelectTrigger><SelectValue placeholder="Filter by Class" /></SelectTrigger>
-                        <SelectContent>{classes.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-                    </Select>
-                     <Select value={subjectFilter} onValueChange={v => { setSubjectFilter(v); setTopicFilter(''); }} disabled={!classFilter}>
-                        <SelectTrigger><SelectValue placeholder="Filter by Subject" /></SelectTrigger>
-                        <SelectContent>{filteredSubjects.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
-                    </Select>
-                     <Select value={topicFilter} onValueChange={setTopicFilter} disabled={!subjectFilter}>
-                        <SelectTrigger><SelectValue placeholder="Filter by Topic" /></SelectTrigger>
-                        <SelectContent>{filteredTopics.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
-                    </Select>
-                </div>
-                
-                <ScrollArea className="flex-grow border rounded-md p-4">
-                    <div className="space-y-4">
-                        {filteredQuestions.length > 0 ? filteredQuestions.map(q => (
-                             <div key={q.id} className="flex items-start space-x-3 p-2 rounded-md hover:bg-muted">
-                                <Checkbox
-                                    id={q.id}
-                                    checked={selectedQuestionIds.includes(q.id)}
-                                    onCheckedChange={() => handleToggleQuestion(q.id)}
-                                    className='mt-1'
-                                />
-                                <label htmlFor={q.id} className="flex-1 text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                    {q.questionText}
-                                </label>
-                            </div>
-                        )) : <p className='text-sm text-muted-foreground text-center py-8'>No questions match your filters.</p>}
-                    </div>
-                </ScrollArea>
-                <SheetFooter className='pt-4'>
-                    <div className='flex justify-between items-center w-full'>
-                        <Badge variant="secondary">{selectedQuestionIds.length} question(s) selected</Badge>
-                        <SheetClose asChild><Button>Done</Button></SheetClose>
-                    </div>
-                </SheetFooter>
-            </SheetContent>
-        </Sheet>
-    );
 }

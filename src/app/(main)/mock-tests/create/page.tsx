@@ -92,6 +92,82 @@ export default function CreateCustomTestPage() {
   const selectedQuestionIds = form.watch('questionIds');
   const subjectConfigs = form.watch('subjectConfigs');
 
+  const handleAutoSelect = () => {
+    const { subjectConfigs, accessLevel, totalQuestions } = form.getValues();
+
+    if (!subjectConfigs || subjectConfigs.length === 0 || !totalQuestions || totalQuestions === 0) {
+      toast({
+        variant: 'destructive',
+        title: 'Incomplete Configuration',
+        description: 'Please define the total questions and subject structure first.',
+      });
+      return;
+    }
+    
+    const sumOfSubjectQs = subjectConfigs.reduce((acc, c) => acc + c.numQuestions, 0);
+    if (sumOfSubjectQs !== totalQuestions) {
+            toast({
+            variant: 'destructive',
+            title: 'Configuration Mismatch',
+            description: 'The sum of questions per subject does not match the total questions.',
+        });
+        return;
+    }
+
+    const availableQuestions = (allQuestions || []).filter(
+      q => q.accessLevel === accessLevel
+    );
+
+    const questionsBySubject: Record<string, Question[]> = {};
+    availableQuestions.forEach(q => {
+      if (!questionsBySubject[q.subjectId]) {
+        questionsBySubject[q.subjectId] = [];
+      }
+      questionsBySubject[q.subjectId].push(q);
+    });
+
+    let selectedIds: string[] = [];
+    let possible = true;
+
+    for (const config of subjectConfigs) {
+      const subjectQuestionPool = questionsBySubject[config.subjectId] || [];
+      if (subjectQuestionPool.length < config.numQuestions) {
+        const subject = subjects?.find(s => s.id === config.subjectId);
+        toast({
+          variant: 'destructive',
+          title: 'Not Enough Questions',
+          description: `Not enough questions available for ${subject?.name || 'the selected subject'}. Found ${subjectQuestionPool.length}, need ${config.numQuestions}.`,
+        });
+        possible = false;
+        break;
+      }
+
+      // Shuffle and pick, ensuring no duplicates if this function is ever called multiple times
+      const shuffled = [...subjectQuestionPool].filter(q => !selectedIds.includes(q.id)).sort(() => 0.5 - Math.random());
+      const selectedForSubject = shuffled.slice(0, config.numQuestions).map(q => q.id);
+      selectedIds.push(...selectedForSubject);
+    }
+    
+    const finalIds = [...new Set(selectedIds)];
+
+    if (possible) {
+        if(finalIds.length !== totalQuestions) {
+             toast({
+                variant: 'destructive',
+                title: 'Selection Error',
+                description: `Could only select ${finalIds.length} out of ${totalQuestions} questions. Please check question availability.`,
+            });
+            form.setValue('questionIds', finalIds, { shouldValidate: true });
+        } else {
+            form.setValue('questionIds', finalIds, { shouldValidate: true });
+            toast({
+                title: 'Questions Auto-Selected',
+                description: `${finalIds.length} questions have been automatically selected for your test.`,
+            });
+        }
+    }
+  };
+
   async function onSubmit(values: z.infer<typeof formSchema>) {
     if(!user) return;
     setIsSubmitting(true);
@@ -242,17 +318,20 @@ export default function CreateCustomTestPage() {
                                 <p className='text-muted-foreground'>You have selected <span className='font-bold text-foreground'>{selectedQuestionIds.length} / {form.getValues('totalQuestions') || 0}</span> question(s).</p>
                                 <FormMessage>{form.formState.errors.questionIds?.message}</FormMessage>
                                 </div>
-                                <QuestionSelector
-                                    allQuestions={allQuestions || []}
-                                    accessLevel={form.watch('accessLevel')}
-                                    classes={classes || []}
-                                    subjects={subjects || []}
-                                    topics={topics || []}
-                                    selectedQuestionIds={selectedQuestionIds}
-                                    setSelectedQuestionIds={(ids) => form.setValue('questionIds', ids, { shouldValidate: true })}
-                                    totalLimit={form.watch('totalQuestions')}
-                                    subjectLimits={form.watch('subjectConfigs')}
-                                />
+                                <div className="flex items-center gap-2">
+                                    <Button type="button" variant="secondary" onClick={handleAutoSelect}>Auto-select</Button>
+                                    <QuestionSelector
+                                        allQuestions={allQuestions || []}
+                                        accessLevel={form.watch('accessLevel')}
+                                        classes={classes || []}
+                                        subjects={subjects || []}
+                                        topics={topics || []}
+                                        selectedQuestionIds={selectedQuestionIds}
+                                        setSelectedQuestionIds={(ids) => form.setValue('questionIds', ids, { shouldValidate: true })}
+                                        totalLimit={form.watch('totalQuestions')}
+                                        subjectLimits={form.watch('subjectConfigs')}
+                                    />
+                                </div>
                             </div>
                         </Card>
                     </FormItem>
@@ -414,5 +493,3 @@ function QuestionSelector({
         </Sheet>
     );
 }
-
-    

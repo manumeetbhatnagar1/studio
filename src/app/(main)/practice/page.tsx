@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -15,7 +16,7 @@ import DashboardHeader from '@/components/dashboard-header';
 import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
 import { collection, query, orderBy } from 'firebase/firestore';
 import { useState, useMemo } from 'react';
-import { LoaderCircle, ClipboardList, PlusCircle, CheckCircle } from 'lucide-react';
+import { LoaderCircle, ClipboardList, PlusCircle, CheckCircle, Lock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useIsTeacher } from '@/hooks/useIsTeacher';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -141,7 +142,7 @@ export default function PracticePage() {
   const subjectsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'subjects'), orderBy('name')) : null, [firestore]);
   const topicsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'topics'), orderBy('name')) : null, [firestore]);
 
-  const { data: questions, isLoading: areQuestionsLoading } = useCollection<PracticeQuestion>(questionsCollectionRef);
+  const { data: questions, isLoading: areQuestionsLoading, error: questionsError } = useCollection<PracticeQuestion>(questionsCollectionRef);
   const { data: subjects, isLoading: areSubjectsLoading } = useCollection<Subject>(subjectsQuery);
   const { data: topics, isLoading: areTopicsLoading } = useCollection<Topic>(topicsQuery);
   
@@ -205,6 +206,19 @@ export default function PracticePage() {
       description: 'The image is ready. Please fill in the question details manually.',
     });
   };
+
+  const SubscriptionPrompt = () => (
+    <div className="flex flex-col items-center justify-center text-center p-8 md:p-16 border-2 border-dashed rounded-lg h-full bg-amber-500/5">
+        <Lock className="w-16 h-16 text-amber-500 mb-4" />
+        <h2 className="font-headline text-2xl font-semibold text-amber-600">Practice Area Locked</h2>
+        <p className="text-amber-700/80 mt-2 max-w-md">
+            You need an active subscription to access the practice question bank. Please subscribe to unlock this feature.
+        </p>
+        <Button asChild className="mt-6 bg-amber-500 hover:bg-amber-600 text-white">
+            <Link href="/subscription">View Subscription Plans</Link>
+        </Button>
+    </div>
+  );
 
   return (
     <div className="flex flex-col h-full">
@@ -281,7 +295,8 @@ export default function PracticePage() {
                 <CardDescription>Browse the question bank. Click on a question to view the answer.</CardDescription>
             </CardHeader>
             <CardContent>
-                {areQuestionsLoading ? (
+                {questionsError ? <SubscriptionPrompt /> :
+                areQuestionsLoading ? (
                     <div className="space-y-4">
                         <Skeleton className="h-20 w-full" />
                         <Skeleton className="h-20 w-full" />

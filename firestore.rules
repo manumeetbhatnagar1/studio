@@ -65,6 +65,17 @@ service cloud.firestore {
     function isTeacher() {
       return exists(/databases/$(database)/documents/roles_teacher/$(request.auth.uid));
     }
+    
+    /**
+     * Checks if the authenticated user has an active subscription.
+     * This relies on a denormalized 'subscriptionStatus' field on the user's profile document.
+     */
+    function isSubscribed() {
+      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
+      return userDoc != null 
+             && 'subscriptionStatus' in userDoc.data 
+             && (userDoc.data.subscriptionStatus == 'active' || userDoc.data.subscriptionStatus == 'trialing');
+    }
 
     // --------------------------------------------------------------------
     // User Data Rules
@@ -163,15 +174,15 @@ service cloud.firestore {
     // --------------------------------------------------------------------
 
     /**
-     * @description Learning content like videos and articles. Readable by anyone signed in,
-     *              but only manageable by teachers.
+     * @description Learning content like videos and articles. Readable by teachers or
+     *              subscribed users, and only manageable by teachers.
      * @path        /content/{contentId}
-     * @allow       (get) Any signed-in user viewing content.
+     * @allow       (get, list) A teacher or a subscribed user.
      * @deny        (create) A student trying to upload new content.
-     * @principle   Public read access with role-restricted writes.
+     * @principle   Role- and subscription-restricted access.
      */
     match /content/{contentId} {
-      allow get, list: if isSignedIn();
+      allow get, list: if isTeacher() || isSubscribed();
       allow create, update, delete: if isTeacher();
     }
 
@@ -199,14 +210,15 @@ service cloud.firestore {
     }
 
     /**
-     * @description Practice questions. Readable by anyone signed in, but only manageable by teachers.
+     * @description Practice questions. Readable by teachers or subscribed users, 
+     *              but only manageable by teachers.
      * @path        /practice_questions/{practiceQuestionId}
-     * @allow       (get) Any signed-in user fetching a practice question.
+     * @allow       (get, list) A teacher or a subscribed user.
      * @deny        (delete) A student trying to delete a question.
-     * @principle   Public read access with role-restricted writes.
+     * @principle   Role- and subscription-restricted access.
      */
     match /practice_questions/{practiceQuestionId} {
-      allow get, list: if isSignedIn();
+      allow get, list: if isTeacher() || isSubscribed();
       allow create, update, delete: if isTeacher();
     }
 

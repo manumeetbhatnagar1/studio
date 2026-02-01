@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -19,7 +20,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { PlusCircle, Film, LoaderCircle, Youtube, BookOpen, FileText } from 'lucide-react';
+import { PlusCircle, Film, LoaderCircle, Youtube, BookOpen, FileText, Lock } from 'lucide-react';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 const contentSchema = z.object({
@@ -244,7 +245,7 @@ export default function ContentPage() {
   
   const { data: subjects, isLoading: areSubjectsLoading } = useCollection<Subject>(subjectsQuery);
   const { data: topics, isLoading: areTopicsLoading } = useCollection<Topic>(topicsQuery);
-  const { data: content, isLoading: areContentLoading } = useCollection<Content>(contentQuery);
+  const { data: content, isLoading: areContentLoading, error: contentError } = useCollection<Content>(contentQuery);
 
   const contentTree = useMemo(() => {
     if (!topics || !subjects) return {};
@@ -282,6 +283,19 @@ export default function ContentPage() {
 
   const isLoading = isTeacherLoading || areTopicsLoading || areContentLoading || areSubjectsLoading;
 
+  const SubscriptionPrompt = () => (
+    <div className="flex flex-col items-center justify-center text-center p-8 md:p-16 border-2 border-dashed rounded-lg h-full bg-amber-500/5">
+        <Lock className="w-16 h-16 text-amber-500 mb-4" />
+        <h2 className="font-headline text-2xl font-semibold text-amber-600">Premium Content Locked</h2>
+        <p className="text-amber-700/80 mt-2 max-w-md">
+            You need an active subscription to access our library of study materials. Please subscribe to unlock all content.
+        </p>
+        <Button asChild className="mt-6 bg-amber-500 hover:bg-amber-600 text-white">
+            <Link href="/subscription">View Subscription Plans</Link>
+        </Button>
+    </div>
+  );
+
   return (
     <div className="flex flex-col h-full">
       <DashboardHeader title="Study Materials" />
@@ -312,7 +326,8 @@ export default function ContentPage() {
             <CardDescription>Browse materials organized by subject and topic.</CardDescription>
           </CardHeader>
           <CardContent>
-            {isLoading ? (
+            {contentError ? <SubscriptionPrompt /> : 
+            isLoading ? (
               <div className="space-y-4">
                 <Skeleton className="h-20 w-full" />
                 <Skeleton className="h-20 w-full" />

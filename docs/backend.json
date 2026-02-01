@@ -39,6 +39,20 @@
             "Class 12",
             "Dropper"
           ]
+        },
+        "subscriptionPlanId": {
+          "type": "string",
+          "description": "The ID of the user's active subscription plan. Reference to SubscriptionPlan."
+        },
+        "subscriptionStatus": {
+          "type": "string",
+          "description": "The current status of the user's subscription.",
+          "enum": [
+            "active",
+            "canceled",
+            "past_due",
+            "trialing"
+          ]
         }
       },
       "required": [

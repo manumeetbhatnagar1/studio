@@ -216,15 +216,6 @@
             "Hard"
           ]
         },
-        "examCategory": {
-          "type": "string",
-          "description": "Specifies if the content is for JEE Main, Advanced, or both.",
-          "enum": [
-            "JEE Main",
-            "JEE Advanced",
-            "Both"
-          ]
-        },
         "accessLevel": {
           "type": "string",
           "description": "Specifies if the content is free or requires a subscription.",
@@ -243,7 +234,6 @@
         "subjectId",
         "topicId",
         "difficultyLevel",
-        "examCategory",
         "accessLevel"
       ]
     },

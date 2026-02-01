@@ -36,7 +36,6 @@ const contentSchema = z.object({
   subjectId: z.string().min(1, 'You must select a subject.'),
   topicId: z.string().min(1, 'You must select a topic.'),
   difficultyLevel: z.enum(['Easy', 'Medium', 'Hard']),
-  examCategory: z.enum(['JEE Main', 'JEE Advanced', 'Both']),
   accessLevel: z.enum(['free', 'paid']),
 }).superRefine((data, ctx) => {
     if (data.type === 'video' && (!data.videoUrl || data.videoUrl.length === 0)) {
@@ -72,7 +71,6 @@ type Content = {
   classId: string;
   examTypeId: string;
   difficultyLevel: 'Easy' | 'Medium' | 'Hard';
-  examCategory: 'JEE Main' | 'JEE Advanced' | 'Both';
   accessLevel: 'free' | 'paid';
 };
 
@@ -134,7 +132,6 @@ function ContentForm({ examTypes, classes, subjects, topics, onFormReset }: { ex
       subjectId: '',
       topicId: '',
       difficultyLevel: 'Medium',
-      examCategory: 'Both',
       accessLevel: 'free',
     },
   });
@@ -236,9 +233,6 @@ function ContentForm({ examTypes, classes, subjects, topics, onFormReset }: { ex
           <FormField control={form.control} name="difficultyLevel" render={({ field }) => (
             <FormItem><FormLabel>Difficulty</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select difficulty" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Easy">Easy</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Hard">Hard</SelectItem></SelectContent></Select><FormMessage /></FormItem>
           )} />
-          <FormField control={form.control} name="examCategory" render={({ field }) => (
-            <FormItem><FormLabel>Exam Category</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger></FormControl><SelectContent><SelectItem value="JEE Main">JEE Main</SelectItem><SelectItem value="JEE Advanced">JEE Advanced</SelectItem><SelectItem value="Both">Both</SelectItem></SelectContent></Select><FormMessage /></FormItem>
-          )} />
         </div>
         <Button type="submit" disabled={isSubmitting}>
           {isSubmitting ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> Adding...</> : <><PlusCircle className="mr-2" /> Add Content</>}
@@ -268,7 +262,6 @@ function ContentListItem({ contentItem, canViewPaidContent }: { contentItem: Con
             <p className="text-sm text-muted-foreground line-clamp-2">{contentItem.description}</p>
             <div className="mt-2 flex items-center gap-2">
                 <Badge variant={difficultyVariant[contentItem.difficultyLevel]}>{contentItem.difficultyLevel}</Badge>
-                <Badge variant="outline">{contentItem.examCategory}</Badge>
             </div>
         </div>
     </div>

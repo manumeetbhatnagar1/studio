@@ -122,7 +122,7 @@ export default function CreateCustomTestPage() {
           studentId: user.uid,
           title: values.title,
           accessLevel: values.accessLevel,
-          examCategory: values.examCategory,
+          examCategory: values.examCategory === 'All' ? 'Both' : values.examCategory,
           config: {
               questionIds,
               duration: values.duration,

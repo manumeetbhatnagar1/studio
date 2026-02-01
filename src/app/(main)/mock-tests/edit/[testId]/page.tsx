@@ -6,7 +6,7 @@ import * as z from 'zod';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import DashboardHeader from '@/components/dashboard-header';
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc, updateDocumentNonBlocking } from '@/firebase';
 import { collection, query, orderBy, doc } from 'firebase/firestore';
@@ -157,7 +157,7 @@ export default function EditCustomMockTestPage() {
         await updateDocumentNonBlocking(testDocRef, {
             title: values.title,
             accessLevel: values.accessLevel,
-            examCategory: values.examCategory,
+            examCategory: values.examCategory === 'All' ? 'Both' : values.examCategory,
             config: {
                 questionIds,
                 duration: values.duration,

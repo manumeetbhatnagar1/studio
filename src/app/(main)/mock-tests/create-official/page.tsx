@@ -1,6 +1,6 @@
 'use client';
 
-import { useForm, useFieldArray } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
@@ -14,7 +14,6 @@ import { useState, useMemo } from 'react';
 import { LoaderCircle, PlusCircle, CalendarIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Checkbox } from '@/components/ui/checkbox';
 import { useRouter } from 'next/navigation';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -22,25 +21,25 @@ import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription, SheetFooter, SheetClose } from '@/components/ui/sheet';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
-const subjectConfigSchema = z.object({
-  subjectId: z.string(),
-  subjectName: z.string(),
-  numQuestions: z.coerce.number().min(1, 'At least 1 question is required.').max(100),
-  duration: z.coerce.number().min(1, 'Duration must be at least 1 minute.').max(180),
-});
+type Question = { id: string; questionText: string; classId: string; subjectId: string; topicId: string; };
+type Class = { id: string; name: string };
+type Subject = { id: string; name: string; classId: string };
+type Topic = { id: string; name: string; subjectId: string };
 
 const formSchema = z.object({
   title: z.string().min(5, 'Test title must be at least 5 characters long.'),
-  startTime: z.date().refine((date) => date > new Date(), {
-    message: 'Start time must be in the future.',
-  }),
+  startTime: z.date().refine((date) => date > new Date(), { message: 'Start time must be in the future.' }),
   examCategory: z.enum(['JEE Main', 'JEE Advanced', 'Both']),
   accessLevel: z.enum(['free', 'paid']),
-  subjects: z.array(subjectConfigSchema).min(1, 'You must select at least one subject.'),
+  duration: z.coerce.number().min(1, 'Duration must be at least 1 minute.'),
+  questionIds: z.array(z.string()).min(1, 'You must select at least one question.'),
 });
 
-type Subject = { id: string; name: string };
 
 export default function CreateOfficialMockTestPage() {
   const firestore = useFirestore();
@@ -48,8 +47,16 @@ export default function CreateOfficialMockTestPage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Data fetching for filters and questions
+  const classesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'classes'), orderBy('name')) : null, [firestore]);
   const subjectsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'subjects'), orderBy('name')) : null, [firestore]);
-  const { data: allSubjects, isLoading: areSubjectsLoading } = useCollection<Subject>(subjectsQuery);
+  const topicsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'topics'), orderBy('name')) : null, [firestore]);
+  const questionsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'practice_questions')) : null, [firestore]);
+  
+  const { data: classes, isLoading: areClassesLoading } = useCollection<Class>(classesQuery);
+  const { data: subjects, isLoading: areSubjectsLoading } = useCollection<Subject>(subjectsQuery);
+  const { data: topics, isLoading: areTopicsLoading } = useCollection<Topic>(topicsQuery);
+  const { data: allQuestions, isLoading: areQuestionsLoading } = useCollection<Question>(questionsQuery);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -57,28 +64,13 @@ export default function CreateOfficialMockTestPage() {
       title: '',
       examCategory: 'Both',
       accessLevel: 'free',
-      subjects: [],
+      duration: 180,
+      questionIds: [],
     },
   });
 
-  const { fields, append, remove } = useFieldArray({
-    control: form.control,
-    name: 'subjects',
-  });
+  const selectedQuestionIds = form.watch('questionIds');
 
-  const selectedSubjectIds = useMemo(() => fields.map(field => field.subjectId), [fields]);
-
-  const handleSubjectToggle = (checked: boolean, subject: Subject) => {
-    if (checked) {
-      append({ subjectId: subject.id, subjectName: subject.name, numQuestions: 30, duration: 60 });
-    } else {
-      const index = fields.findIndex(field => field.subjectId === subject.id);
-      if (index > -1) {
-        remove(index);
-      }
-    }
-  };
-  
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsSubmitting(true);
 
@@ -90,7 +82,8 @@ export default function CreateOfficialMockTestPage() {
         examCategory: values.examCategory,
         accessLevel: values.accessLevel,
         config: {
-            subjects: values.subjects,
+            questionIds: values.questionIds,
+            duration: values.duration,
         },
     });
     
@@ -102,6 +95,8 @@ export default function CreateOfficialMockTestPage() {
     setIsSubmitting(false);
   }
 
+  const isLoading = areSubjectsLoading || areClassesLoading || areTopicsLoading || areQuestionsLoading;
+
   return (
     <div className="flex flex-col h-full">
       <DashboardHeader title="Create an Official Mock Test" />
@@ -111,11 +106,11 @@ export default function CreateOfficialMockTestPage() {
             <CardHeader>
               <CardTitle className="font-headline text-2xl">New Official Test</CardTitle>
               <CardDescription>
-                Build a mock test for all students. Select subjects and configure the test structure.
+                Build a mock test for all students by selecting questions from the question bank.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {areSubjectsLoading ? (
+              {isLoading ? (
                 <Skeleton className="h-64 w-full" />
               ) : (
                 <Form {...form}>
@@ -160,95 +155,63 @@ export default function CreateOfficialMockTestPage() {
                         )} />
                     </div>
 
-                    <FormField
-                      control={form.control}
-                      name="accessLevel"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-lg font-semibold">Access Level</FormLabel>
-                          <FormDescription>
-                            Paid tests will only use paid questions from the question bank.
-                          </FormDescription>
-                          <FormControl>
-                            <RadioGroup
-                              onValueChange={field.onChange}
-                              defaultValue={field.value}
-                              className="flex gap-4 pt-2"
-                            >
-                              <FormItem className="flex items-center space-x-2">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                         <FormField
+                            control={form.control}
+                            name="accessLevel"
+                            render={({ field }) => (
+                                <FormItem>
+                                <FormLabel className="text-lg font-semibold">Access Level</FormLabel>
                                 <FormControl>
-                                  <RadioGroupItem value="free" />
+                                    <RadioGroup
+                                    onValueChange={field.onChange}
+                                    defaultValue={field.value}
+                                    className="flex gap-4 pt-2"
+                                    >
+                                    <FormItem className="flex items-center space-x-2">
+                                        <FormControl><RadioGroupItem value="free" /></FormControl>
+                                        <FormLabel className="font-normal">Free</FormLabel>
+                                    </FormItem>
+                                    <FormItem className="flex items-center space-x-2">
+                                        <FormControl><RadioGroupItem value="paid" /></FormControl>
+                                        <FormLabel className="font-normal">Paid</FormLabel>
+                                    </FormItem>
+                                    </RadioGroup>
                                 </FormControl>
-                                <FormLabel className="font-normal">Free</FormLabel>
-                              </FormItem>
-                              <FormItem className="flex items-center space-x-2">
-                                <FormControl>
-                                  <RadioGroupItem value="paid" />
-                                </FormControl>
-                                <FormLabel className="font-normal">Paid</FormLabel>
-                              </FormItem>
-                            </RadioGroup>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                         <FormField
+                            control={form.control}
+                            name="duration"
+                            render={({ field }) => (
+                                <FormItem>
+                                <FormLabel className="text-lg font-semibold">Total Duration (minutes)</FormLabel>
+                                <FormControl><Input type="number" placeholder="e.g., 180" {...field} /></FormControl>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                    </div>
 
                     <FormItem>
-                      <FormLabel className="text-lg font-semibold">Select Subjects</FormLabel>
-                      <div className="p-4 border rounded-md space-y-4">
-                        {allSubjects?.map(subject => (
-                          <div key={subject.id} className="flex items-center space-x-3">
-                            <Checkbox
-                              id={subject.id}
-                              checked={selectedSubjectIds.includes(subject.id)}
-                              onCheckedChange={(checked) => handleSubjectToggle(Boolean(checked), subject)}
-                            />
-                            <label htmlFor={subject.id} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                              {subject.name}
-                            </label>
-                          </div>
-                        ))}
-                      </div>
-                      <FormMessage>{form.formState.errors.subjects?.message}</FormMessage>
+                        <FormLabel className="text-lg font-semibold">Questions</FormLabel>
+                        <Card className='p-4'>
+                            <div className='flex items-center justify-between'>
+                                <p className='text-muted-foreground'>You have selected <span className='font-bold text-foreground'>{selectedQuestionIds.length}</span> question(s).</p>
+                                <QuestionSelector
+                                    allQuestions={allQuestions || []}
+                                    classes={classes || []}
+                                    subjects={subjects || []}
+                                    topics={topics || []}
+                                    selectedQuestionIds={selectedQuestionIds}
+                                    setSelectedQuestionIds={(ids) => form.setValue('questionIds', ids, { shouldValidate: true })}
+                                />
+                            </div>
+                        </Card>
+                         <FormMessage>{form.formState.errors.questionIds?.message}</FormMessage>
                     </FormItem>
-
-                    {fields.length > 0 && (
-                        <div className='space-y-6'>
-                             <h3 className="text-lg font-semibold">Configure Subjects</h3>
-                            {fields.map((field, index) => (
-                                <Card key={field.id} className="bg-muted/50">
-                                    <CardHeader>
-                                        <CardTitle className="text-xl">{field.subjectName}</CardTitle>
-                                    </CardHeader>
-                                    <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <FormField
-                                            control={form.control}
-                                            name={`subjects.${index}.numQuestions`}
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel>Number of Questions</FormLabel>
-                                                    <FormControl><Input type="number" {...field} /></FormControl>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
-                                        <FormField
-                                            control={form.control}
-                                            name={`subjects.${index}.duration`}
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel>Duration (minutes)</FormLabel>
-                                                    <FormControl><Input type="number" {...field} /></FormControl>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
-                                    </CardContent>
-                                </Card>
-                            ))}
-                        </div>
-                    )}
 
                     <Button type="submit" disabled={isSubmitting} size="lg">
                       {isSubmitting ? (
@@ -266,4 +229,96 @@ export default function CreateOfficialMockTestPage() {
       </main>
     </div>
   );
+}
+
+function QuestionSelector({
+    allQuestions,
+    classes,
+    subjects,
+    topics,
+    selectedQuestionIds,
+    setSelectedQuestionIds
+}: {
+    allQuestions: Question[],
+    classes: Class[],
+    subjects: Subject[],
+    topics: Topic[],
+    selectedQuestionIds: string[],
+    setSelectedQuestionIds: (ids: string[]) => void
+}) {
+    const [open, setOpen] = useState(false);
+    const [classFilter, setClassFilter] = useState('');
+    const [subjectFilter, setSubjectFilter] = useState('');
+    const [topicFilter, setTopicFilter] = useState('');
+
+    const filteredSubjects = useMemo(() => subjects.filter(s => s.classId === classFilter), [subjects, classFilter]);
+    const filteredTopics = useMemo(() => topics.filter(t => t.subjectId === subjectFilter), [topics, subjectFilter]);
+    
+    const filteredQuestions = useMemo(() => {
+        return allQuestions.filter(q => {
+            if (topicFilter && q.topicId !== topicFilter) return false;
+            if (subjectFilter && q.subjectId !== subjectFilter) return false;
+            if (classFilter && q.classId !== classFilter) return false;
+            return true;
+        });
+    }, [allQuestions, classFilter, subjectFilter, topicFilter]);
+
+    const handleToggleQuestion = (questionId: string) => {
+        const newIds = selectedQuestionIds.includes(questionId)
+            ? selectedQuestionIds.filter(id => id !== questionId)
+            : [...selectedQuestionIds, questionId];
+        setSelectedQuestionIds(newIds);
+    }
+    
+    return (
+        <Sheet open={open} onOpenChange={setOpen}>
+            <SheetTrigger asChild>
+                <Button variant="outline">Select Questions</Button>
+            </SheetTrigger>
+            <SheetContent className="sm:max-w-2xl w-full flex flex-col">
+                <SheetHeader>
+                    <SheetTitle>Select Practice Questions</SheetTitle>
+                    <SheetDescription>Filter and select the questions to include in the test.</SheetDescription>
+                </SheetHeader>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 py-4">
+                    <Select value={classFilter} onValueChange={v => { setClassFilter(v); setSubjectFilter(''); setTopicFilter(''); }}>
+                        <SelectTrigger><SelectValue placeholder="Filter by Class" /></SelectTrigger>
+                        <SelectContent>{classes.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                     <Select value={subjectFilter} onValueChange={v => { setSubjectFilter(v); setTopicFilter(''); }} disabled={!classFilter}>
+                        <SelectTrigger><SelectValue placeholder="Filter by Subject" /></SelectTrigger>
+                        <SelectContent>{filteredSubjects.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                     <Select value={topicFilter} onValueChange={setTopicFilter} disabled={!subjectFilter}>
+                        <SelectTrigger><SelectValue placeholder="Filter by Topic" /></SelectTrigger>
+                        <SelectContent>{filteredTopics.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                </div>
+                
+                <ScrollArea className="flex-grow border rounded-md p-4">
+                    <div className="space-y-4">
+                        {filteredQuestions.length > 0 ? filteredQuestions.map(q => (
+                             <div key={q.id} className="flex items-start space-x-3 p-2 rounded-md hover:bg-muted">
+                                <Checkbox
+                                    id={q.id}
+                                    checked={selectedQuestionIds.includes(q.id)}
+                                    onCheckedChange={() => handleToggleQuestion(q.id)}
+                                    className='mt-1'
+                                />
+                                <label htmlFor={q.id} className="flex-1 text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                                    {q.questionText}
+                                </label>
+                            </div>
+                        )) : <p className='text-sm text-muted-foreground text-center py-8'>No questions match your filters.</p>}
+                    </div>
+                </ScrollArea>
+                <SheetFooter className='pt-4'>
+                    <div className='flex justify-between items-center w-full'>
+                        <Badge variant="secondary">{selectedQuestionIds.length} question(s) selected</Badge>
+                        <SheetClose asChild><Button>Done</Button></SheetClose>
+                    </div>
+                </SheetFooter>
+            </SheetContent>
+        </Sheet>
+    );
 }

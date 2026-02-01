@@ -446,38 +446,23 @@
         },
         "config": {
           "type": "object",
-          "description": "The configuration of the test, specifying subjects, number of questions, and duration.",
+          "description": "The configuration of the test, specifying questions and duration.",
           "properties": {
-            "subjects": {
+            "questionIds": {
               "type": "array",
-              "description": "Configuration for each subject in the test.",
+              "description": "An array of PracticeQuestion IDs to be included in the test.",
               "items": {
-                "type": "object",
-                "properties": {
-                  "subjectId": {
-                    "type": "string"
-                  },
-                  "subjectName": {
-                    "type": "string"
-                  },
-                  "numQuestions": {
-                    "type": "number"
-                  },
-                  "duration": {
-                    "type": "number"
-                  }
-                },
-                "required": [
-                  "subjectId",
-                  "subjectName",
-                  "numQuestions",
-                  "duration"
-                ]
+                "type": "string"
               }
+            },
+            "duration": {
+              "type": "number",
+              "description": "The total duration of the test in minutes."
             }
           },
           "required": [
-            "subjects"
+            "questionIds",
+            "duration"
           ]
         }
       },
@@ -635,37 +620,23 @@
         },
         "config": {
           "type": "object",
+          "description": "The configuration of the test, specifying questions and duration.",
           "properties": {
-            "subjects": {
+            "questionIds": {
               "type": "array",
-              "description": "Configuration for each subject in the test.",
+              "description": "An array of PracticeQuestion IDs to be included in the test.",
               "items": {
-                "type": "object",
-                "properties": {
-                  "subjectId": {
-                    "type": "string"
-                  },
-                  "subjectName": {
-                    "type": "string"
-                  },
-                  "numQuestions": {
-                    "type": "number"
-                  },
-                  "duration": {
-                    "type": "number"
-                  }
-                },
-                "required": [
-                  "subjectId",
-                  "subjectName",
-                  "numQuestions",
-                  "duration"
-                ]
+                "type": "string"
               }
+            },
+            "duration": {
+              "type": "number",
+              "description": "The total duration of the test in minutes."
             }
           },
           "required": [
-            "subjects"
+            "questionIds",
+            "duration"
           ]
         },
         "createdAt": {

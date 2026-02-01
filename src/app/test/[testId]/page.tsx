@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useParams, useSearchParams } from 'next/navigation';
+import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
-import { doc, getDoc, collection, query, where, getDocs, queryEqual } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, writeBatch, documentId } from 'firebase/firestore';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Timer, User, LoaderCircle } from 'lucide-react';
+import { Timer, User, LoaderCircle, ArrowLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Logo } from '@/components/icons';
 
@@ -27,11 +27,13 @@ enum QuestionStatus {
 }
 
 type MockQuestion = {
-  id: string | number;
-  subject: SubjectName;
+  id: string;
+  subjectId: string;
   questionText: string;
-  type: QuestionType;
+  questionType: 'MCQ' | 'Numerical';
   options?: string[];
+  // Added from join
+  subject: SubjectName;
 };
 
 type Answer = {
@@ -44,12 +46,8 @@ type CustomTestConfig = {
     title: string;
     accessLevel: 'free' | 'paid';
     config: {
-        subjects: {
-            subjectId: string;
-            subjectName: string;
-            numQuestions: number;
-            duration: number;
-        }[];
+        questionIds: string[];
+        duration: number;
     };
 }
 
@@ -60,29 +58,49 @@ type OfficialTestConfig = {
     examCategory: 'JEE Main' | 'JEE Advanced' | 'Both';
     accessLevel: 'free' | 'paid';
     config: {
-        subjects: {
-            subjectId: string;
-            subjectName: string;
-            numQuestions: number;
-            duration: number;
-        }[];
+        questionIds: string[];
+        duration: number;
     };
 }
 
-const shuffleArray = <T>(array: T[]): T[] => {
-    const newArray = [...array];
-    for (let i = newArray.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+const fetchQuestionsByIds = async (firestore: any, questionIds: string[]): Promise<MockQuestion[]> => {
+    if (!questionIds || questionIds.length === 0) {
+        return [];
     }
-    return newArray;
+
+    const allQuestions: MockQuestion[] = [];
+    const subjectsMap = new Map<string, string>();
+    const subjectsSnapshot = await getDocs(collection(firestore, 'subjects'));
+    subjectsSnapshot.forEach(doc => subjectsMap.set(doc.id, doc.data().name));
+
+    // Firestore 'in' queries are limited to 30 items.
+    const CHUNK_SIZE = 30;
+    for (let i = 0; i < questionIds.length; i += CHUNK_SIZE) {
+        const chunk = questionIds.slice(i, i + CHUNK_SIZE);
+        const q = query(collection(firestore, 'practice_questions'), where(documentId(), 'in', chunk));
+        const qSnapshot = await getDocs(q);
+        const questionsChunk = qSnapshot.docs.map(d => {
+            const data = d.data();
+            return { 
+                ...(data as any), 
+                id: d.id,
+                subject: subjectsMap.get(data.subjectId) || 'Unknown Subject'
+            } as MockQuestion;
+        });
+        allQuestions.push(...questionsChunk);
+    }
+    
+    // Preserve the order from the config
+    return allQuestions.sort((a, b) => questionIds.indexOf(a.id) - questionIds.indexOf(b.id));
 };
+
 
 export default function MockTestPage() {
     const { user } = useUser();
     const firestore = useFirestore();
     const { testId } = useParams() as { testId: string };
     const searchParams = useSearchParams();
+    const router = useRouter();
     const testType = searchParams.get('type');
 
     const [testTitle, setTestTitle] = useState('Loading Test...');
@@ -112,32 +130,13 @@ export default function MockTestPage() {
                 testConfig = testConfigSnap.data() as OfficialTestConfig;
             }
     
-            if (testConfigSnap.exists()) {
+            if (testConfigSnap.exists() && testConfig.config.questionIds) {
                 setTestTitle(testConfig.title);
-                
-                let allQuestions: MockQuestion[] = [];
-                let totalDuration = 0;
-    
-                for (const subjectConfig of testConfig.config.subjects) {
-                    totalDuration += subjectConfig.duration;
-
-                    const queryConstraints = [
-                        where('subjectId', '==', subjectConfig.subjectId),
-                        where('accessLevel', '==', testConfig.accessLevel)
-                    ];
-
-                    const q = query(collection(firestore, 'practice_questions'), ...queryConstraints);
-
-                    const qSnapshot = await getDocs(q);
-                    const subjectQuestions = qSnapshot.docs.map(d => ({ ...(d.data() as any), id: d.id, subject: subjectConfig.subjectName })) as MockQuestion[];
-                    
-                    allQuestions.push(...shuffleArray(subjectQuestions).slice(0, subjectConfig.numQuestions));
-                }
-    
-                setQuestions(allQuestions);
-                setTimeLeft(totalDuration * 60);
+                setTimeLeft(testConfig.config.duration * 60);
+                const fetchedQuestions = await fetchQuestionsByIds(firestore, testConfig.config.questionIds);
+                setQuestions(fetchedQuestions);
             } else {
-                setTestTitle("Test Not Found");
+                setTestTitle("Test Not Found or Misconfigured");
                 setQuestions([]);
             }
             
@@ -256,7 +255,8 @@ export default function MockTestPage() {
               <div className="text-center">
                 <h1 className="text-2xl font-bold mb-4">{testTitle}</h1>
                 <p className="text-lg text-destructive">Could not load test questions.</p>
-                <p className="text-muted-foreground mt-2">There may be no questions available for the subjects in this test.</p>
+                <p className="text-muted-foreground mt-2">There may be no questions available for this test configuration.</p>
+                <Button onClick={() => router.back()} className="mt-4"><ArrowLeft className='mr-2'/>Go Back</Button>
               </div>
             </div>
         );
@@ -281,7 +281,7 @@ export default function MockTestPage() {
                     </Card>
                     <Card className="flex-grow">
                         <CardContent className="p-6">
-                            {currentQuestion.type === 'MCQ' ? (
+                            {currentQuestion.questionType === 'MCQ' ? (
                                 <RadioGroup value={answers.get(currentQuestion.id)?.value as string || ''} onValueChange={handleAnswerChange}>
                                     {currentQuestion.options?.map((option, index) => (
                                         <div key={index} className="flex items-center space-x-2 p-3 rounded-md hover:bg-muted"><RadioGroupItem value={option} id={`option-${index}`} /><Label htmlFor={`option-${index}`} className="flex-1 text-base">{option}</Label></div>

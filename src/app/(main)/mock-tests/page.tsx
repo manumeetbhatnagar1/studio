@@ -22,11 +22,8 @@ type CustomTest = {
   title: string;
   accessLevel: 'free' | 'paid';
   config: {
-    subjects: {
-      subjectName: string;
-      numQuestions: number;
-      duration: number;
-    }[];
+    questionIds: string[];
+    duration: number;
   };
   createdAt: { toDate: () => Date };
 }
@@ -38,11 +35,8 @@ type OfficialTest = {
   examCategory: 'JEE Main' | 'JEE Advanced' | 'Both';
   accessLevel: 'free' | 'paid';
   config: {
-    subjects: {
-      subjectName: string;
-      numQuestions: number;
-      duration: number;
-    }[];
+    questionIds: string[];
+    duration: number;
   };
 }
 
@@ -70,8 +64,8 @@ export default function MockTestsPage() {
 
   const { data: officialTests, isLoading: areOfficialTestsLoading } = useCollection<OfficialTest>(officialTestsQuery);
 
-  const totalQuestions = (test: CustomTest | OfficialTest) => test.config.subjects.reduce((sum, s) => sum + s.numQuestions, 0);
-  const totalDuration = (test: CustomTest | OfficialTest) => test.config.subjects.reduce((sum, s) => sum + s.duration, 0);
+  const totalQuestions = (test: CustomTest | OfficialTest) => test.config.questionIds?.length || 0;
+  const totalDuration = (test: CustomTest | OfficialTest) => test.config.duration || 0;
   
   const isLoading = areCustomTestsLoading || isTeacherLoading || areOfficialTestsLoading || isSubscribedLoading;
 
@@ -152,9 +146,6 @@ export default function MockTestsPage() {
                               <div className="flex items-center gap-2"><FileText className="h-4 w-4"/><span>{totalQuestions(test)} Questions</span></div>
                               <div className="flex items-center gap-2"><Clock className="h-4 w-4"/><span>{totalDuration(test)} Minutes</span></div>
                           </div>
-                          <div className="mt-2 text-sm text-muted-foreground">
-                              Subjects: {test.config.subjects.map(s => s.subjectName).join(', ')}
-                          </div>
                       </CardContent>
                       <CardFooter className="flex-col items-stretch gap-2">
                           {canTakeTest ? (
@@ -221,9 +212,6 @@ export default function MockTestsPage() {
                             <div className="flex items-center gap-4 text-sm text-muted-foreground">
                                 <div className="flex items-center gap-2"><FileText className="h-4 w-4"/><span>{totalQuestions(test)} Questions</span></div>
                                 <div className="flex items-center gap-2"><Clock className="h-4 w-4"/><span>{totalDuration(test)} Minutes</span></div>
-                            </div>
-                            <div className="mt-2 text-sm text-muted-foreground">
-                                Subjects: {test.config.subjects.map(s => s.subjectName).join(', ')}
                             </div>
                         </CardContent>
                         <CardFooter className="flex-col items-stretch gap-2">

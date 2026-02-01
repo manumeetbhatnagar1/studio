@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
-import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, queryEqual } from 'firebase/firestore';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -57,6 +57,7 @@ type OfficialTestConfig = {
     title: string;
     startTime: { toDate: () => Date };
     examCategory: 'JEE Main' | 'JEE Advanced' | 'Both';
+    accessLevel: 'free' | 'paid';
     config: {
         subjects: {
             subjectId: string;
@@ -98,16 +99,19 @@ export default function MockTestPage() {
             setIsLoading(true);
             
             let testConfigSnap;
+            let testConfig: CustomTestConfig | OfficialTestConfig;
+
             if (testType === 'custom') {
                 const testConfigRef = doc(firestore, 'users', user.uid, 'custom_tests', testId);
                 testConfigSnap = await getDoc(testConfigRef);
+                testConfig = testConfigSnap.data() as CustomTestConfig;
             } else {
                 const testConfigRef = doc(firestore, 'mock_tests', testId);
                 testConfigSnap = await getDoc(testConfigRef);
+                testConfig = testConfigSnap.data() as OfficialTestConfig;
             }
     
             if (testConfigSnap.exists()) {
-                const testConfig = testConfigSnap.data() as CustomTestConfig | OfficialTestConfig;
                 setTestTitle(testConfig.title);
                 
                 let allQuestions: MockQuestion[] = [];
@@ -115,7 +119,18 @@ export default function MockTestPage() {
     
                 for (const subjectConfig of testConfig.config.subjects) {
                     totalDuration += subjectConfig.duration;
-                    const q = query(collection(firestore, 'practice_questions'), where('subjectId', '==', subjectConfig.subjectId));
+
+                    const queryConstraints = [
+                        where('subjectId', '==', subjectConfig.subjectId)
+                    ];
+
+                    // For official tests, filter by access level. Custom tests can use any question.
+                    if (testType !== 'custom') {
+                        queryConstraints.push(where('accessLevel', '==', (testConfig as OfficialTestConfig).accessLevel));
+                    }
+
+                    const q = query(collection(firestore, 'practice_questions'), ...queryConstraints);
+
                     const qSnapshot = await getDocs(q);
                     const subjectQuestions = qSnapshot.docs.map(d => ({ ...(d.data() as any), id: d.id, subject: subjectConfig.subjectName })) as MockQuestion[];
                     

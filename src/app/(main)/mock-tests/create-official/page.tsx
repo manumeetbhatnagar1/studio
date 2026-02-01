@@ -4,7 +4,7 @@ import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import DashboardHeader from '@/components/dashboard-header';
@@ -21,6 +21,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 const subjectConfigSchema = z.object({
   subjectId: z.string(),
@@ -35,6 +36,7 @@ const formSchema = z.object({
     message: 'Start time must be in the future.',
   }),
   examCategory: z.enum(['JEE Main', 'JEE Advanced', 'Both']),
+  accessLevel: z.enum(['free', 'paid']),
   subjects: z.array(subjectConfigSchema).min(1, 'You must select at least one subject.'),
 });
 
@@ -54,6 +56,7 @@ export default function CreateOfficialMockTestPage() {
     defaultValues: {
       title: '',
       examCategory: 'Both',
+      accessLevel: 'free',
       subjects: [],
     },
   });
@@ -85,6 +88,7 @@ export default function CreateOfficialMockTestPage() {
         title: values.title,
         startTime: values.startTime,
         examCategory: values.examCategory,
+        accessLevel: values.accessLevel,
         config: {
             subjects: values.subjects,
         },
@@ -155,6 +159,40 @@ export default function CreateOfficialMockTestPage() {
                             <FormItem><FormLabel className="text-lg font-semibold">Exam Category</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger></FormControl><SelectContent><SelectItem value="JEE Main">JEE Main</SelectItem><SelectItem value="JEE Advanced">JEE Advanced</SelectItem><SelectItem value="Both">Both</SelectItem></SelectContent></Select><FormMessage /></FormItem>
                         )} />
                     </div>
+
+                    <FormField
+                      control={form.control}
+                      name="accessLevel"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-lg font-semibold">Access Level</FormLabel>
+                          <FormDescription>
+                            Paid tests will only use paid questions from the question bank.
+                          </FormDescription>
+                          <FormControl>
+                            <RadioGroup
+                              onValueChange={field.onChange}
+                              defaultValue={field.value}
+                              className="flex gap-4 pt-2"
+                            >
+                              <FormItem className="flex items-center space-x-2">
+                                <FormControl>
+                                  <RadioGroupItem value="free" />
+                                </FormControl>
+                                <FormLabel className="font-normal">Free</FormLabel>
+                              </FormItem>
+                              <FormItem className="flex items-center space-x-2">
+                                <FormControl>
+                                  <RadioGroupItem value="paid" />
+                                </FormControl>
+                                <FormLabel className="font-normal">Paid</FormLabel>
+                              </FormItem>
+                            </RadioGroup>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
                     <FormItem>
                       <FormLabel className="text-lg font-semibold">Select Subjects</FormLabel>

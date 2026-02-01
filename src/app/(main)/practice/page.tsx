@@ -13,10 +13,10 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import DashboardHeader from '@/components/dashboard-header';
-import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
-import { collection, query, orderBy } from 'firebase/firestore';
-import { useState, useMemo, useEffect } from 'react';
-import { LoaderCircle, ClipboardList, PlusCircle, CheckCircle, Lock } from 'lucide-react';
+import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
+import { collection, query, orderBy, doc } from 'firebase/firestore';
+import { useState, useMemo, useEffect, FC } from 'react';
+import { LoaderCircle, ClipboardList, PlusCircle, CheckCircle, Lock, Edit2, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useIsTeacher } from '@/hooks/useIsTeacher';
 import { useIsSubscribed } from '@/hooks/useIsSubscribed';
@@ -25,6 +25,7 @@ import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
 import PdfQuestionExtractor from '@/components/pdf-question-extractor';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 
 const baseSchema = z.object({
     questionText: z.string().min(10, 'Question must be at least 10 characters.'),
@@ -66,6 +67,7 @@ type PracticeQuestion = {
   id: string;
   questionText: string;
   difficultyLevel: 'Easy' | 'Medium' | 'Hard';
+  examCategory: 'JEE Main' | 'JEE Advanced' | 'Both',
   subjectId: string;
   topicId: string;
   imageUrl?: string;
@@ -79,7 +81,7 @@ type Subject = { id: string; name: string; classId: string; };
 type Topic = { id: string; name: string; subjectId: string; };
 
 
-function QuestionItem({ question, topicMap }: { question: PracticeQuestion; topicMap: Record<string, string> }) {
+function QuestionItem({ question, topicMap, isTeacher, onEdit, onDelete }: { question: PracticeQuestion; topicMap: Record<string, string>, isTeacher: boolean, onEdit: (question: PracticeQuestion) => void, onDelete: (questionId: string) => void }) {
   const difficultyVariant = {
     'Easy': 'default',
     'Medium': 'secondary',
@@ -88,18 +90,30 @@ function QuestionItem({ question, topicMap }: { question: PracticeQuestion; topi
 
   return (
     <AccordionItem value={question.id}>
-      <AccordionTrigger>
-        <div className="flex-1 text-left">
-          <p className="font-medium">{question.questionText}</p>
-          <div className="flex items-center gap-2 mt-2">
-            <Badge variant="outline">{topicMap[question.topicId] || question.topicId}</Badge>
-            <Badge variant={difficultyVariant[question.difficultyLevel] || 'default'}>
-              {question.difficultyLevel}
-            </Badge>
-             <Badge variant="secondary">{question.questionType}</Badge>
+      <div className="flex items-center">
+        <AccordionTrigger className="flex-1">
+          <div className="flex-1 text-left">
+            <p className="font-medium">{question.questionText}</p>
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
+              <Badge variant="outline">{topicMap[question.topicId] || 'Unknown Topic'}</Badge>
+              <Badge variant={difficultyVariant[question.difficultyLevel] || 'default'}>
+                {question.difficultyLevel}
+              </Badge>
+              <Badge variant="secondary">{question.questionType}</Badge>
+            </div>
           </div>
-        </div>
-      </AccordionTrigger>
+        </AccordionTrigger>
+        {isTeacher && (
+          <div className="flex items-center gap-1 pr-2">
+            <Button variant="ghost" size="icon" onClick={() => onEdit(question)}>
+              <Edit2 className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon" onClick={() => onDelete(question.id)}>
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
+          </div>
+        )}
+      </div>
       <AccordionContent>
         {question.imageUrl && (
             <div className="my-4 p-4 border rounded-md flex justify-center bg-muted/50">
@@ -135,6 +149,137 @@ function QuestionItem({ question, topicMap }: { question: PracticeQuestion; topi
   );
 }
 
+const EditQuestionForm: FC<{
+  questionToEdit: PracticeQuestion,
+  classes: Class[],
+  subjects: Subject[],
+  topics: Topic[],
+  onFinished: () => void,
+}> = ({ questionToEdit, classes, subjects, topics, onFinished }) => {
+    const firestore = useFirestore();
+    const { toast } = useToast();
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // Find the subject and class for the initial topic
+    const initialTopic = topics.find(t => t.id === questionToEdit.topicId);
+    const initialSubject = subjects.find(s => s.id === initialTopic?.subjectId);
+    const initialClassId = initialSubject?.classId || '';
+
+    const form = useForm<z.infer<typeof questionSchema>>({
+        resolver: zodResolver(questionSchema),
+        defaultValues: { ...questionToEdit, classId: initialClassId },
+    });
+
+    const { fields } = useFieldArray({ control: form.control, name: "options" });
+    
+    const questionType = form.watch('questionType');
+    const selectedClass = form.watch('classId');
+    const selectedSubject = form.watch('subjectId');
+
+    useEffect(() => {
+        const newInitialTopic = topics.find(t => t.id === questionToEdit.topicId);
+        const newInitialSubject = subjects.find(s => s.id === newInitialTopic?.subjectId);
+        const newInitialClassId = newInitialSubject?.classId || '';
+        form.reset({ ...questionToEdit, classId: newInitialClassId });
+    }, [questionToEdit, form, topics, subjects]);
+
+    useEffect(() => {
+        if (form.getValues('classId') !== initialClassId) {
+            form.setValue('subjectId', '');
+            form.setValue('topicId', '');
+        }
+    }, [selectedClass, form, initialClassId]);
+
+    useEffect(() => {
+        if (form.getValues('subjectId') !== initialSubject?.id) {
+            form.setValue('topicId', '');
+        }
+    }, [selectedSubject, form, initialSubject]);
+
+
+    const filteredSubjects = useMemo(() => {
+        if (!selectedClass || !subjects) return [];
+        return subjects.filter(subject => subject.classId === selectedClass);
+    }, [selectedClass, subjects]);
+
+    const filteredTopics = useMemo(() => {
+        if (!selectedSubject || !topics) return [];
+        return topics.filter(topic => topic.subjectId === selectedSubject);
+    }, [selectedSubject, topics]);
+
+    const onSubmit = (values: z.infer<typeof questionSchema>) => {
+        setIsSubmitting(true);
+        const questionRef = doc(firestore, 'practice_questions', questionToEdit.id);
+        
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { classId, ...dataToSave } = values;
+
+        updateDocumentNonBlocking(questionRef, dataToSave);
+        toast({
+          title: 'Question Updated!',
+          description: 'The practice question has been successfully updated.',
+        });
+        setIsSubmitting(false);
+        onFinished();
+    };
+
+    return (
+        <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 max-h-[70vh] overflow-y-auto p-2">
+                <FormField control={form.control} name="questionType" render={({ field }) => (
+                    <FormItem className="space-y-3"><FormLabel>Question Type</FormLabel>
+                        <FormControl>
+                            <RadioGroup onValueChange={(value) => { field.onChange(value);
+                                if (value === 'MCQ') { form.reset({ ...form.getValues(), numericalAnswer: undefined, options: ['', '', '', ''], correctAnswer: '' });
+                                } else { form.reset({ ...form.getValues(), options: undefined, correctAnswer: undefined }); }
+                            }} defaultValue={field.value} className="flex flex-row space-x-4">
+                            <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="MCQ" /></FormControl><FormLabel className="font-normal">Multiple Choice</FormLabel></FormItem>
+                            <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="Numerical" /></FormControl><FormLabel className="font-normal">Numerical Answer</FormLabel></FormItem>
+                            </RadioGroup>
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                )} />
+                <FormField control={form.control} name="questionText" render={({ field }) => (<FormItem><FormLabel>Question Text</FormLabel><FormControl><Textarea placeholder="e.g., What is the formula for..." {...field} rows={4} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="imageUrl" render={({ field }) => (<FormItem><FormLabel>Image URL (Optional)</FormLabel><FormControl><Input placeholder="https://example.com/image.png" {...field} /></FormControl><FormMessage /></FormItem>)} />
+
+                {questionType === 'MCQ' && (
+                    <div className="space-y-4">
+                        <FormLabel>Options & Correct Answer</FormLabel>
+                        <FormField control={form.control} name="correctAnswer" render={({ field }) => (
+                            <FormItem className='space-y-0'><FormControl>
+                                <RadioGroup onValueChange={field.onChange} value={field.value} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {fields.map((item, index) => (<FormField key={item.id} control={form.control} name={`options.${index}`} render={({ field: optionField }) => (<FormItem className="flex items-center gap-2 space-y-0 rounded-md border p-4 has-[:checked]:border-primary"><FormControl><RadioGroupItem value={optionField.value} disabled={!optionField.value} /></FormControl><Input {...optionField} placeholder={`Option ${index + 1}`} className="border-none p-0 h-auto focus-visible:ring-0 focus-visible:ring-offset-0" /><FormMessage className="col-span-2"/></FormItem>)} />))}
+                                </RadioGroup>
+                            </FormControl><FormMessage /></FormItem>
+                        )} />
+                    </div>
+                )}
+                {questionType === 'Numerical' && (<FormField control={form.control} name="numericalAnswer" render={({ field }) => (<FormItem><FormLabel>Correct Numerical Answer</FormLabel><FormControl><Input type="number" placeholder="e.g., 42" {...field} onChange={event => field.onChange(+event.target.value)} /></FormControl><FormMessage /></FormItem>)} />)}
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField control={form.control} name="classId" render={({ field }) => (
+                        <FormItem><FormLabel>Class</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a class" /></SelectTrigger></FormControl><SelectContent>{classes?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+                    )} />
+                    <FormField control={form.control} name="subjectId" render={({ field }) => (
+                        <FormItem><FormLabel>Subject</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!selectedClass}><FormControl><SelectTrigger><SelectValue placeholder="Select a subject" /></SelectTrigger></FormControl><SelectContent>{filteredSubjects.map(subject => <SelectItem key={subject.id} value={subject.id}>{subject.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+                    )} />
+                    <FormField control={form.control} name="topicId" render={({ field }) => (
+                        <FormItem><FormLabel>Topic</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!selectedSubject}><FormControl><SelectTrigger><SelectValue placeholder="Select a topic" /></SelectTrigger></FormControl><SelectContent>{filteredTopics.map(topic => <SelectItem key={topic.id} value={topic.id}>{topic.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+                    )} />
+                    <FormField control={form.control} name="difficultyLevel" render={({ field }) => (
+                        <FormItem><FormLabel>Difficulty</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select difficulty" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Easy">Easy</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Hard">Hard</SelectItem></SelectContent></Select><FormMessage /></FormItem>
+                    )} />
+                    <FormField control={form.control} name="examCategory" render={({ field }) => (
+                        <FormItem><FormLabel>Exam Category</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger></FormControl><SelectContent><SelectItem value="JEE Main">JEE Main</SelectItem><SelectItem value="JEE Advanced">JEE Advanced</SelectItem><SelectItem value="Both">Both</SelectItem></SelectContent></Select><FormMessage /></FormItem>
+                    )} />
+                </div>
+
+                <Button type="submit" disabled={isSubmitting}>{isSubmitting ? (<><LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> Saving...</>) : ('Save Changes')}</Button>
+            </form>
+        </Form>
+    );
+}
 
 export default function PracticePage() {
   const firestore = useFirestore();
@@ -142,6 +287,7 @@ export default function PracticePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { isTeacher, isLoading: isTeacherLoading } = useIsTeacher();
   const { isSubscribed, isLoading: isSubscribedLoading } = useIsSubscribed();
+  const [editingQuestion, setEditingQuestion] = useState<PracticeQuestion | null>(null);
 
   const questionsCollectionRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'practice_questions'), orderBy('topicId')) : null, [firestore]);
   const classesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'classes'), orderBy('name')) : null, [firestore]);
@@ -223,6 +369,16 @@ export default function PracticePage() {
     });
     form.reset();
     setIsSubmitting(false);
+  };
+
+  const handleDeleteQuestion = (questionId: string) => {
+      if (window.confirm('Are you sure you want to delete this question? This action cannot be undone.')) {
+          deleteDocumentNonBlocking(doc(firestore, 'practice_questions', questionId));
+          toast({
+              title: 'Question Deleted',
+              description: 'The question has been removed from the question bank.',
+          });
+      }
   };
   
   const handleImageCropped = (data: { imageUrl: string }) => {
@@ -340,9 +496,9 @@ export default function PracticePage() {
                     </div>
                 ) : !canViewContent ? <SubscriptionPrompt /> :
                 questions && questions.length > 0 ? (
-                    <Accordion type="single" collapsible className="w-full">
+                    <Accordion type="single" collapsible className="w-full space-y-2">
                         {questions.map(q => (
-                            <QuestionItem key={q.id} question={q} topicMap={topicMap} />
+                            <QuestionItem key={q.id} question={q} topicMap={topicMap} isTeacher={!!isTeacher} onEdit={setEditingQuestion} onDelete={handleDeleteQuestion} />
                         ))}
                     </Accordion>
                 ) : (
@@ -353,6 +509,28 @@ export default function PracticePage() {
                 )}
             </CardContent>
         </Card>
+
+        <Dialog open={!!editingQuestion} onOpenChange={(isOpen) => !isOpen && setEditingQuestion(null)}>
+            <DialogContent className="sm:max-w-4xl">
+                <DialogHeader>
+                    <DialogTitle>Edit Question</DialogTitle>
+                    <DialogDescription>
+                        Make changes to the question below. Click save when you're done.
+                    </DialogDescription>
+                </DialogHeader>
+                {editingQuestion && !isLoading && (
+                    <EditQuestionForm
+                        key={editingQuestion.id}
+                        questionToEdit={editingQuestion}
+                        classes={classes || []}
+                        subjects={subjects || []}
+                        topics={topics || []}
+                        onFinished={() => setEditingQuestion(null)}
+                    />
+                )}
+            </DialogContent>
+        </Dialog>
+
       </main>
     </div>
   );

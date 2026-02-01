@@ -29,6 +29,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useRouter } from 'next/navigation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Label } from '@/components/ui/label';
 
 
 const baseSchema = z.object({
@@ -427,6 +428,47 @@ export default function PracticePage() {
   const { data: classes, isLoading: areClassesLoading } = useCollection<Class>(classesQuery);
   const { data: subjects, isLoading: areSubjectsLoading } = useCollection<Subject>(subjectsQuery);
   const { data: topics, isLoading: areTopicsLoading } = useCollection<Topic>(topicsQuery);
+
+  const [bankClassFilter, setBankClassFilter] = useState('all');
+  const [bankSubjectFilter, setBankSubjectFilter] = useState('all');
+  const [bankTopicFilter, setBankTopicFilter] = useState('all');
+  const [bankDifficultyFilter, setBankDifficultyFilter] = useState('all');
+  const [bankExamFilter, setBankExamFilter] = useState('all');
+
+  const bankFilteredSubjects = useMemo(() => {
+    if (!subjects) return [];
+    if (bankClassFilter === 'all') return subjects;
+    return subjects.filter(subject => subject.classId === bankClassFilter);
+  }, [bankClassFilter, subjects]);
+
+  const bankFilteredTopics = useMemo(() => {
+    if (!topics) return [];
+    if (bankSubjectFilter === 'all') {
+      const subjectIds = bankFilteredSubjects.map(s => s.id);
+      return topics.filter(t => subjectIds.includes(t.subjectId));
+    }
+    return topics.filter(topic => topic.subjectId === bankSubjectFilter);
+  }, [bankSubjectFilter, topics, bankFilteredSubjects]);
+
+  const bankQuestions = useMemo(() => {
+    if (!questions) return [];
+    return questions.filter(q => {
+      if (bankClassFilter !== 'all' && q.classId !== bankClassFilter) return false;
+      if (bankSubjectFilter !== 'all' && q.subjectId !== bankSubjectFilter) return false;
+      if (bankTopicFilter !== 'all' && q.topicId !== bankTopicFilter) return false;
+      if (bankDifficultyFilter !== 'all' && q.difficultyLevel !== bankDifficultyFilter) return false;
+      if (bankExamFilter !== 'all' && q.examCategory !== bankExamFilter) return false;
+      return true;
+    });
+  }, [questions, bankClassFilter, bankSubjectFilter, bankTopicFilter, bankDifficultyFilter, bankExamFilter]);
+  
+  useEffect(() => {
+    setBankSubjectFilter('all');
+  }, [bankClassFilter]);
+
+  useEffect(() => {
+    setBankTopicFilter('all');
+  }, [bankSubjectFilter]);
   
   const topicMap = useMemo(() => {
     if (!topics) return {};
@@ -695,21 +737,78 @@ export default function PracticePage() {
                         <CardDescription>Browse the question bank. Click on a question to view the answer.</CardDescription>
                     </CardHeader>
                     <CardContent>
+                        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6 p-4 border rounded-lg bg-muted/50">
+                            <div className="space-y-2">
+                                <Label htmlFor="bank-class-filter">Class</Label>
+                                <Select value={bankClassFilter} onValueChange={setBankClassFilter}>
+                                    <SelectTrigger id="bank-class-filter"><SelectValue placeholder="All Classes" /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">All Classes</SelectItem>
+                                        {classes?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                             <div className="space-y-2">
+                                <Label htmlFor="bank-subject-filter">Subject</Label>
+                                <Select value={bankSubjectFilter} onValueChange={setBankSubjectFilter}>
+                                    <SelectTrigger id="bank-subject-filter"><SelectValue placeholder="All Subjects" /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">All Subjects</SelectItem>
+                                        {bankFilteredSubjects.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="bank-topic-filter">Topic</Label>
+                                <Select value={bankTopicFilter} onValueChange={setBankTopicFilter} disabled={bankSubjectFilter === 'all' && bankClassFilter === 'all'}>
+                                    <SelectTrigger id="bank-topic-filter"><SelectValue placeholder="All Topics" /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">All Topics</SelectItem>
+                                        {bankFilteredTopics.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="bank-difficulty-filter">Difficulty</Label>
+                                <Select value={bankDifficultyFilter} onValueChange={setBankDifficultyFilter}>
+                                    <SelectTrigger id="bank-difficulty-filter"><SelectValue placeholder="All Difficulties" /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">All Difficulties</SelectItem>
+                                        <SelectItem value="Easy">Easy</SelectItem>
+                                        <SelectItem value="Medium">Medium</SelectItem>
+                                        <SelectItem value="Hard">Hard</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                             <div className="space-y-2">
+                                <Label htmlFor="bank-exam-filter">Exam</Label>
+                                <Select value={bankExamFilter} onValueChange={setBankExamFilter}>
+                                    <SelectTrigger id="bank-exam-filter"><SelectValue placeholder="All Exams" /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">All Exams</SelectItem>
+                                        <SelectItem value="JEE Main">JEE Main</SelectItem>
+                                        <SelectItem value="JEE Advanced">JEE Advanced</SelectItem>
+                                        <SelectItem value="Both">Both</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+
                         {isLoading ? (
                             <div className="space-y-4">
                                 <Skeleton className="h-20 w-full" />
                                 <Skeleton className="h-20 w-full" />
                             </div>
-                        ) : !canViewPaidContent && questions?.some(q => q.accessLevel === 'paid') ? <SubscriptionPrompt /> :
-                        questions && questions.length > 0 ? (
+                        ) : bankQuestions && bankQuestions.length > 0 ? (
                             <Accordion type="single" collapsible className="w-full space-y-2">
-                                {questions.map(q => (
+                                {bankQuestions.map(q => (
                                     <QuestionItem key={q.id} question={q} topicMap={topicMap} classMap={classMap} isTeacher={false} canViewPaidContent={canViewPaidContent} onEdit={()=>{}} onDelete={()=>{}} />
                                 ))}
                             </Accordion>
                         ) : (
                             <div className="text-center text-muted-foreground py-8 border-2 border-dashed rounded-lg">
-                                <p className='font-medium'>No practice questions available yet.</p>
+                                <p className='font-medium'>No practice questions match your current filters.</p>
+                                <p className='text-sm'>Try adjusting your search criteria.</p>
                             </div>
                         )}
                     </CardContent>

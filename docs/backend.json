@@ -625,6 +625,14 @@
           "type": "string",
           "description": "The title of the custom test."
         },
+        "accessLevel": {
+          "type": "string",
+          "description": "Specifies if the test uses free or paid questions.",
+          "enum": [
+            "free",
+            "paid"
+          ]
+        },
         "config": {
           "type": "object",
           "properties": {
@@ -670,7 +678,8 @@
         "studentId",
         "title",
         "config",
-        "createdAt"
+        "createdAt",
+        "accessLevel"
       ]
     },
     "ChatMessage": {

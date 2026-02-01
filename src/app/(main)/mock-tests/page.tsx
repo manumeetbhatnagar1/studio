@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 type CustomTest = {
   id: string;
   title: string;
+  accessLevel: 'free' | 'paid';
   config: {
     subjects: {
       subjectName: string;
@@ -168,7 +169,12 @@ export default function MockTestsPage() {
                     {customTests.map(test => (
                         <Card key={test.id} className="flex flex-col">
                         <CardHeader>
-                            <CardTitle>{test.title}</CardTitle>
+                            <div className="flex justify-between items-start">
+                                <CardTitle>{test.title}</CardTitle>
+                                <Badge variant={test.accessLevel === 'paid' ? 'destructive' : 'default'}>
+                                    {test.accessLevel === 'paid' ? 'Paid' : 'Free'}
+                                </Badge>
+                            </div>
                             <CardDescription>Created {formatDistanceToNow(test.createdAt.toDate(), { addSuffix: true })}</CardDescription>
                         </CardHeader>
                         <CardContent className="flex-grow">

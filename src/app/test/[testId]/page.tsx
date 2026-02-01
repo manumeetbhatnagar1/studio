@@ -42,6 +42,7 @@ type Answer = {
 type CustomTestConfig = {
     id: string;
     title: string;
+    accessLevel: 'free' | 'paid';
     config: {
         subjects: {
             subjectId: string;
@@ -121,13 +122,9 @@ export default function MockTestPage() {
                     totalDuration += subjectConfig.duration;
 
                     const queryConstraints = [
-                        where('subjectId', '==', subjectConfig.subjectId)
+                        where('subjectId', '==', subjectConfig.subjectId),
+                        where('accessLevel', '==', testConfig.accessLevel)
                     ];
-
-                    // For official tests, filter by access level. Custom tests can use any question.
-                    if (testType !== 'custom') {
-                        queryConstraints.push(where('accessLevel', '==', (testConfig as OfficialTestConfig).accessLevel));
-                    }
 
                     const q = query(collection(firestore, 'practice_questions'), ...queryConstraints);
 

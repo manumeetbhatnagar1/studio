@@ -4,7 +4,7 @@ import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import DashboardHeader from '@/components/dashboard-header';
@@ -16,6 +16,9 @@ import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useRouter } from 'next/navigation';
+import { useIsSubscribed } from '@/hooks/useIsSubscribed';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { cn } from '@/lib/utils';
 
 const subjectConfigSchema = z.object({
   subjectId: z.string(),
@@ -26,6 +29,7 @@ const subjectConfigSchema = z.object({
 
 const formSchema = z.object({
   title: z.string().min(5, 'Test title must be at least 5 characters long.'),
+  accessLevel: z.enum(['free', 'paid']),
   subjects: z.array(subjectConfigSchema).min(1, 'You must select at least one subject.'),
 });
 
@@ -37,6 +41,7 @@ export default function CreateMockTestPage() {
   const { toast } = useToast();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { isSubscribed, isLoading: isSubscribedLoading } = useIsSubscribed();
 
   const subjectsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'subjects'), orderBy('name')) : null, [firestore]);
   const { data: allSubjects, isLoading: areSubjectsLoading } = useCollection<Subject>(subjectsQuery);
@@ -45,6 +50,7 @@ export default function CreateMockTestPage() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       title: '',
+      accessLevel: 'free',
       subjects: [],
     },
   });
@@ -76,6 +82,7 @@ export default function CreateMockTestPage() {
     await addDocumentNonBlocking(customTestsRef, {
         studentId: user.uid,
         title: values.title,
+        accessLevel: values.accessLevel,
         config: {
             subjects: values.subjects,
         },
@@ -90,6 +97,8 @@ export default function CreateMockTestPage() {
     setIsSubmitting(false);
   }
 
+  const isLoading = areSubjectsLoading || isSubscribedLoading;
+
   return (
     <div className="flex flex-col h-full">
       <DashboardHeader title="Create a Custom Mock Test" />
@@ -103,7 +112,7 @@ export default function CreateMockTestPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {areSubjectsLoading ? (
+              {isLoading ? (
                 <Skeleton className="h-64 w-full" />
               ) : (
                 <Form {...form}>
@@ -116,6 +125,43 @@ export default function CreateMockTestPage() {
                           <FormLabel className="text-lg font-semibold">Test Title</FormLabel>
                           <FormControl>
                             <Input placeholder="e.g., My Weekly Physics & Math Practice" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    
+                     <FormField
+                      control={form.control}
+                      name="accessLevel"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-lg font-semibold">Question Access Level</FormLabel>
+                          <FormDescription>
+                            Paid tests will only use paid questions from the question bank. You need a subscription to create paid tests.
+                          </FormDescription>
+                          <FormControl>
+                            <RadioGroup
+                              onValueChange={field.onChange}
+                              defaultValue={field.value}
+                              className="flex gap-4 pt-2"
+                            >
+                              <FormItem className="flex items-center space-x-2">
+                                <FormControl>
+                                  <RadioGroupItem value="free" />
+                                </FormControl>
+                                <FormLabel className="font-normal">Free</FormLabel>
+                              </FormItem>
+                              <FormItem className="flex items-center space-x-2">
+                                <FormControl>
+                                  <RadioGroupItem value="paid" disabled={!isSubscribed} />
+                                </FormControl>
+                                <FormLabel className={cn("font-normal", !isSubscribed && "text-muted-foreground")}>
+                                    Paid
+                                    {!isSubscribed && ' (Subscription required)'}
+                                </FormLabel>
+                              </FormItem>
+                            </RadioGroup>
                           </FormControl>
                           <FormMessage />
                         </FormItem>

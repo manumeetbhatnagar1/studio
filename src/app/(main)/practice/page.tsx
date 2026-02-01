@@ -70,6 +70,7 @@ type PracticeQuestion = {
   questionText: string;
   difficultyLevel: 'Easy' | 'Medium' | 'Hard';
   examCategory: 'JEE Main' | 'JEE Advanced' | 'Both',
+  classId: string;
   subjectId: string;
   topicId: string;
   imageUrl?: string;
@@ -83,7 +84,7 @@ type Subject = { id: string; name: string; classId: string; };
 type Topic = { id: string; name: string; subjectId: string; };
 
 
-function QuestionItem({ question, topicMap, isTeacher, onEdit, onDelete }: { question: PracticeQuestion; topicMap: Record<string, string>, isTeacher: boolean, onEdit: (question: PracticeQuestion) => void, onDelete: (questionId: string) => void }) {
+function QuestionItem({ question, topicMap, classMap, isTeacher, onEdit, onDelete }: { question: PracticeQuestion; topicMap: Record<string, string>; classMap: Record<string, string>; isTeacher: boolean, onEdit: (question: PracticeQuestion) => void, onDelete: (questionId: string) => void }) {
   const difficultyVariant = {
     'Easy': 'default',
     'Medium': 'secondary',
@@ -97,6 +98,7 @@ function QuestionItem({ question, topicMap, isTeacher, onEdit, onDelete }: { que
           <div className="flex-1 text-left">
             <p className="font-medium">{question.questionText}</p>
             <div className="flex items-center gap-2 mt-2 flex-wrap">
+              <Badge variant="outline">{classMap[question.classId] || 'Unknown Class'}</Badge>
               <Badge variant="outline">{topicMap[question.topicId] || 'Unknown Topic'}</Badge>
               <Badge variant={difficultyVariant[question.difficultyLevel] || 'default'}>
                 {question.difficultyLevel}
@@ -213,10 +215,7 @@ const EditQuestionForm: FC<{
         setIsSubmitting(true);
         const questionRef = doc(firestore, 'practice_questions', questionToEdit.id);
         
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { classId, ...dataToSave } = values;
-
-        updateDocumentNonBlocking(questionRef, dataToSave);
+        updateDocumentNonBlocking(questionRef, values);
         toast({
           title: 'Question Updated!',
           description: 'The practice question has been successfully updated.',
@@ -259,7 +258,7 @@ const EditQuestionForm: FC<{
                 )}
                 {questionType === 'Numerical' && (<FormField control={form.control} name="numericalAnswer" render={({ field }) => (<FormItem><FormLabel>Correct Numerical Answer</FormLabel><FormControl><Input type="number" placeholder="e.g., 42" {...field} onChange={event => field.onChange(+event.target.value)} /></FormControl><FormMessage /></FormItem>)} />)}
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <FormField control={form.control} name="classId" render={({ field }) => (
                         <FormItem><FormLabel>Class</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a class" /></SelectTrigger></FormControl><SelectContent>{classes?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
                     )} />
@@ -310,6 +309,14 @@ export default function PracticePage() {
       return acc;
     }, {} as Record<string, string>);
   }, [topics]);
+  
+  const classMap = useMemo(() => {
+    if (!classes) return {};
+    return classes.reduce((acc, c) => {
+      acc[c.id] = c.name;
+      return acc;
+    }, {} as Record<string, string>);
+  }, [classes]);
   
   const isLoading = isTeacherLoading || areQuestionsLoading || areClassesLoading || areSubjectsLoading || areTopicsLoading || isSubscribedLoading;
   const canViewContent = isTeacher || isSubscribed;
@@ -363,10 +370,7 @@ export default function PracticePage() {
     setIsSubmitting(true);
     const questionsRef = collection(firestore, 'practice_questions');
     
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { classId, ...dataToSave } = values;
-
-    addDocumentNonBlocking(questionsRef, dataToSave);
+    addDocumentNonBlocking(questionsRef, values);
     toast({
       title: 'Question Added!',
       description: 'The new practice question has been saved.',
@@ -464,7 +468,7 @@ export default function PracticePage() {
                               )}
                               {questionType === 'Numerical' && (<FormField control={form.control} name="numericalAnswer" render={({ field }) => (<FormItem><FormLabel>Correct Numerical Answer</FormLabel><FormControl><Input type="number" placeholder="e.g., 42" {...field} onChange={event => field.onChange(+event.target.value)} /></FormControl><FormMessage /></FormItem>)} />)}
                               
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <FormField control={form.control} name="classId" render={({ field }) => (
                                   <FormItem><FormLabel>Class</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a class" /></SelectTrigger></FormControl><SelectContent>{classes?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
                                 )} />
@@ -509,7 +513,7 @@ export default function PracticePage() {
                 questions && questions.length > 0 ? (
                     <Accordion type="single" collapsible className="w-full space-y-2">
                         {questions.map(q => (
-                            <QuestionItem key={q.id} question={q} topicMap={topicMap} isTeacher={!!isTeacher} onEdit={setEditingQuestion} onDelete={handleDeleteRequest} />
+                            <QuestionItem key={q.id} question={q} topicMap={topicMap} classMap={classMap} isTeacher={!!isTeacher} onEdit={setEditingQuestion} onDelete={handleDeleteRequest} />
                         ))}
                     </Accordion>
                 ) : (

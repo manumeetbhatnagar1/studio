@@ -366,6 +366,10 @@
           "type": "string",
           "description": "Reference to Topic. (Relationship: Topic 1:N PracticeQuestion)"
         },
+        "classId": {
+          "type": "string",
+          "description": "Reference to the Class this question belongs to."
+        },
         "examCategory": {
           "type": "string",
           "description": "Specifies if the question is for JEE Main, Advanced, or both.",
@@ -381,7 +385,9 @@
         "questionText",
         "difficultyLevel",
         "subjectId",
-        "topicId"
+        "topicId",
+        "classId",
+        "examCategory"
       ]
     },
     "MockTest": {

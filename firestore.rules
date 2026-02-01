@@ -80,7 +80,7 @@ service cloud.firestore {
      */
     match /users/{userId} {
       allow get: if isOwner(userId) || isTeacher(); // Allow teachers to read student profiles for chat
-      allow list: if isTeacher(); // Allow teachers to list students for chat
+      allow list: if isSignedIn(); // Allow any signed-in user to list other users for chat
       allow create: if isOwner(userId) && request.resource.data.id == userId;
       allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
       allow delete: if isExistingOwner(userId);
@@ -339,3 +339,5 @@ service cloud.firestore {
     }
   }
 }
+
+    

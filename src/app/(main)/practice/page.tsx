@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import Image from 'next/image';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
@@ -30,6 +30,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useRouter } from 'next/navigation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 
 
 const baseSchema = z.object({
@@ -70,9 +71,7 @@ const questionSchema = z.discriminatedUnion("questionType", [
 });
 
 const practiceQuizSchema = z.object({
-    classId: z.string().optional(),
-    subjectId: z.string().optional(),
-    topicId: z.string().optional(),
+    topicIds: z.array(z.string()).min(1, 'Please select at least one topic.'),
     difficultyLevel: z.string().optional(),
     examCategory: z.string().optional(),
     accessLevel: z.enum(['free', 'paid']),
@@ -328,18 +327,14 @@ const EditQuestionForm: FC<{
 }
 
 const StartPracticeForm: FC<{
-  classes: Class[],
-  subjects: Subject[],
-  topics: Topic[],
+  curriculumTree: any[],
   isSubscribed: boolean
-}> = ({ classes, subjects, topics, isSubscribed }) => {
+}> = ({ curriculumTree, isSubscribed }) => {
     const router = useRouter();
     const form = useForm<z.infer<typeof practiceQuizSchema>>({
         resolver: zodResolver(practiceQuizSchema),
         defaultValues: {
-            classId: '',
-            subjectId: '',
-            topicId: '',
+            topicIds: [],
             difficultyLevel: 'Medium',
             examCategory: 'Both',
             accessLevel: 'free',
@@ -348,69 +343,99 @@ const StartPracticeForm: FC<{
     });
 
     const { watch, setValue } = form;
-    const selectedClass = watch('classId');
-    const selectedSubject = watch('subjectId');
-
-    const filteredSubjects = useMemo(() => {
-        if (!selectedClass) return subjects;
-        return subjects.filter(subject => subject.classId === selectedClass);
-    }, [selectedClass, subjects]);
-
-    const filteredTopics = useMemo(() => {
-        if (!selectedSubject) return topics;
-        return topics.filter(topic => topic.subjectId === selectedSubject);
-    }, [selectedSubject, topics]);
-
-    useEffect(() => {
-        setValue('subjectId', '');
-        setValue('topicId', '');
-    }, [selectedClass, setValue]);
-
-    useEffect(() => {
-        setValue('topicId', '');
-    }, [selectedSubject, setValue]);
+    const selectedTopics = watch('topicIds');
 
     function onSubmit(values: z.infer<typeof practiceQuizSchema>) {
         const params = new URLSearchParams();
-        Object.entries(values).forEach(([key, value]) => {
-            if (value) {
-                params.append(key, String(value));
-            }
-        });
+        params.append('topicIds', values.topicIds.join(','));
+        if (values.difficultyLevel) {
+            params.append('difficultyLevel', values.difficultyLevel);
+        }
+        if (values.examCategory) {
+            params.append('examCategory', values.examCategory);
+        }
+        params.append('accessLevel', values.accessLevel);
+        params.append('count', String(values.count));
+
         router.push(`/practice/session?${params.toString()}`);
+    }
+    
+    const handleTopicToggle = (topicId: string, isChecked: boolean) => {
+      const currentTopics = form.getValues('topicIds');
+      const newTopics = isChecked ? [...currentTopics, topicId] : currentTopics.filter(id => id !== topicId);
+      setValue('topicIds', newTopics, { shouldValidate: true });
     }
 
     return (
         <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <FormField control={form.control} name="classId" render={({ field }) => (
-                        <FormItem><FormLabel>Class</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="All Classes" /></SelectTrigger></FormControl><SelectContent>{classes.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select></FormItem>
-                    )} />
-                    <FormField control={form.control} name="subjectId" render={({ field }) => (
-                        <FormItem><FormLabel>Subject</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="All Subjects" /></SelectTrigger></FormControl><SelectContent>{filteredSubjects.map(subject => <SelectItem key={subject.id} value={subject.id}>{subject.name}</SelectItem>)}</SelectContent></Select></FormItem>
-                    )} />
-                    <FormField control={form.control} name="topicId" render={({ field }) => (
-                        <FormItem><FormLabel>Topic</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!selectedSubject}><FormControl><SelectTrigger><SelectValue placeholder="All Topics" /></SelectTrigger></FormControl><SelectContent>{filteredTopics.map(topic => <SelectItem key={topic.id} value={topic.id}>{topic.name}</SelectItem>)}</SelectContent></Select></FormItem>
-                    )} />
-                    <FormField control={form.control} name="difficultyLevel" render={({ field }) => (
-                        <FormItem><FormLabel>Difficulty</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select difficulty" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Easy">Easy</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Hard">Hard</SelectItem></SelectContent></Select></FormItem>
-                    )} />
-                     <FormField control={form.control} name="examCategory" render={({ field }) => (
-                        <FormItem><FormLabel>Exam Category</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger></FormControl><SelectContent><SelectItem value="JEE Main">JEE Main</SelectItem><SelectItem value="JEE Advanced">JEE Advanced</SelectItem><SelectItem value="Both">Both</SelectItem></SelectContent></Select></FormItem>
-                    )} />
-                    <FormField control={form.control} name="count" render={({ field }) => (
-                        <FormItem><FormLabel>Number of Questions</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>
-                    )} />
-                    <FormField control={form.control} name="accessLevel" render={({ field }) => (
-                        <FormItem><FormLabel>Access Level</FormLabel><FormControl>
-                            <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex pt-2">
-                                <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="free" /></FormControl><FormLabel className="font-normal">Free</FormLabel></FormItem>
-                                <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="paid" disabled={!isSubscribed} /></FormControl><FormLabel className={cn("font-normal", !isSubscribed && "text-muted-foreground")}>Paid {!isSubscribed && "(Pro)"}</FormLabel></FormItem>
-                            </RadioGroup>
-                        </FormControl></FormItem>
-                    )} />
+                <div className="space-y-4 rounded-lg border p-4">
+                  <h3 className="text-base font-semibold">Filters</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <FormField control={form.control} name="difficultyLevel" render={({ field }) => (
+                          <FormItem><FormLabel>Difficulty</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select difficulty" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Easy">Easy</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Hard">Hard</SelectItem></SelectContent></Select></FormItem>
+                      )} />
+                       <FormField control={form.control} name="examCategory" render={({ field }) => (
+                          <FormItem><FormLabel>Exam Category</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger></FormControl><SelectContent><SelectItem value="JEE Main">JEE Main</SelectItem><SelectItem value="JEE Advanced">JEE Advanced</SelectItem><SelectItem value="Both">Both</SelectItem></SelectContent></Select></FormItem>
+                      )} />
+                      <FormField control={form.control} name="count" render={({ field }) => (
+                          <FormItem><FormLabel>Number of Questions</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>
+                      )} />
+                      <FormField control={form.control} name="accessLevel" render={({ field }) => (
+                          <FormItem><FormLabel>Access Level</FormLabel><FormControl>
+                              <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex pt-2">
+                                  <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="free" /></FormControl><FormLabel className="font-normal">Free</FormLabel></FormItem>
+                                  <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="paid" disabled={!isSubscribed} /></FormControl><FormLabel className={cn("font-normal", !isSubscribed && "text-muted-foreground")}>Paid {!isSubscribed && "(Pro)"}</FormLabel></FormItem>
+                              </RadioGroup>
+                          </FormControl></FormItem>
+                      )} />
+                  </div>
                 </div>
+
+                <div className="space-y-2">
+                    <Label className="text-base font-semibold">Select Topics</Label>
+                    <FormDescription>Choose one or more topics for your practice session.</FormDescription>
+                    <Card>
+                        <CardContent className='p-4 max-h-96 overflow-y-auto'>
+                            <Accordion type="multiple" className="w-full">
+                                {curriculumTree.map(c => (
+                                <AccordionItem value={c.id} key={c.id}>
+                                    <AccordionTrigger>{c.name}</AccordionTrigger>
+                                    <AccordionContent>
+                                    <Accordion type="multiple" className="w-full pl-4" defaultValue={c.subjects.map((s:any) => s.id)}>
+                                        {c.subjects.map((s:any) => (
+                                        <AccordionItem value={s.id} key={s.id}>
+                                            <AccordionTrigger>{s.name}</AccordionTrigger>
+                                            <AccordionContent className='pl-4'>
+                                                <div className="space-y-2">
+                                                    {s.topics.map((t:any) => (
+                                                        <div key={t.id} className="flex items-center space-x-2">
+                                                            <Checkbox id={`practice-${t.id}`} onCheckedChange={(checked) => handleTopicToggle(t.id, !!checked)} checked={selectedTopics.includes(t.id)}/>
+                                                            <label htmlFor={`practice-${t.id}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">{t.name}</label>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </AccordionContent>
+                                        </AccordionItem>
+                                        ))}
+                                    </Accordion>
+                                    </AccordionContent>
+                                </AccordionItem>
+                                ))}
+                            </Accordion>
+                        </CardContent>
+                    </Card>
+                     <FormField
+                      control={form.control}
+                      name="topicIds"
+                      render={() => (
+                          <FormItem>
+                            <FormMessage />
+                          </FormItem>
+                      )}
+                    />
+                </div>
+
                 <Button type="submit"><Rocket className="mr-2 h-4 w-4" /> Start Practice Session</Button>
             </form>
         </Form>
@@ -481,6 +506,28 @@ export default function PracticePage() {
 
   }, [classes, subjects, topics, questions]);
   
+  const curriculumTree = useMemo(() => {
+    if (!classes || !subjects || !topics) return [];
+
+    const sortedClasses = [...classes].sort((a,b) => a.name.localeCompare(b.name));
+    
+    return sortedClasses.map(c => {
+        const classSubjects = [...subjects]
+            .filter(s => s.classId === c.id)
+            .sort((a,b) => a.name.localeCompare(b.name));
+
+        const subjectsWithTopics = classSubjects.map(s => {
+            const subjectTopics = [...topics]
+                .filter(t => t.subjectId === s.id)
+                .sort((a,b) => a.name.localeCompare(b.name));
+            return { ...s, topics: subjectTopics };
+        });
+
+        return { ...c, subjects: subjectsWithTopics };
+    });
+
+  }, [classes, subjects, topics]);
+
   const isLoading = isTeacherLoading || areQuestionsLoading || areClassesLoading || areSubjectsLoading || areTopicsLoading || isSubscribedLoading;
   const canViewPaidContent = isTeacher || isSubscribed;
 
@@ -714,9 +761,7 @@ export default function PracticePage() {
                     <CardContent>
                         {isLoading ? <Skeleton className="h-48 w-full" /> : (
                             <StartPracticeForm 
-                                classes={classes || []}
-                                subjects={subjects || []}
-                                topics={topics || []}
+                                curriculumTree={curriculumTree}
                                 isSubscribed={!!isSubscribed}
                             />
                         )}

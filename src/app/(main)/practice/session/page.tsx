@@ -43,8 +43,21 @@ type Answer = {
 const fetchPracticeQuestions = async (firestore: any, params: URLSearchParams): Promise<PracticeQuestion[]> => {
     let q = query(collection(firestore, 'practice_questions'));
 
-    if (params.get('subjectId')) q = query(q, where('subjectId', '==', params.get('subjectId')));
-    if (params.get('topicId')) q = query(q, where('topicId', '==', params.get('topicId')));
+    const topicIdsParam = params.get('topicIds');
+    if (topicIdsParam) {
+        const topicIds = topicIdsParam.split(',').filter(id => id.trim() !== '');
+        if (topicIds.length > 0) {
+            // Firestore 'in' query is limited to 30 items. We slice to prevent errors.
+            q = query(q, where('topicId', 'in', topicIds.slice(0, 30)));
+        }
+    } else if (params.get('topicId')) {
+        // Fallback for single topic practice (e.g., from question bank link)
+        q = query(q, where('topicId', '==', params.get('topicId')));
+    } else if (params.get('subjectId')) {
+        // Fallback for subject if no topics are specified
+        q = query(q, where('subjectId', '==', params.get('subjectId')));
+    }
+
     if (params.get('difficultyLevel')) q = query(q, where('difficultyLevel', '==', params.get('difficultyLevel')));
     if (params.get('accessLevel')) q = query(q, where('accessLevel', '==', params.get('accessLevel')));
     if (params.get('examCategory')) q = query(q, where('examCategory', '==', params.get('examCategory')));

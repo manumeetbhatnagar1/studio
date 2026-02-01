@@ -428,47 +428,6 @@ export default function PracticePage() {
   const { data: classes, isLoading: areClassesLoading } = useCollection<Class>(classesQuery);
   const { data: subjects, isLoading: areSubjectsLoading } = useCollection<Subject>(subjectsQuery);
   const { data: topics, isLoading: areTopicsLoading } = useCollection<Topic>(topicsQuery);
-
-  const [bankClassFilter, setBankClassFilter] = useState('all');
-  const [bankSubjectFilter, setBankSubjectFilter] = useState('all');
-  const [bankTopicFilter, setBankTopicFilter] = useState('all');
-  const [bankDifficultyFilter, setBankDifficultyFilter] = useState('all');
-  const [bankExamFilter, setBankExamFilter] = useState('all');
-
-  const bankFilteredSubjects = useMemo(() => {
-    if (!subjects) return [];
-    if (bankClassFilter === 'all') return subjects;
-    return subjects.filter(subject => subject.classId === bankClassFilter);
-  }, [bankClassFilter, subjects]);
-
-  const bankFilteredTopics = useMemo(() => {
-    if (!topics) return [];
-    if (bankSubjectFilter === 'all') {
-      const subjectIds = bankFilteredSubjects.map(s => s.id);
-      return topics.filter(t => subjectIds.includes(t.subjectId));
-    }
-    return topics.filter(topic => topic.subjectId === bankSubjectFilter);
-  }, [bankSubjectFilter, topics, bankFilteredSubjects]);
-
-  const bankQuestions = useMemo(() => {
-    if (!questions) return [];
-    return questions.filter(q => {
-      if (bankClassFilter !== 'all' && q.classId !== bankClassFilter) return false;
-      if (bankSubjectFilter !== 'all' && q.subjectId !== bankSubjectFilter) return false;
-      if (bankTopicFilter !== 'all' && q.topicId !== bankTopicFilter) return false;
-      if (bankDifficultyFilter !== 'all' && q.difficultyLevel !== bankDifficultyFilter) return false;
-      if (bankExamFilter !== 'all' && q.examCategory !== bankExamFilter) return false;
-      return true;
-    });
-  }, [questions, bankClassFilter, bankSubjectFilter, bankTopicFilter, bankDifficultyFilter, bankExamFilter]);
-  
-  useEffect(() => {
-    setBankSubjectFilter('all');
-  }, [bankClassFilter]);
-
-  useEffect(() => {
-    setBankTopicFilter('all');
-  }, [bankSubjectFilter]);
   
   const topicMap = useMemo(() => {
     if (!topics) return {};
@@ -485,6 +444,33 @@ export default function PracticePage() {
       return acc;
     }, {} as Record<string, string>);
   }, [classes]);
+
+  const questionTree = useMemo(() => {
+    if (!classes || !subjects || !topics || !questions) return [];
+
+    const sortedClasses = [...classes].sort((a,b) => a.name.localeCompare(b.name));
+    
+    return sortedClasses.map(c => {
+        const classSubjects = [...subjects]
+            .filter(s => s.classId === c.id)
+            .sort((a,b) => a.name.localeCompare(b.name));
+
+        const subjectsWithTopics = classSubjects.map(s => {
+            const subjectTopics = [...topics]
+                .filter(t => t.subjectId === s.id)
+                .map(topic => ({
+                    ...topic,
+                    questions: questions.filter(q => q.topicId === topic.id)
+                }))
+                .filter(t => t.questions.length > 0)
+                .sort((a,b) => a.name.localeCompare(b.name));
+            return { ...s, topics: subjectTopics };
+        }).filter(s => s.topics.length > 0);
+
+        return { ...c, subjects: subjectsWithTopics };
+    }).filter(c => c.subjects.length > 0);
+
+  }, [classes, subjects, topics, questions]);
   
   const isLoading = isTeacherLoading || areQuestionsLoading || areClassesLoading || areSubjectsLoading || areTopicsLoading || isSubscribedLoading;
   const canViewPaidContent = isTeacher || isSubscribed;
@@ -734,81 +720,56 @@ export default function PracticePage() {
                         <CardTitle className="font-headline text-2xl flex items-center gap-2">
                             <ClipboardList className="w-6 h-6" /> All Practice Questions
                         </CardTitle>
-                        <CardDescription>Browse the question bank. Click on a question to view the answer.</CardDescription>
+                        <CardDescription>Browse the question bank by curriculum. Click on a question to view the answer.</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6 p-4 border rounded-lg bg-muted/50">
-                            <div className="space-y-2">
-                                <Label htmlFor="bank-class-filter">Class</Label>
-                                <Select value={bankClassFilter} onValueChange={setBankClassFilter}>
-                                    <SelectTrigger id="bank-class-filter"><SelectValue placeholder="All Classes" /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All Classes</SelectItem>
-                                        {classes?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                             <div className="space-y-2">
-                                <Label htmlFor="bank-subject-filter">Subject</Label>
-                                <Select value={bankSubjectFilter} onValueChange={setBankSubjectFilter}>
-                                    <SelectTrigger id="bank-subject-filter"><SelectValue placeholder="All Subjects" /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All Subjects</SelectItem>
-                                        {bankFilteredSubjects.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="bank-topic-filter">Topic</Label>
-                                <Select value={bankTopicFilter} onValueChange={setBankTopicFilter} disabled={bankSubjectFilter === 'all' && bankClassFilter === 'all'}>
-                                    <SelectTrigger id="bank-topic-filter"><SelectValue placeholder="All Topics" /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All Topics</SelectItem>
-                                        {bankFilteredTopics.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="bank-difficulty-filter">Difficulty</Label>
-                                <Select value={bankDifficultyFilter} onValueChange={setBankDifficultyFilter}>
-                                    <SelectTrigger id="bank-difficulty-filter"><SelectValue placeholder="All Difficulties" /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All Difficulties</SelectItem>
-                                        <SelectItem value="Easy">Easy</SelectItem>
-                                        <SelectItem value="Medium">Medium</SelectItem>
-                                        <SelectItem value="Hard">Hard</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                             <div className="space-y-2">
-                                <Label htmlFor="bank-exam-filter">Exam</Label>
-                                <Select value={bankExamFilter} onValueChange={setBankExamFilter}>
-                                    <SelectTrigger id="bank-exam-filter"><SelectValue placeholder="All Exams" /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All Exams</SelectItem>
-                                        <SelectItem value="JEE Main">JEE Main</SelectItem>
-                                        <SelectItem value="JEE Advanced">JEE Advanced</SelectItem>
-                                        <SelectItem value="Both">Both</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        </div>
-
                         {isLoading ? (
                             <div className="space-y-4">
                                 <Skeleton className="h-20 w-full" />
                                 <Skeleton className="h-20 w-full" />
+                                <Skeleton className="h-20 w-full" />
                             </div>
-                        ) : bankQuestions && bankQuestions.length > 0 ? (
-                            <Accordion type="single" collapsible className="w-full space-y-2">
-                                {bankQuestions.map(q => (
-                                    <QuestionItem key={q.id} question={q} topicMap={topicMap} classMap={classMap} isTeacher={false} canViewPaidContent={canViewPaidContent} onEdit={()=>{}} onDelete={()=>{}} />
+                        ) : questionTree.length > 0 ? (
+                            <Accordion type="multiple" className="w-full space-y-2">
+                                {questionTree.map(c => (
+                                    <AccordionItem value={c.id} key={c.id} className="border rounded-lg">
+                                        <AccordionTrigger className="text-xl font-semibold px-6">{c.name}</AccordionTrigger>
+                                        <AccordionContent className="px-6 pb-2">
+                                            {c.subjects.length > 0 ? (
+                                                <Accordion type="multiple" className="w-full space-y-2" defaultValue={c.subjects.map(s => s.id)}>
+                                                    {c.subjects.map(s => (
+                                                        <AccordionItem value={s.id} key={s.id} className="border rounded-lg">
+                                                            <AccordionTrigger className="text-lg font-medium px-4">{s.name}</AccordionTrigger>
+                                                            <AccordionContent className="px-4 pb-2">
+                                                                {s.topics.length > 0 ? (
+                                                                    <Accordion type="multiple" className="w-full space-y-2">
+                                                                        {s.topics.map(t => (
+                                                                            <AccordionItem value={t.id} key={t.id} className="border-l-2 pl-4 border-muted">
+                                                                                <AccordionTrigger>{t.name} ({t.questions.length} questions)</AccordionTrigger>
+                                                                                <AccordionContent className="pl-4 pt-2">
+                                                                                    <Accordion type="single" collapsible className="w-full space-y-2">
+                                                                                        {t.questions.map(q => (
+                                                                                            <QuestionItem key={q.id} question={q} topicMap={topicMap} classMap={classMap} isTeacher={false} canViewPaidContent={canViewPaidContent} onEdit={()=>{}} onDelete={()=>{}}/>
+                                                                                        ))}
+                                                                                    </Accordion>
+                                                                                </AccordionContent>
+                                                                            </AccordionItem>
+                                                                        ))}
+                                                                    </Accordion>
+                                                                ) : <p className="text-center text-muted-foreground py-4">No topics with questions found for this subject.</p>}
+                                                            </AccordionContent>
+                                                        </AccordionItem>
+                                                    ))}
+                                                </Accordion>
+                                            ) : <p className="text-center text-muted-foreground py-4">No subjects with questions found for this class.</p>}
+                                        </AccordionContent>
+                                    </AccordionItem>
                                 ))}
                             </Accordion>
                         ) : (
                             <div className="text-center text-muted-foreground py-8 border-2 border-dashed rounded-lg">
-                                <p className='font-medium'>No practice questions match your current filters.</p>
-                                <p className='text-sm'>Try adjusting your search criteria.</p>
+                                <p className='font-medium'>No practice questions available yet.</p>
+                                <p className='text-sm'>Please check back later.</p>
                             </div>
                         )}
                     </CardContent>

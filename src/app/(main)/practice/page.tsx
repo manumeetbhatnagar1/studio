@@ -19,6 +19,7 @@ import { useState, useMemo } from 'react';
 import { LoaderCircle, ClipboardList, PlusCircle, CheckCircle, Lock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useIsTeacher } from '@/hooks/useIsTeacher';
+import { useIsSubscribed } from '@/hooks/useIsSubscribed';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -137,12 +138,13 @@ export default function PracticePage() {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { isTeacher, isLoading: isTeacherLoading } = useIsTeacher();
+  const { isSubscribed, isLoading: isSubscribedLoading } = useIsSubscribed();
 
   const questionsCollectionRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'practice_questions'), orderBy('topicId')) : null, [firestore]);
   const subjectsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'subjects'), orderBy('name')) : null, [firestore]);
   const topicsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'topics'), orderBy('name')) : null, [firestore]);
 
-  const { data: questions, isLoading: areQuestionsLoading, error: questionsError } = useCollection<PracticeQuestion>(questionsCollectionRef);
+  const { data: questions, isLoading: areQuestionsLoading } = useCollection<PracticeQuestion>(questionsCollectionRef);
   const { data: subjects, isLoading: areSubjectsLoading } = useCollection<Subject>(subjectsQuery);
   const { data: topics, isLoading: areTopicsLoading } = useCollection<Topic>(topicsQuery);
   
@@ -154,7 +156,8 @@ export default function PracticePage() {
     }, {} as Record<string, string>);
   }, [topics]);
   
-  const isLoading = isTeacherLoading || areQuestionsLoading || areSubjectsLoading || areTopicsLoading;
+  const isLoading = isTeacherLoading || areQuestionsLoading || areSubjectsLoading || areTopicsLoading || isSubscribedLoading;
+  const canViewContent = isTeacher || isSubscribed;
 
   const form = useForm<z.infer<typeof questionSchema>>({
     resolver: zodResolver(questionSchema),
@@ -295,14 +298,14 @@ export default function PracticePage() {
                 <CardDescription>Browse the question bank. Click on a question to view the answer.</CardDescription>
             </CardHeader>
             <CardContent>
-                {questionsError ? <SubscriptionPrompt /> :
-                areQuestionsLoading ? (
+                {isLoading ? (
                     <div className="space-y-4">
                         <Skeleton className="h-20 w-full" />
                         <Skeleton className="h-20 w-full" />
                         <Skeleton className="h-20 w-full" />
                     </div>
-                ) : questions && questions.length > 0 ? (
+                ) : !canViewContent ? <SubscriptionPrompt /> :
+                questions && questions.length > 0 ? (
                     <Accordion type="single" collapsible className="w-full">
                         {questions.map(q => (
                             <QuestionItem key={q.id} question={q} topicMap={topicMap} />

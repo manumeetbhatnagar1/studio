@@ -9,6 +9,7 @@ import DashboardHeader from '@/components/dashboard-header';
 import { useFirestore, useCollection, addDocumentNonBlocking, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy } from 'firebase/firestore';
 import { useIsTeacher } from '@/hooks/useIsTeacher';
+import { useIsSubscribed } from '@/hooks/useIsSubscribed';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -237,6 +238,7 @@ function ContentListItem({ contentItem }: { contentItem: Content }) {
 export default function ContentPage() {
   const firestore = useFirestore();
   const { isTeacher, isLoading: isTeacherLoading } = useIsTeacher();
+  const { isSubscribed, isLoading: isSubscribedLoading } = useIsSubscribed();
   const [formKey, setFormKey] = useState(0);
 
   const subjectsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'subjects'), orderBy('name')) : null, [firestore]);
@@ -245,7 +247,7 @@ export default function ContentPage() {
   
   const { data: subjects, isLoading: areSubjectsLoading } = useCollection<Subject>(subjectsQuery);
   const { data: topics, isLoading: areTopicsLoading } = useCollection<Topic>(topicsQuery);
-  const { data: content, isLoading: areContentLoading, error: contentError } = useCollection<Content>(contentQuery);
+  const { data: content, isLoading: areContentLoading } = useCollection<Content>(contentQuery);
 
   const contentTree = useMemo(() => {
     if (!topics || !subjects) return {};
@@ -281,7 +283,8 @@ export default function ContentPage() {
   
   const sortedSubjects = useMemo(() => Object.keys(contentTree).sort(), [contentTree]);
 
-  const isLoading = isTeacherLoading || areTopicsLoading || areContentLoading || areSubjectsLoading;
+  const isLoading = isTeacherLoading || areTopicsLoading || areContentLoading || areSubjectsLoading || isSubscribedLoading;
+  const canViewContent = isTeacher || isSubscribed;
 
   const SubscriptionPrompt = () => (
     <div className="flex flex-col items-center justify-center text-center p-8 md:p-16 border-2 border-dashed rounded-lg h-full bg-amber-500/5">
@@ -326,14 +329,14 @@ export default function ContentPage() {
             <CardDescription>Browse materials organized by subject and topic.</CardDescription>
           </CardHeader>
           <CardContent>
-            {contentError ? <SubscriptionPrompt /> : 
-            isLoading ? (
+            {isLoading ? (
               <div className="space-y-4">
                 <Skeleton className="h-20 w-full" />
                 <Skeleton className="h-20 w-full" />
                 <Skeleton className="h-20 w-full" />
               </div>
-            ) : sortedSubjects.length > 0 ? (
+            ) : !canViewContent ? <SubscriptionPrompt /> :
+            sortedSubjects.length > 0 ? (
               <Accordion type="multiple" className="w-full space-y-2">
                 {sortedSubjects.map(subjectName => (
                   <AccordionItem value={subjectName} key={contentTree[subjectName].subjectId} className="border rounded-lg">

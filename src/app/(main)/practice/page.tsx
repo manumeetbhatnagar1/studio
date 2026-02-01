@@ -15,7 +15,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import DashboardHeader from '@/components/dashboard-header';
 import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
 import { collection, query, orderBy } from 'firebase/firestore';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { LoaderCircle, ClipboardList, PlusCircle, CheckCircle, Lock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useIsTeacher } from '@/hooks/useIsTeacher';
@@ -29,9 +29,11 @@ import PdfQuestionExtractor from '@/components/pdf-question-extractor';
 const baseSchema = z.object({
     questionText: z.string().min(10, 'Question must be at least 10 characters.'),
     imageUrl: z.string().optional(),
+    classId: z.string().min(1, 'Class is required.'),
     subjectId: z.string().min(1, 'Subject is required.'),
     topicId: z.string().min(1, 'Topic is required.'),
     difficultyLevel: z.enum(['Easy', 'Medium', 'Hard']),
+    examCategory: z.enum(['JEE Main', 'JEE Advanced', 'Both']),
 });
 
 const mcqSchema = baseSchema.extend({
@@ -72,7 +74,8 @@ type PracticeQuestion = {
   correctAnswer?: string;
   numericalAnswer?: number;
 };
-type Subject = { id: string; name: string; };
+type Class = { id: string; name: string; };
+type Subject = { id: string; name: string; classId: string; };
 type Topic = { id: string; name: string; subjectId: string; };
 
 
@@ -141,10 +144,12 @@ export default function PracticePage() {
   const { isSubscribed, isLoading: isSubscribedLoading } = useIsSubscribed();
 
   const questionsCollectionRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'practice_questions'), orderBy('topicId')) : null, [firestore]);
+  const classesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'classes'), orderBy('name')) : null, [firestore]);
   const subjectsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'subjects'), orderBy('name')) : null, [firestore]);
   const topicsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'topics'), orderBy('name')) : null, [firestore]);
 
   const { data: questions, isLoading: areQuestionsLoading } = useCollection<PracticeQuestion>(questionsCollectionRef);
+  const { data: classes, isLoading: areClassesLoading } = useCollection<Class>(classesQuery);
   const { data: subjects, isLoading: areSubjectsLoading } = useCollection<Subject>(subjectsQuery);
   const { data: topics, isLoading: areTopicsLoading } = useCollection<Topic>(topicsQuery);
   
@@ -156,7 +161,7 @@ export default function PracticePage() {
     }, {} as Record<string, string>);
   }, [topics]);
   
-  const isLoading = isTeacherLoading || areQuestionsLoading || areSubjectsLoading || areTopicsLoading || isSubscribedLoading;
+  const isLoading = isTeacherLoading || areQuestionsLoading || areClassesLoading || areSubjectsLoading || areTopicsLoading || isSubscribedLoading;
   const canViewContent = isTeacher || isSubscribed;
 
   const form = useForm<z.infer<typeof questionSchema>>({
@@ -166,9 +171,11 @@ export default function PracticePage() {
         questionText: '', 
         options: ['', '', '', ''], 
         correctAnswer: '', 
+        classId: '',
         subjectId: '',
         topicId: '', 
         difficultyLevel: 'Easy', 
+        examCategory: 'Both',
         imageUrl: ''
     },
   });
@@ -176,7 +183,22 @@ export default function PracticePage() {
   const { fields } = useFieldArray({ control: form.control, name: "options" });
   
   const questionType = form.watch('questionType');
+  const selectedClass = form.watch('classId');
   const selectedSubject = form.watch('subjectId');
+
+  useEffect(() => {
+    form.setValue('subjectId', '');
+    form.setValue('topicId', '');
+  }, [selectedClass, form]);
+
+  useEffect(() => {
+      form.setValue('topicId', '');
+  }, [selectedSubject, form]);
+
+  const filteredSubjects = useMemo(() => {
+    if (!selectedClass || !subjects) return [];
+    return subjects.filter(subject => subject.classId === selectedClass);
+  }, [selectedClass, subjects]);
 
   const filteredTopics = useMemo(() => {
     if (!selectedSubject || !topics) return [];
@@ -190,7 +212,11 @@ export default function PracticePage() {
     }
     setIsSubmitting(true);
     const questionsRef = collection(firestore, 'practice_questions');
-    addDocumentNonBlocking(questionsRef, values);
+    
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { classId, ...dataToSave } = values;
+
+    addDocumentNonBlocking(questionsRef, dataToSave);
     toast({
       title: 'Question Added!',
       description: 'The new practice question has been saved.',
@@ -270,17 +296,25 @@ export default function PracticePage() {
                                   </div>
                               )}
                               {questionType === 'Numerical' && (<FormField control={form.control} name="numericalAnswer" render={({ field }) => (<FormItem><FormLabel>Correct Numerical Answer</FormLabel><FormControl><Input type="number" placeholder="e.g., 42" {...field} onChange={event => field.onChange(+event.target.value)} /></FormControl><FormMessage /></FormItem>)} />)}
+                              
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <FormField control={form.control} name="classId" render={({ field }) => (
+                                  <FormItem><FormLabel>Class</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a class" /></SelectTrigger></FormControl><SelectContent>{classes?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+                                )} />
                                 <FormField control={form.control} name="subjectId" render={({ field }) => (
-                                  <FormItem><FormLabel>Subject</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a subject" /></SelectTrigger></FormControl><SelectContent>{subjects?.map(subject => <SelectItem key={subject.id} value={subject.id}>{subject.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+                                  <FormItem><FormLabel>Subject</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!selectedClass}><FormControl><SelectTrigger><SelectValue placeholder="Select a subject" /></SelectTrigger></FormControl><SelectContent>{filteredSubjects.map(subject => <SelectItem key={subject.id} value={subject.id}>{subject.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
                                 )} />
                                 <FormField control={form.control} name="topicId" render={({ field }) => (
-                                  <FormItem><FormLabel>Topic</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value} disabled={!selectedSubject}><FormControl><SelectTrigger><SelectValue placeholder="Select a topic" /></SelectTrigger></FormControl><SelectContent>{filteredTopics.map(topic => <SelectItem key={topic.id} value={topic.id}>{topic.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+                                  <FormItem><FormLabel>Topic</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!selectedSubject}><FormControl><SelectTrigger><SelectValue placeholder="Select a topic" /></SelectTrigger></FormControl><SelectContent>{filteredTopics.map(topic => <SelectItem key={topic.id} value={topic.id}>{topic.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
                                 )} />
                                 <FormField control={form.control} name="difficultyLevel" render={({ field }) => (
-                                  <FormItem><FormLabel>Difficulty</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select difficulty" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Easy">Easy</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Hard">Hard</SelectItem></SelectContent></Select><FormMessage /></FormItem>
+                                  <FormItem><FormLabel>Difficulty</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select difficulty" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Easy">Easy</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Hard">Hard</SelectItem></SelectContent></Select><FormMessage /></FormItem>
+                                )} />
+                                <FormField control={form.control} name="examCategory" render={({ field }) => (
+                                  <FormItem><FormLabel>Exam Category</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger></FormControl><SelectContent><SelectItem value="JEE Main">JEE Main</SelectItem><SelectItem value="JEE Advanced">JEE Advanced</SelectItem><SelectItem value="Both">Both</SelectItem></SelectContent></Select><FormMessage /></FormItem>
                                 )} />
                               </div>
+
                               <Button type="submit" disabled={isSubmitting || isTeacherLoading}>{isSubmitting ? (<><LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> Adding...</>) : ('Add Question')}</Button>
                           </form>
                         </Form>

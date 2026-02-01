@@ -278,22 +278,6 @@ service cloud.firestore {
       allow delete: if resource != null && isOwner(resource.data.teacherId);
     }
     
-    /**
-     * @description Paid courses created by teachers. Anyone can view the courses.
-     *              Only the teacher who created the course can manage it.
-     * @path        /courses/{courseId}
-     * @allow       (create) A teacher creating a new course for themselves.
-     * @deny        (update) A teacher trying to modify another teacher's course.
-     * @principle   Public read with denormalized owner-only writes.
-     */
-    match /courses/{courseId} {
-      allow get, list: if isSignedIn();
-      allow create: if isTeacher()
-                    && request.resource.data.teacherId == request.auth.uid;
-      allow update, delete: if resource != null
-                           && isOwner(resource.data.teacherId);
-    }
-    
     // --------------------------------------------------------------------
     // Doubt Resolution Rules
     // --------------------------------------------------------------------

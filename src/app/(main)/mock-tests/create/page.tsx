@@ -168,27 +168,36 @@ export default function CreateCustomTestPage() {
     if(!user) return;
     setIsSubmitting(true);
 
-    const customTestsRef = collection(firestore, 'users', user.uid, 'custom_tests');
-    
-    await addDocumentNonBlocking(customTestsRef, {
-        studentId: user.uid,
-        title: values.title,
-        accessLevel: values.accessLevel,
-        config: {
-            questionIds: values.questionIds,
-            duration: values.duration,
-            totalQuestions: values.totalQuestions,
-            subjectConfigs: values.subjectConfigs,
-        },
-        createdAt: serverTimestamp(),
-    });
-    
-    toast({
-      title: 'Custom Test Created!',
-      description: `${values.title} has been saved.`,
-    });
-    router.push('/mock-tests');
-    setIsSubmitting(false);
+    try {
+      const customTestsRef = collection(firestore, 'users', user.uid, 'custom_tests');
+      
+      await addDocumentNonBlocking(customTestsRef, {
+          studentId: user.uid,
+          title: values.title,
+          accessLevel: values.accessLevel,
+          config: {
+              questionIds: values.questionIds,
+              duration: values.duration,
+              totalQuestions: values.totalQuestions,
+              subjectConfigs: values.subjectConfigs,
+          },
+          createdAt: serverTimestamp(),
+      });
+      
+      toast({
+        title: 'Custom Test Created!',
+        description: `${values.title} has been saved.`,
+      });
+      router.push('/mock-tests');
+    } catch (error: any) {
+        toast({
+            variant: 'destructive',
+            title: 'Submission Failed',
+            description: error.message || 'An unexpected error occurred.',
+        });
+    } finally {
+        setIsSubmitting(false);
+    }
   }
 
   const isLoading = areSubjectsLoading || isSubscribedLoading || areClassesLoading || areTopicsLoading || areQuestionsLoading;

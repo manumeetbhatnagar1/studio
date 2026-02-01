@@ -18,6 +18,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Send, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
 
 // Zod schema for the chat message form
 const chatMessageSchema = z.object({
@@ -101,6 +102,7 @@ export default function DirectChatPage() {
   const params = useParams();
   const chatId = params.chatId as string;
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const { toast } = useToast();
 
   const form = useForm<z.infer<typeof chatMessageSchema>>({
     resolver: zodResolver(chatMessageSchema),
@@ -126,15 +128,23 @@ export default function DirectChatPage() {
   async function onSubmit(values: z.infer<typeof chatMessageSchema>) {
     if (!user || !firestore || !chatId) return;
 
-    const messagesRef = collection(firestore, 'direct_messages', chatId, 'messages');
-    await addDocumentNonBlocking(messagesRef, {
-      senderId: user.uid,
-      senderName: user.displayName || 'Anonymous',
-      senderPhotoUrl: user.photoURL || '',
-      text: values.text,
-      createdAt: serverTimestamp(),
-    });
-    form.reset();
+    try {
+      const messagesRef = collection(firestore, 'direct_messages', chatId, 'messages');
+      await addDocumentNonBlocking(messagesRef, {
+        senderId: user.uid,
+        senderName: user.displayName || 'Anonymous',
+        senderPhotoUrl: user.photoURL || '',
+        text: values.text,
+        createdAt: serverTimestamp(),
+      });
+      form.reset();
+    } catch (error: any) {
+        toast({
+            variant: 'destructive',
+            title: 'Failed to send message',
+            description: error.message || 'An error occurred while sending your message.',
+        });
+    }
   }
 
   return (

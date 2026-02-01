@@ -97,28 +97,36 @@ export default function CreateOfficialMockTestPage() {
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsSubmitting(true);
-
-    const mockTestsRef = collection(firestore, 'mock_tests');
-    
-    await addDocumentNonBlocking(mockTestsRef, {
-        title: values.title,
-        startTime: values.startTime,
-        examCategory: values.examCategory,
-        accessLevel: values.accessLevel,
-        config: {
-            questionIds: values.questionIds,
-            duration: values.duration,
-            totalQuestions: values.totalQuestions,
-            subjectConfigs: values.subjectConfigs,
-        },
-    });
-    
-    toast({
-      title: 'Official Test Created!',
-      description: `${values.title} has been scheduled.`,
-    });
-    router.push('/mock-tests');
-    setIsSubmitting(false);
+    try {
+      const mockTestsRef = collection(firestore, 'mock_tests');
+      
+      await addDocumentNonBlocking(mockTestsRef, {
+          title: values.title,
+          startTime: values.startTime,
+          examCategory: values.examCategory,
+          accessLevel: values.accessLevel,
+          config: {
+              questionIds: values.questionIds,
+              duration: values.duration,
+              totalQuestions: values.totalQuestions,
+              subjectConfigs: values.subjectConfigs,
+          },
+      });
+      
+      toast({
+        title: 'Official Test Created!',
+        description: `${values.title} has been scheduled.`,
+      });
+      router.push('/mock-tests');
+    } catch (error: any) {
+        toast({
+            variant: 'destructive',
+            title: 'Submission Failed',
+            description: error.message || 'An unexpected error occurred.',
+        });
+    } finally {
+        setIsSubmitting(false);
+    }
   }
 
   const isLoading = areSubjectsLoading || areClassesLoading || areTopicsLoading || areQuestionsLoading;
@@ -432,5 +440,3 @@ function QuestionSelector({
         </Sheet>
     );
 }
-
-    

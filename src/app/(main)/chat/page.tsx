@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Link from 'next/link';
 import { useIsTeacher } from '@/hooks/useIsTeacher';
+import { useToast } from '@/hooks/use-toast';
 
 // Chat message schema and type
 const chatMessageSchema = z.object({ text: z.string().min(1, 'Message cannot be empty.').max(500, 'Message is too long.') });
@@ -58,6 +59,7 @@ function GroupChat() {
   const { user } = useUser();
   const firestore = useFirestore();
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const { toast } = useToast();
 
   const form = useForm<z.infer<typeof chatMessageSchema>>({
     resolver: zodResolver(chatMessageSchema),
@@ -73,9 +75,18 @@ function GroupChat() {
 
   async function onSubmit(values: z.infer<typeof chatMessageSchema>) {
     if (!user || !firestore) return;
-    const messagesRef = collection(firestore, 'group_chat_messages');
-    await addDocumentNonBlocking(messagesRef, { senderId: user.uid, senderName: user.displayName || 'Anonymous', senderPhotoUrl: user.photoURL || '', text: values.text, createdAt: serverTimestamp() });
-    form.reset();
+
+    try {
+        const messagesRef = collection(firestore, 'group_chat_messages');
+        await addDocumentNonBlocking(messagesRef, { senderId: user.uid, senderName: user.displayName || 'Anonymous', senderPhotoUrl: user.photoURL || '', text: values.text, createdAt: serverTimestamp() });
+        form.reset();
+    } catch (error: any) {
+        toast({
+            variant: 'destructive',
+            title: 'Failed to send message',
+            description: error.message || 'An error occurred while sending your message.',
+        });
+    }
   }
 
   return (

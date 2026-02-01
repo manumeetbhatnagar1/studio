@@ -68,10 +68,10 @@ export default function TeacherRegistrationPage() {
         email: values.email,
         roleId: 'teacher' 
       };
-      setDocumentNonBlocking(userRef, userData, { merge: false });
+      await setDocumentNonBlocking(userRef, userData, { merge: false });
 
       const teacherRoleRef = doc(firestore, 'roles_teacher', user.uid);
-      setDocumentNonBlocking(teacherRoleRef, { createdAt: new Date().toISOString() }, { merge: false });
+      await setDocumentNonBlocking(teacherRoleRef, { createdAt: new Date().toISOString() }, { merge: false });
       
       toast({
         title: 'Registration Successful',

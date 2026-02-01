@@ -69,7 +69,7 @@ export default function StudentRegistrationPage() {
         roleId: 'student' 
       };
       
-      setDocumentNonBlocking(userRef, userData, { merge: false });
+      await setDocumentNonBlocking(userRef, userData, { merge: false });
 
       toast({
         title: 'Registration Successful',

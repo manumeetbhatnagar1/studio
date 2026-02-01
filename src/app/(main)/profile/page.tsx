@@ -117,7 +117,7 @@ export default function ProfilePage() {
         lastName: values.lastName,
         photoURL: newPhotoURL || ''
       };
-      updateDocumentNonBlocking(userDocRef, updatedData);
+      await updateDocumentNonBlocking(userDocRef, updatedData);
 
       toast({
         title: 'Profile Updated',
@@ -258,5 +258,3 @@ export default function ProfilePage() {
     </div>
   );
 }
-
-    

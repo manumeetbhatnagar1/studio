@@ -81,28 +81,37 @@ const LiveClassForm: FC<{ setOpen: (open: boolean) => void }> = ({ setOpen }) =>
         },
     });
 
-    function onSubmit(values: z.infer<typeof liveClassSchema>) {
+    async function onSubmit(values: z.infer<typeof liveClassSchema>) {
         if (!user) {
             toast({ variant: 'destructive', title: 'You must be logged in.' });
             return;
         }
         setIsSubmitting(true);
         
-        const liveClassesRef = collection(firestore, 'live_classes');
-        addDocumentNonBlocking(liveClassesRef, {
-            ...values,
-            teacherId: user.uid,
-            teacherName: user.displayName || 'Unnamed Teacher',
-            teacherPhotoUrl: user.photoURL || '',
-        });
+        try {
+          const liveClassesRef = collection(firestore, 'live_classes');
+          await addDocumentNonBlocking(liveClassesRef, {
+              ...values,
+              teacherId: user.uid,
+              teacherName: user.displayName || 'Unnamed Teacher',
+              teacherPhotoUrl: user.photoURL || '',
+          });
 
-        toast({
-            title: 'Class Scheduled!',
-            description: `'${values.title}' has been added to the calendar.`,
-        });
-        form.reset();
-        setOpen(false);
-        setIsSubmitting(false);
+          toast({
+              title: 'Class Scheduled!',
+              description: `'${values.title}' has been added to the calendar.`,
+          });
+          form.reset();
+          setOpen(false);
+        } catch (error: any) {
+          toast({
+              variant: 'destructive',
+              title: 'Scheduling Failed',
+              description: error.message || 'An unexpected error occurred.',
+          });
+        } finally {
+          setIsSubmitting(false);
+        }
     }
 
     return (
@@ -156,11 +165,15 @@ const LiveClassCard: FC<{ liveClass: LiveClass; currentUserId?: string }> = ({ l
     const firestore = useFirestore();
     const { toast } = useToast();
 
-    const handleDelete = () => {
+    const handleDelete = async () => {
         if (window.confirm('Are you sure you want to delete this class? This action cannot be undone.')) {
-            const docRef = doc(firestore, 'live_classes', liveClass.id);
-            deleteDocumentNonBlocking(docRef);
-            toast({ title: 'Class Deleted', description: `'${liveClass.title}' has been removed from the schedule.` });
+            try {
+              const docRef = doc(firestore, 'live_classes', liveClass.id);
+              await deleteDocumentNonBlocking(docRef);
+              toast({ title: 'Class Deleted', description: `'${liveClass.title}' has been removed from the schedule.` });
+            } catch (error: any) {
+              toast({ variant: 'destructive', title: 'Error Deleting Class', description: error.message || 'Could not delete the class.' });
+            }
         }
     };
     

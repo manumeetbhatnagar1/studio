@@ -107,23 +107,32 @@ export default function EditOfficialMockTestPage() {
     if (!testDocRef) return;
     setIsSubmitting(true);
 
-    updateDocumentNonBlocking(testDocRef, {
+    try {
+      await updateDocumentNonBlocking(testDocRef, {
         title: values.title,
         startTime: values.startTime,
         examCategory: values.examCategory,
         accessLevel: values.accessLevel,
         config: {
-            questionIds: values.questionIds,
-            duration: values.duration,
+          questionIds: values.questionIds,
+          duration: values.duration,
         },
-    });
-    
-    toast({
-      title: 'Official Test Updated!',
-      description: `${values.title} has been saved.`,
-    });
-    router.push('/mock-tests');
-    setIsSubmitting(false);
+      });
+
+      toast({
+        title: 'Official Test Updated!',
+        description: `${values.title} has been saved.`,
+      });
+      router.push('/mock-tests');
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Update Failed',
+        description: error.message || 'An unexpected error occurred.',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   const isLoading = isTestLoading || areSubjectsLoading || areClassesLoading || areTopicsLoading || areQuestionsLoading;

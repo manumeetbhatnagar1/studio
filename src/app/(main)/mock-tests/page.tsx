@@ -73,7 +73,7 @@ export default function MockTestsPage() {
     setTestToDelete({ id, type, title });
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!testToDelete || !firestore || !user) return;
     
     let docRef;
@@ -83,12 +83,21 @@ export default function MockTestsPage() {
         docRef = doc(firestore, 'users', user.uid, 'custom_tests', testToDelete.id);
     }
 
-    deleteDocumentNonBlocking(docRef);
-    toast({
-        title: 'Test Deleted',
-        description: `"${testToDelete.title}" has been removed.`,
-    });
-    setTestToDelete(null);
+    try {
+      await deleteDocumentNonBlocking(docRef);
+      toast({
+          title: 'Test Deleted',
+          description: `"${testToDelete.title}" has been removed.`,
+      });
+    } catch (error: any) {
+      toast({
+          variant: 'destructive',
+          title: 'Error deleting test',
+          description: error.message || 'An unexpected error occurred.',
+      });
+    } finally {
+      setTestToDelete(null);
+    }
   };
 
 

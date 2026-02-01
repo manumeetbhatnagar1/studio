@@ -40,7 +40,7 @@ const baseSchema = z.object({
     subjectId: z.string().min(1, 'Subject is required.'),
     topicId: z.string().min(1, 'Topic is required.'),
     difficultyLevel: z.enum(['Easy', 'Medium', 'Hard']),
-    examCategory: z.enum(['JEE Main', 'JEE Advanced', 'Both']),
+    examTypeId: z.string().min(1, 'Exam Type is required.'),
     accessLevel: z.enum(['free', 'paid']),
 });
 
@@ -73,7 +73,7 @@ const questionSchema = z.discriminatedUnion("questionType", [
 const practiceQuizSchema = z.object({
     topicIds: z.array(z.string()).min(1, 'Please select at least one topic.'),
     difficultyLevel: z.string().optional(),
-    examCategory: z.string().optional(),
+    examTypeId: z.string().optional(),
     accessLevel: z.enum(['free', 'paid']),
     count: z.coerce.number().min(1, "Please enter at least 1 question.").max(50, "You can practice a maximum of 50 questions at a time."),
 });
@@ -82,7 +82,7 @@ type PracticeQuestion = {
   id: string;
   questionText: string;
   difficultyLevel: 'Easy' | 'Medium' | 'Hard';
-  examCategory: 'JEE Main' | 'JEE Advanced' | 'Both',
+  examTypeId: string,
   classId: string;
   subjectId: string;
   topicId: string;
@@ -96,9 +96,10 @@ type PracticeQuestion = {
 type Class = { id: string; name: string; };
 type Subject = { id: string; name: string; classId: string; };
 type Topic = { id: string; name: string; subjectId: string; };
+type ExamType = { id: string; name: string; };
 
 
-function QuestionItem({ question, topicMap, classMap, isTeacher, canViewPaidContent, onEdit, onDelete }: { question: PracticeQuestion; topicMap: Record<string, string>; classMap: Record<string, string>; isTeacher: boolean; canViewPaidContent: boolean; onEdit: (question: PracticeQuestion) => void, onDelete: (questionId: string) => void }) {
+function QuestionItem({ question, topicMap, classMap, examTypeMap, isTeacher, canViewPaidContent, onEdit, onDelete }: { question: PracticeQuestion; topicMap: Record<string, string>; classMap: Record<string, string>; examTypeMap: Record<string, string>; isTeacher: boolean; canViewPaidContent: boolean; onEdit: (question: PracticeQuestion) => void, onDelete: (questionId: string) => void }) {
   const difficultyVariant = {
     'Easy': 'default',
     'Medium': 'secondary',
@@ -115,6 +116,7 @@ function QuestionItem({ question, topicMap, classMap, isTeacher, canViewPaidCont
             <p className="font-medium">{question.questionText}</p>
             <div className="flex items-center gap-2 mt-2 flex-wrap">
               <Badge variant="outline">{classMap[question.classId] || 'Unknown Class'}</Badge>
+              <Badge variant="outline">{examTypeMap[question.examTypeId] || 'Unknown Exam'}</Badge>
               <Badge variant="outline">{topicMap[question.topicId] || 'Unknown Topic'}</Badge>
               <Badge variant={difficultyVariant[question.difficultyLevel] || 'default'}>
                 {question.difficultyLevel}
@@ -189,8 +191,9 @@ const EditQuestionForm: FC<{
   classes: Class[],
   subjects: Subject[],
   topics: Topic[],
+  examTypes: ExamType[],
   onFinished: () => void,
-}> = ({ questionToEdit, classes, subjects, topics, onFinished }) => {
+}> = ({ questionToEdit, classes, subjects, topics, examTypes, onFinished }) => {
     const firestore = useFirestore();
     const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -315,8 +318,8 @@ const EditQuestionForm: FC<{
                     <FormField control={form.control} name="difficultyLevel" render={({ field }) => (
                         <FormItem><FormLabel>Difficulty</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select difficulty" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Easy">Easy</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Hard">Hard</SelectItem></SelectContent></Select><FormMessage /></FormItem>
                     )} />
-                    <FormField control={form.control} name="examCategory" render={({ field }) => (
-                        <FormItem><FormLabel>Exam Category</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger></FormControl><SelectContent><SelectItem value="JEE Main">JEE Main</SelectItem><SelectItem value="JEE Advanced">JEE Advanced</SelectItem><SelectItem value="Both">Both</SelectItem></SelectContent></Select><FormMessage /></FormItem>
+                    <FormField control={form.control} name="examTypeId" render={({ field }) => (
+                        <FormItem><FormLabel>Exam Type</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an exam type" /></SelectTrigger></FormControl><SelectContent>{examTypes?.map(et => <SelectItem key={et.id} value={et.id}>{et.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
                     )} />
                 </div>
 
@@ -328,15 +331,16 @@ const EditQuestionForm: FC<{
 
 const StartPracticeForm: FC<{
   curriculumTree: any[],
-  isSubscribed: boolean
-}> = ({ curriculumTree, isSubscribed }) => {
+  isSubscribed: boolean,
+  examTypes: ExamType[],
+}> = ({ curriculumTree, isSubscribed, examTypes }) => {
     const router = useRouter();
     const form = useForm<z.infer<typeof practiceQuizSchema>>({
         resolver: zodResolver(practiceQuizSchema),
         defaultValues: {
             topicIds: [],
             difficultyLevel: 'Medium',
-            examCategory: 'Both',
+            examTypeId: '',
             accessLevel: 'free',
             count: 10,
         }
@@ -351,8 +355,8 @@ const StartPracticeForm: FC<{
         if (values.difficultyLevel) {
             params.append('difficultyLevel', values.difficultyLevel);
         }
-        if (values.examCategory) {
-            params.append('examCategory', values.examCategory);
+        if (values.examTypeId) {
+            params.append('examTypeId', values.examTypeId);
         }
         params.append('accessLevel', values.accessLevel);
         params.append('count', String(values.count));
@@ -375,8 +379,8 @@ const StartPracticeForm: FC<{
                       <FormField control={form.control} name="difficultyLevel" render={({ field }) => (
                           <FormItem><FormLabel>Difficulty</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select difficulty" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Easy">Easy</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Hard">Hard</SelectItem></SelectContent></Select></FormItem>
                       )} />
-                       <FormField control={form.control} name="examCategory" render={({ field }) => (
-                          <FormItem><FormLabel>Exam Category</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger></FormControl><SelectContent><SelectItem value="JEE Main">JEE Main</SelectItem><SelectItem value="JEE Advanced">JEE Advanced</SelectItem><SelectItem value="Both">Both</SelectItem></SelectContent></Select></FormItem>
+                       <FormField control={form.control} name="examTypeId" render={({ field }) => (
+                          <FormItem><FormLabel>Exam Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an exam type" /></SelectTrigger></FormControl><SelectContent>{examTypes.map(et => <SelectItem key={et.id} value={et.id}>{et.name}</SelectItem>)}</SelectContent></Select></FormItem>
                       )} />
                       <FormField control={form.control} name="count" render={({ field }) => (
                           <FormItem><FormLabel>Number of Questions</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>
@@ -457,11 +461,13 @@ export default function PracticePage() {
   const classesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'classes'), orderBy('name')) : null, [firestore]);
   const subjectsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'subjects'), orderBy('name')) : null, [firestore]);
   const topicsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'topics'), orderBy('name')) : null, [firestore]);
+  const examTypesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'exam_types'), orderBy('name')) : null, [firestore]);
 
   const { data: questions, isLoading: areQuestionsLoading } = useCollection<PracticeQuestion>(questionsCollectionRef);
   const { data: classes, isLoading: areClassesLoading } = useCollection<Class>(classesQuery);
   const { data: subjects, isLoading: areSubjectsLoading } = useCollection<Subject>(subjectsQuery);
   const { data: topics, isLoading: areTopicsLoading } = useCollection<Topic>(topicsQuery);
+  const { data: examTypes, isLoading: areExamTypesLoading } = useCollection<ExamType>(examTypesQuery);
   
   const topicMap = useMemo(() => {
     if (!topics) return {};
@@ -478,6 +484,14 @@ export default function PracticePage() {
       return acc;
     }, {} as Record<string, string>);
   }, [classes]);
+
+  const examTypeMap = useMemo(() => {
+    if (!examTypes) return {};
+    return examTypes.reduce((acc, et) => {
+      acc[et.id] = et.name;
+      return acc;
+    }, {} as Record<string, string>);
+  }, [examTypes]);
 
   const questionTree = useMemo(() => {
     if (!classes || !subjects || !topics || !questions) return [];
@@ -528,7 +542,7 @@ export default function PracticePage() {
 
   }, [classes, subjects, topics]);
 
-  const isLoading = isTeacherLoading || areQuestionsLoading || areClassesLoading || areSubjectsLoading || areTopicsLoading || isSubscribedLoading;
+  const isLoading = isTeacherLoading || areQuestionsLoading || areClassesLoading || areSubjectsLoading || areTopicsLoading || isSubscribedLoading || areExamTypesLoading;
   const canViewPaidContent = isTeacher || isSubscribed;
 
   const form = useForm<z.infer<typeof questionSchema>>({
@@ -542,7 +556,7 @@ export default function PracticePage() {
         subjectId: '',
         topicId: '', 
         difficultyLevel: 'Easy', 
-        examCategory: 'Both',
+        examTypeId: '',
         imageUrl: '',
         accessLevel: 'free',
     },
@@ -702,8 +716,8 @@ export default function PracticePage() {
                             <FormField control={form.control} name="difficultyLevel" render={({ field }) => (
                               <FormItem><FormLabel>Difficulty</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select difficulty" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Easy">Easy</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Hard">Hard</SelectItem></SelectContent></Select><FormMessage /></FormItem>
                             )} />
-                            <FormField control={form.control} name="examCategory" render={({ field }) => (
-                              <FormItem><FormLabel>Exam Category</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger></FormControl><SelectContent><SelectItem value="JEE Main">JEE Main</SelectItem><SelectItem value="JEE Advanced">JEE Advanced</SelectItem><SelectItem value="Both">Both</SelectItem></SelectContent></Select><FormMessage /></FormItem>
+                            <FormField control={form.control} name="examTypeId" render={({ field }) => (
+                              <FormItem><FormLabel>Exam Type</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an exam type" /></SelectTrigger></FormControl><SelectContent>{examTypes?.map(et => <SelectItem key={et.id} value={et.id}>{et.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
                             )} />
                           </div>
 
@@ -731,7 +745,7 @@ export default function PracticePage() {
                 ) : questions && questions.length > 0 ? (
                     <Accordion type="single" collapsible className="w-full space-y-2">
                         {questions.map(q => (
-                            <QuestionItem key={q.id} question={q} topicMap={topicMap} classMap={classMap} isTeacher={!!isTeacher} canViewPaidContent={canViewPaidContent} onEdit={setEditingQuestion} onDelete={handleDeleteRequest} />
+                            <QuestionItem key={q.id} question={q} topicMap={topicMap} classMap={classMap} examTypeMap={examTypeMap} isTeacher={!!isTeacher} canViewPaidContent={canViewPaidContent} onEdit={setEditingQuestion} onDelete={handleDeleteRequest} />
                         ))}
                     </Accordion>
                 ) : (
@@ -763,6 +777,7 @@ export default function PracticePage() {
                             <StartPracticeForm 
                                 curriculumTree={curriculumTree}
                                 isSubscribed={!!isSubscribed}
+                                examTypes={examTypes || []}
                             />
                         )}
                     </CardContent>
@@ -852,6 +867,7 @@ export default function PracticePage() {
               classes={classes || []}
               subjects={subjects || []}
               topics={topics || []}
+              examTypes={examTypes || []}
               onFinished={() => setEditingQuestion(null)}
             />
           )}

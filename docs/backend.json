@@ -307,14 +307,9 @@
           "description": "The URL for the video conference meeting.",
           "format": "uri"
         },
-        "examCategory": {
+        "examTypeId": {
           "type": "string",
-          "description": "Specifies if the class is for JEE Main, Advanced, or both.",
-          "enum": [
-            "JEE Main",
-            "JEE Advanced",
-            "Both"
-          ]
+          "description": "Reference to the ExamType this live class is for."
         }
       },
       "required": [
@@ -324,7 +319,7 @@
         "teacherId",
         "teacherName",
         "meetingUrl",
-        "examCategory"
+        "examTypeId"
       ]
     },
     "PracticeQuestion": {
@@ -392,14 +387,9 @@
           "type": "string",
           "description": "Reference to the Class this question belongs to."
         },
-        "examCategory": {
+        "examTypeId": {
           "type": "string",
-          "description": "Specifies if the question is for JEE Main, Advanced, or both.",
-          "enum": [
-            "JEE Main",
-            "JEE Advanced",
-            "Both"
-          ]
+          "description": "Reference to the ExamType this question belongs to."
         },
         "accessLevel": {
           "type": "string",
@@ -417,7 +407,7 @@
         "subjectId",
         "topicId",
         "classId",
-        "examCategory",
+        "examTypeId",
         "accessLevel"
       ]
     },
@@ -440,14 +430,9 @@
           "description": "The date and time the mock test starts.",
           "format": "date-time"
         },
-        "examCategory": {
+        "examTypeId": {
           "type": "string",
-          "description": "Specifies if the test is for JEE Main, Advanced, or both.",
-          "enum": [
-            "JEE Main",
-            "JEE Advanced",
-            "Both"
-          ]
+          "description": "Reference to the ExamType this mock test is for."
         },
         "accessLevel": {
           "type": "string",
@@ -494,7 +479,7 @@
         "title",
         "startTime",
         "config",
-        "examCategory",
+        "examTypeId",
         "accessLevel"
       ]
     },
@@ -647,14 +632,9 @@
             "paid"
           ]
         },
-        "examCategory": {
+        "examTypeId": {
           "type": "string",
-          "description": "Specifies the exam category for the questions.",
-          "enum": [
-            "JEE Main",
-            "JEE Advanced",
-            "Both"
-          ]
+          "description": "Reference to the ExamType for the questions."
         },
         "config": {
           "type": "object",
@@ -689,7 +669,7 @@
         "config",
         "createdAt",
         "accessLevel",
-        "examCategory"
+        "examTypeId"
       ]
     },
     "ChatMessage": {

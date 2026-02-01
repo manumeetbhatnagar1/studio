@@ -1,6 +1,6 @@
 'use client';
 
-import { useForm } from 'react-hook-form';
+import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,7 @@ import DashboardHeader from '@/components/dashboard-header';
 import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, useUser } from '@/firebase';
 import { collection, query, orderBy, serverTimestamp } from 'firebase/firestore';
 import { useState, useMemo } from 'react';
-import { LoaderCircle, PlusCircle } from 'lucide-react';
+import { LoaderCircle, PlusCircle, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useRouter } from 'next/navigation';
@@ -24,16 +24,32 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
-type Question = { id: string; questionText: string; classId: string; subjectId: string; topicId: string; };
+type Question = { id: string; questionText: string; classId: string; subjectId: string; topicId: string; accessLevel: 'free' | 'paid' };
 type Class = { id: string; name: string };
 type Subject = { id: string; name: string; classId: string };
 type Topic = { id: string; name: string; subjectId: string };
+
+const subjectConfigSchema = z.object({
+  subjectId: z.string().min(1, 'Please select a subject.'),
+  numQuestions: z.coerce.number().int().min(1, 'Must be at least 1 question.'),
+});
 
 const formSchema = z.object({
   title: z.string().min(5, 'Test title must be at least 5 characters long.'),
   accessLevel: z.enum(['free', 'paid']),
   duration: z.coerce.number().min(1, 'Duration must be at least 1 minute.'),
-  questionIds: z.array(z.string()).min(1, 'You must select at least one question.'),
+  totalQuestions: z.coerce.number().int().min(1, 'Total questions must be at least 1.'),
+  subjectConfigs: z.array(subjectConfigSchema).min(1, 'At least one subject must be configured.'),
+  questionIds: z.array(z.string()),
+}).refine(data => {
+    const totalFromSubjects = data.subjectConfigs.reduce((sum, config) => sum + config.numQuestions, 0);
+    return totalFromSubjects === data.totalQuestions;
+}, {
+    message: 'The sum of questions from each subject must equal the total number of questions.',
+    path: ['totalQuestions'],
+}).refine(data => data.questionIds.length === data.totalQuestions, {
+    message: 'The number of selected questions must match the total questions configured.',
+    path: ['questionIds'],
 });
 
 
@@ -62,11 +78,19 @@ export default function CreateCustomTestPage() {
       title: '',
       accessLevel: 'free',
       duration: 60,
+      totalQuestions: 0,
+      subjectConfigs: [],
       questionIds: [],
     },
   });
 
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: "subjectConfigs"
+  });
+
   const selectedQuestionIds = form.watch('questionIds');
+  const subjectConfigs = form.watch('subjectConfigs');
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     if(!user) return;
@@ -81,6 +105,8 @@ export default function CreateCustomTestPage() {
         config: {
             questionIds: values.questionIds,
             duration: values.duration,
+            totalQuestions: values.totalQuestions,
+            subjectConfigs: values.subjectConfigs,
         },
         createdAt: serverTimestamp(),
     });
@@ -94,6 +120,12 @@ export default function CreateCustomTestPage() {
   }
 
   const isLoading = areSubjectsLoading || isSubscribedLoading || areClassesLoading || areTopicsLoading || areQuestionsLoading;
+  
+  const availableSubjects = useMemo(() => {
+    const selectedSubjectIds = subjectConfigs.map(c => c.subjectId);
+    return (subjects || []).filter(s => !selectedSubjectIds.includes(s.id));
+  }, [subjects, subjectConfigs]);
+
 
   return (
     <div className="flex flex-col h-full">
@@ -127,7 +159,7 @@ export default function CreateCustomTestPage() {
                       )}
                     />
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <FormField
                             control={form.control}
                             name="accessLevel"
@@ -135,11 +167,14 @@ export default function CreateCustomTestPage() {
                                 <FormItem>
                                 <FormLabel className="text-lg font-semibold">Question Access Level</FormLabel>
                                 <FormDescription>
-                                    Paid tests will only use paid questions from the question bank. You need a subscription to create paid tests.
+                                    Paid tests will only use paid questions from the question bank.
                                 </FormDescription>
                                 <FormControl>
                                     <RadioGroup
-                                    onValueChange={field.onChange}
+                                    onValueChange={(value) => {
+                                        field.onChange(value);
+                                        form.setValue('questionIds', []); // Reset questions on change
+                                    }}
                                     defaultValue={field.value}
                                     className="flex gap-4 pt-2"
                                     >
@@ -172,23 +207,54 @@ export default function CreateCustomTestPage() {
                             )}
                         />
                     </div>
+
+                     <div>
+                        <FormLabel className="text-lg font-semibold">Test Structure</FormLabel>
+                        <FormDescription>Define the subjects and number of questions for your test.</FormDescription>
+                        <div className="space-y-4 pt-4">
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <FormField control={form.control} name="totalQuestions" render={({ field }) => (
+                                    <FormItem><FormLabel>Total Questions</FormLabel><FormControl><Input type="number" placeholder="e.g., 90" {...field} /></FormControl><FormMessage /></FormItem>
+                                )} />
+                             </div>
+                            {fields.map((field, index) => (
+                                <div key={field.id} className="flex items-end gap-2 p-4 border rounded-lg bg-muted/50">
+                                    <FormField control={form.control} name={`subjectConfigs.${index}.subjectId`} render={({ field }) => (
+                                        <FormItem className="flex-1"><FormLabel>Subject</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select Subject" /></SelectTrigger></FormControl><SelectContent>{availableSubjects.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+                                    )} />
+                                    <FormField control={form.control} name={`subjectConfigs.${index}.numQuestions`} render={({ field }) => (
+                                        <FormItem><FormLabel># of Qs</FormLabel><FormControl><Input type="number" className="w-24" {...field} /></FormControl><FormMessage /></FormItem>
+                                    )} />
+                                    <Button variant="ghost" size="icon" type="button" onClick={() => remove(index)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                                </div>
+                            ))}
+                             <Button type="button" variant="outline" size="sm" onClick={() => append({ subjectId: '', numQuestions: 10 })}>
+                                <PlusCircle className="mr-2 h-4 w-4" /> Add Subject
+                            </Button>
+                        </div>
+                    </div>
                     
                     <FormItem>
-                        <FormLabel className="text-lg font-semibold">Questions</FormLabel>
+                        <FormLabel className="text-lg font-semibold">Question Selection</FormLabel>
                         <Card className='p-4'>
                             <div className='flex items-center justify-between'>
-                                <p className='text-muted-foreground'>You have selected <span className='font-bold text-foreground'>{selectedQuestionIds.length}</span> question(s).</p>
+                                <div>
+                                <p className='text-muted-foreground'>You have selected <span className='font-bold text-foreground'>{selectedQuestionIds.length} / {form.getValues('totalQuestions') || 0}</span> question(s).</p>
+                                <FormMessage>{form.formState.errors.questionIds?.message}</FormMessage>
+                                </div>
                                 <QuestionSelector
                                     allQuestions={allQuestions || []}
+                                    accessLevel={form.watch('accessLevel')}
                                     classes={classes || []}
                                     subjects={subjects || []}
                                     topics={topics || []}
                                     selectedQuestionIds={selectedQuestionIds}
                                     setSelectedQuestionIds={(ids) => form.setValue('questionIds', ids, { shouldValidate: true })}
+                                    totalLimit={form.watch('totalQuestions')}
+                                    subjectLimits={form.watch('subjectConfigs')}
                                 />
                             </div>
                         </Card>
-                        <FormMessage>{form.formState.errors.questionIds?.message}</FormMessage>
                     </FormItem>
 
                     <Button type="submit" disabled={isSubmitting} size="lg">
@@ -211,41 +277,80 @@ export default function CreateCustomTestPage() {
 
 function QuestionSelector({
     allQuestions,
+    accessLevel,
     classes,
     subjects,
     topics,
     selectedQuestionIds,
-    setSelectedQuestionIds
+    setSelectedQuestionIds,
+    totalLimit,
+    subjectLimits,
 }: {
     allQuestions: Question[],
+    accessLevel: 'free' | 'paid',
     classes: Class[],
     subjects: Subject[],
     topics: Topic[],
     selectedQuestionIds: string[],
-    setSelectedQuestionIds: (ids: string[]) => void
+    setSelectedQuestionIds: (ids: string[]) => void,
+    totalLimit: number,
+    subjectLimits: { subjectId: string, numQuestions: number }[]
 }) {
     const [open, setOpen] = useState(false);
     const [classFilter, setClassFilter] = useState('');
     const [subjectFilter, setSubjectFilter] = useState('');
     const [topicFilter, setTopicFilter] = useState('');
+    const { toast } = useToast();
 
     const filteredSubjects = useMemo(() => subjects.filter(s => s.classId === classFilter), [subjects, classFilter]);
     const filteredTopics = useMemo(() => topics.filter(t => t.subjectId === subjectFilter), [topics, subjectFilter]);
     
+    const subjectQuestionCounts = useMemo(() => {
+        const counts: Record<string, number> = {};
+        for(const qId of selectedQuestionIds) {
+            const question = allQuestions.find(q => q.id === qId);
+            if (question) {
+                counts[question.subjectId] = (counts[question.subjectId] || 0) + 1;
+            }
+        }
+        return counts;
+    }, [selectedQuestionIds, allQuestions]);
+
     const filteredQuestions = useMemo(() => {
         return allQuestions.filter(q => {
+            if (q.accessLevel !== accessLevel) return false;
             if (topicFilter && q.topicId !== topicFilter) return false;
             if (subjectFilter && q.subjectId !== subjectFilter) return false;
             if (classFilter && q.classId !== classFilter) return false;
             return true;
         });
-    }, [allQuestions, classFilter, subjectFilter, topicFilter]);
+    }, [allQuestions, classFilter, subjectFilter, topicFilter, accessLevel]);
 
-    const handleToggleQuestion = (questionId: string) => {
-        const newIds = selectedQuestionIds.includes(questionId)
-            ? selectedQuestionIds.filter(id => id !== questionId)
-            : [...selectedQuestionIds, questionId];
-        setSelectedQuestionIds(newIds);
+    const handleToggleQuestion = (question: Question) => {
+        const isSelected = selectedQuestionIds.includes(question.id);
+        
+        if (isSelected) {
+            setSelectedQuestionIds(selectedQuestionIds.filter(id => id !== question.id));
+        } else {
+            if ((totalLimit > 0) && selectedQuestionIds.length >= totalLimit) {
+                toast({ variant: 'destructive', title: "Total question limit reached", description: `You cannot select more than ${totalLimit} questions.`});
+                return;
+            }
+
+            const subjectLimitConfig = subjectLimits.find(sl => sl.subjectId === question.subjectId);
+            if (subjectLimitConfig) {
+                const currentSubjectCount = subjectQuestionCounts[question.subjectId] || 0;
+                if (currentSubjectCount >= subjectLimitConfig.numQuestions) {
+                    toast({ variant: 'destructive', title: "Subject question limit reached", description: `You cannot select more questions for this subject.`});
+                    return;
+                }
+            } else {
+                 toast({ variant: 'destructive', title: "Invalid Subject", description: `This question's subject is not part of the test configuration.`});
+                return;
+            }
+
+            setSelectedQuestionIds([...selectedQuestionIds, question.id]);
+        }
     }
     
     return (
@@ -256,7 +361,7 @@ function QuestionSelector({
             <SheetContent className="sm:max-w-2xl w-full flex flex-col">
                 <SheetHeader>
                     <SheetTitle>Select Practice Questions</SheetTitle>
-                    <SheetDescription>Filter and select the questions to include in your test.</SheetDescription>
+                    <SheetDescription>Filter and select the questions to include in your test. Limits will be enforced.</SheetDescription>
                 </SheetHeader>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 py-4">
                     <Select value={classFilter} onValueChange={v => { setClassFilter(v); setSubjectFilter(''); setTopicFilter(''); }}>
@@ -275,19 +380,28 @@ function QuestionSelector({
                 
                 <ScrollArea className="flex-grow border rounded-md p-4">
                     <div className="space-y-4">
-                        {filteredQuestions.length > 0 ? filteredQuestions.map(q => (
+                        {filteredQuestions.length > 0 ? filteredQuestions.map(q => {
+                             const subjectLimit = subjectLimits.find(sl => sl.subjectId === q.subjectId);
+                             const subjectCount = subjectQuestionCounts[q.subjectId] || 0;
+                             const isSubjectLimitReached = subjectLimit && subjectCount >= subjectLimit.numQuestions;
+                             const isTotalLimitReached = (totalLimit > 0) && selectedQuestionIds.length >= totalLimit;
+                             const isSelected = selectedQuestionIds.includes(q.id);
+                             const isDisabled = !isSelected && (isTotalLimitReached || isSubjectLimitReached || !subjectLimit);
+                            
+                            return (
                              <div key={q.id} className="flex items-start space-x-3 p-2 rounded-md hover:bg-muted">
                                 <Checkbox
-                                    id={q.id}
-                                    checked={selectedQuestionIds.includes(q.id)}
-                                    onCheckedChange={() => handleToggleQuestion(q.id)}
+                                    id={`q-sel-${q.id}`}
+                                    checked={isSelected}
+                                    onCheckedChange={() => handleToggleQuestion(q)}
+                                    disabled={isDisabled}
                                     className='mt-1'
                                 />
-                                <label htmlFor={q.id} className="flex-1 text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                                <label htmlFor={`q-sel-${q.id}`} className={cn("flex-1 text-sm font-medium leading-none", isDisabled ? "cursor-not-allowed opacity-70" : "cursor-pointer")}>
                                     {q.questionText}
                                 </label>
                             </div>
-                        )) : <p className='text-sm text-muted-foreground text-center py-8'>No questions match your filters.</p>}
+                        )}) : <p className='text-sm text-muted-foreground text-center py-8'>No questions match your filters.</p>}
                     </div>
                 </ScrollArea>
                 <SheetFooter className='pt-4'>

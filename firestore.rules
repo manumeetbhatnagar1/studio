@@ -92,7 +92,7 @@ service cloud.firestore {
     match /users/{userId} {
       allow get: if isSignedIn(); // Allow any signed-in user to read profile for chat
       allow list: if isSignedIn(); // Allow any signed-in user to list other users for chat
-      allow create: if isOwner(userId) && request.resource.data.id == userId && request.resource.data.examId is string;
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
       allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
       allow delete: if isExistingOwner(userId);
       
@@ -130,19 +130,6 @@ service cloud.firestore {
       match /custom_tests/{testId} {
         allow read, write: if isOwner(userId);
       }
-    }
-    
-    /**
-     * @description Stores exam definitions (e.g., IIT JEE, NEET). Readable by anyone
-     *              signed in, but only manageable by teachers.
-     * @path        /exams/{examId}
-     * @allow       (get, list) Any signed-in user.
-     * @deny        (create) A student trying to create a new exam.
-     * @principle   Role-restricted writes with public reads.
-     */
-    match /exams/{examId} {
-      allow get, list: if isSignedIn();
-      allow create, update, delete: if isTeacher();
     }
     
     // --------------------------------------------------------------------

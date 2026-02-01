@@ -740,6 +740,33 @@
         "averageScore",
         "topperScore"
       ]
+    },
+    "Course": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Course",
+      "type": "object",
+      "description": "Represents a paid course created by a teacher, bundling various learning materials.",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the Course." },
+        "title": { "type": "string", "description": "The title of the course." },
+        "description": { "type": "string", "description": "A detailed description of what the course offers." },
+        "teacherId": { "type": "string", "description": "Reference to the User (teacher) who created the course." },
+        "teacherName": { "type": "string", "description": "Denormalized name of the teacher." },
+        "price": { "type": "number", "description": "The price of the course." },
+        "imageUrl": { "type": "string", "description": "URL for a promotional image for the course.", "format": "uri" },
+        "classLevel": {
+          "type": "string",
+          "description": "Specifies the target class level for the course.",
+          "enum": ["Class 11", "Class 12", "Dropper", "All"]
+        },
+        "subjectIds": {
+          "type": "array",
+          "description": "An array of Subject IDs included in this course.",
+          "items": { "type": "string" }
+        },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp of when the course was created." }
+      },
+      "required": ["title", "description", "teacherId", "teacherName", "price", "classLevel", "subjectIds", "createdAt"]
     }
   },
   "auth": {
@@ -1032,6 +1059,22 @@
             {
               "name": "testId",
               "description": "The unique ID for the mock test."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/courses/{courseId}",
+        "definition": {
+          "entityName": "Course",
+          "schema": {
+            "$ref": "#/backend/entities/Course"
+          },
+          "description": "Stores course information. Teachers can create/manage their own courses.",
+          "params": [
+            {
+              "name": "courseId",
+              "description": "The unique identifier for the course."
             }
           ]
         }

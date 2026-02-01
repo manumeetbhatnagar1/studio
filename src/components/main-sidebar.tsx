@@ -12,6 +12,7 @@ import {
   Video,
   CreditCard,
   ListTree,
+  GraduationCap,
 } from 'lucide-react';
 import { Logo } from '@/components/icons';
 import type { NavItem } from '@/lib/types';
@@ -35,6 +36,7 @@ const navItems: NavItem[] = [
   { title: 'Mock Tests', href: '/mock-tests', icon: Target },
   { title: 'Chat', href: '/chat', icon: MessagesSquare },
   { title: 'Doubts', href: '/doubts', icon: MessageSquare },
+  { title: 'Courses', href: '/courses', icon: GraduationCap },
   { title: 'Subscription', href: '/subscription', icon: CreditCard },
 ];
 

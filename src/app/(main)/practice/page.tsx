@@ -756,18 +756,13 @@ export default function PracticePage() {
                                                                             <AccordionItem value={t.id} key={t.id} className="border-l-2 pl-4 border-muted">
                                                                                 <AccordionTrigger>{t.name} ({t.questions.length} questions)</AccordionTrigger>
                                                                                 <AccordionContent className="pl-4 pt-2">
-                                                                                    <div className="flex justify-end mb-4">
+                                                                                    <div className="flex justify-end">
                                                                                         <Button asChild size="sm">
                                                                                             <Link href={`/practice/session?topicId=${t.id}${!isSubscribed ? '&accessLevel=free' : ''}`}>
                                                                                                 <Rocket className="mr-2 h-4 w-4" /> Practice Topic
                                                                                             </Link>
                                                                                         </Button>
                                                                                     </div>
-                                                                                    <Accordion type="single" collapsible className="w-full space-y-2">
-                                                                                        {t.questions.map(q => (
-                                                                                            <QuestionItem key={q.id} question={q} topicMap={topicMap} classMap={classMap} isTeacher={false} canViewPaidContent={canViewPaidContent} onEdit={()=>{}} onDelete={()=>{}}/>
-                                                                                        ))}
-                                                                                    </Accordion>
                                                                                 </AccordionContent>
                                                                             </AccordionItem>
                                                                         ))}

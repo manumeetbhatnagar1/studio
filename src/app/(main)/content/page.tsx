@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -31,11 +31,12 @@ const contentSchema = z.object({
   type: z.enum(['video', 'pdf']),
   videoUrl: z.string().url('Please enter a valid video URL.').optional().or(z.literal('')),
   fileUrl: z.string().url('Please enter a valid PDF URL.').optional().or(z.literal('')),
+  examTypeId: z.string().min(1, 'You must select an exam type.'),
+  classId: z.string().min(1, 'You must select a class.'),
   subjectId: z.string().min(1, 'You must select a subject.'),
   topicId: z.string().min(1, 'You must select a topic.'),
   difficultyLevel: z.enum(['Easy', 'Medium', 'Hard']),
   examCategory: z.enum(['JEE Main', 'JEE Advanced', 'Both']),
-  classLevel: z.enum(['Class 11', 'Class 12', 'Dropper', 'All']),
   accessLevel: z.enum(['free', 'paid']),
 }).superRefine((data, ctx) => {
     if (data.type === 'video' && (!data.videoUrl || data.videoUrl.length === 0)) {
@@ -55,7 +56,9 @@ const contentSchema = z.object({
 });
 
 
-type Subject = { id: string; name: string; };
+type ExamType = { id: string; name: string; };
+type Class = { id: string; name: string; examTypeId: string; };
+type Subject = { id: string; name: string; classId: string; };
 type Topic = { id: string; name: string; subjectId: string; };
 type Content = {
   id: string;
@@ -66,9 +69,10 @@ type Content = {
   fileUrl?: string;
   topicId: string;
   subjectId: string;
+  classId: string;
+  examTypeId: string;
   difficultyLevel: 'Easy' | 'Medium' | 'Hard';
   examCategory: 'JEE Main' | 'JEE Advanced' | 'Both';
-  classLevel: 'Class 11' | 'Class 12' | 'Dropper' | 'All';
   accessLevel: 'free' | 'paid';
 };
 
@@ -113,7 +117,7 @@ const SubscriptionPromptDialog = ({ open, onOpenChange }: { open: boolean, onOpe
 );
 
 
-function ContentForm({ subjects, topics, onFormReset }: { subjects: Subject[], topics: Topic[]; onFormReset: () => void }) {
+function ContentForm({ examTypes, classes, subjects, topics, onFormReset }: { examTypes: ExamType[], classes: Class[], subjects: Subject[], topics: Topic[]; onFormReset: () => void }) {
   const { toast } = useToast();
   const firestore = useFirestore();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -125,22 +129,28 @@ function ContentForm({ subjects, topics, onFormReset }: { subjects: Subject[], t
       type: 'video',
       videoUrl: '',
       fileUrl: '',
+      examTypeId: '',
+      classId: '',
       subjectId: '',
       topicId: '',
       difficultyLevel: 'Medium',
       examCategory: 'Both',
-      classLevel: 'All',
       accessLevel: 'free',
     },
   });
 
   const contentType = form.watch('type');
+  const selectedExamType = form.watch('examTypeId');
+  const selectedClass = form.watch('classId');
   const selectedSubject = form.watch('subjectId');
 
-  const filteredTopics = useMemo(() => {
-    if (!selectedSubject) return [];
-    return topics.filter(topic => topic.subjectId === selectedSubject);
-  }, [selectedSubject, topics]);
+  useEffect(() => { form.setValue('classId', ''); form.setValue('subjectId', ''); form.setValue('topicId', ''); }, [selectedExamType, form]);
+  useEffect(() => { form.setValue('subjectId', ''); form.setValue('topicId', ''); }, [selectedClass, form]);
+  useEffect(() => { form.setValue('topicId', ''); }, [selectedSubject, form]);
+
+  const filteredClasses = useMemo(() => { if (!selectedExamType) return []; return classes.filter(c => c.examTypeId === selectedExamType); }, [selectedExamType, classes]);
+  const filteredSubjects = useMemo(() => { if (!selectedClass) return []; return subjects.filter(subject => subject.classId === selectedClass); }, [selectedClass, subjects]);
+  const filteredTopics = useMemo(() => { if (!selectedSubject) return []; return topics.filter(topic => topic.subjectId === selectedSubject); }, [selectedSubject, topics]);
 
   const onSubmit = (values: z.infer<typeof contentSchema>) => {
     setIsSubmitting(true);
@@ -207,22 +217,27 @@ function ContentForm({ subjects, topics, onFormReset }: { subjects: Subject[], t
             )} />
         )}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <FormField control={form.control} name="subjectId" render={({ field }) => (
-            <FormItem><FormLabel>Subject</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a subject" /></SelectTrigger></FormControl><SelectContent>{subjects.map(subject => <SelectItem key={subject.id} value={subject.id}>{subject.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+          <FormField control={form.control} name="examTypeId" render={({ field }) => (
+            <FormItem><FormLabel>Exam Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an exam type" /></SelectTrigger></FormControl><SelectContent>{examTypes.map(et => <SelectItem key={et.id} value={et.id}>{et.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
           )} />
-           <FormField control={form.control} name="topicId" render={({ field }) => (
-            <FormItem><FormLabel>Topic</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value} disabled={!selectedSubject}><FormControl><SelectTrigger><SelectValue placeholder="Select a topic" /></SelectTrigger></FormControl><SelectContent>{filteredTopics.map(topic => <SelectItem key={topic.id} value={topic.id}>{topic.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+           <FormField control={form.control} name="classId" render={({ field }) => (
+            <FormItem><FormLabel>Class</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!selectedExamType}><FormControl><SelectTrigger><SelectValue placeholder="Select a class" /></SelectTrigger></FormControl><SelectContent>{filteredClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
           )} />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FormField control={form.control} name="subjectId" render={({ field }) => (
+            <FormItem><FormLabel>Subject</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!selectedClass}><FormControl><SelectTrigger><SelectValue placeholder="Select a subject" /></SelectTrigger></FormControl><SelectContent>{filteredSubjects.map(subject => <SelectItem key={subject.id} value={subject.id}>{subject.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+          )} />
+           <FormField control={form.control} name="topicId" render={({ field }) => (
+            <FormItem><FormLabel>Topic</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!selectedSubject}><FormControl><SelectTrigger><SelectValue placeholder="Select a topic" /></SelectTrigger></FormControl><SelectContent>{filteredTopics.map(topic => <SelectItem key={topic.id} value={topic.id}>{topic.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+          )} />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormField control={form.control} name="difficultyLevel" render={({ field }) => (
             <FormItem><FormLabel>Difficulty</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select difficulty" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Easy">Easy</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Hard">Hard</SelectItem></SelectContent></Select><FormMessage /></FormItem>
           )} />
           <FormField control={form.control} name="examCategory" render={({ field }) => (
             <FormItem><FormLabel>Exam Category</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger></FormControl><SelectContent><SelectItem value="JEE Main">JEE Main</SelectItem><SelectItem value="JEE Advanced">JEE Advanced</SelectItem><SelectItem value="Both">Both</SelectItem></SelectContent></Select><FormMessage /></FormItem>
-          )} />
-           <FormField control={form.control} name="classLevel" render={({ field }) => (
-            <FormItem><FormLabel>Class Level</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select class level" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Class 11">Class 11</SelectItem><SelectItem value="Class 12">Class 12</SelectItem><SelectItem value="Dropper">Dropper</SelectItem><SelectItem value="All">All</SelectItem></SelectContent></Select><FormMessage /></FormItem>
           )} />
         </div>
         <Button type="submit" disabled={isSubmitting}>
@@ -303,49 +318,37 @@ export default function ContentPage() {
   const { isSubscribed, isLoading: isSubscribedLoading } = useIsSubscribed();
   const [formKey, setFormKey] = useState(0);
 
+  const examTypesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'exam_types'), orderBy('name')) : null, [firestore]);
+  const classesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'classes'), orderBy('name')) : null, [firestore]);
   const subjectsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'subjects'), orderBy('name')) : null, [firestore]);
   const topicsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'topics'), orderBy('name')) : null, [firestore]);
-  const contentQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'content'), orderBy('subjectId')) : null, [firestore]);
+  const contentQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'content'), orderBy('title')) : null, [firestore]);
   
+  const { data: examTypes, isLoading: areExamTypesLoading } = useCollection<ExamType>(examTypesQuery);
+  const { data: classes, isLoading: areClassesLoading } = useCollection<Class>(classesQuery);
   const { data: subjects, isLoading: areSubjectsLoading } = useCollection<Subject>(subjectsQuery);
   const { data: topics, isLoading: areTopicsLoading } = useCollection<Topic>(topicsQuery);
   const { data: content, isLoading: areContentLoading } = useCollection<Content>(contentQuery);
 
   const contentTree = useMemo(() => {
-    if (!topics || !subjects) return {};
+    if (!content || !topics || !subjects || !classes || !examTypes) return [];
 
-    const tree: Record<string, { subjectId: string; topics: Record<string, { topicId: string; items: Content[] }> }> = {};
-
-    // 1. Initialize with all subjects
-    for (const subject of subjects) {
-      tree[subject.name] = { subjectId: subject.id, topics: {} };
-    }
-
-    // 2. Initialize all topics under their subjects
-    for (const topic of topics) {
-      const subject = subjects.find(s => s.id === topic.subjectId);
-      if (subject && tree[subject.name]) {
-        tree[subject.name].topics[topic.name] = { topicId: topic.id, items: [] };
-      }
-    }
-
-    // 3. Populate content into the tree
-    if (content) {
-      for (const item of content) {
-        const subject = subjects.find(s => s.id === item.subjectId);
-        const topic = topics.find(t => t.id === item.topicId);
-        if (subject && topic && tree[subject.name] && tree[subject.name].topics[topic.name]) {
-          tree[subject.name].topics[topic.name].items.push(item);
-        }
-      }
-    }
-
-    return tree;
-  }, [content, topics, subjects]);
+    return examTypes.map(et => ({
+      ...et,
+      classes: classes.filter(c => c.examTypeId === et.id).map(c => ({
+        ...c,
+        subjects: subjects.filter(s => s.classId === c.id).map(s => ({
+          ...s,
+          topics: topics.filter(t => t.subjectId === s.id).map(t => ({
+            ...t,
+            items: content.filter(item => item.topicId === t.id)
+          })).filter(t => t.items.length > 0)
+        })).filter(s => s.topics.length > 0)
+      })).filter(c => c.subjects.length > 0)
+    })).filter(et => et.classes.length > 0);
+  }, [content, topics, subjects, classes, examTypes]);
   
-  const sortedSubjects = useMemo(() => Object.keys(contentTree).sort(), [contentTree]);
-
-  const isLoading = isTeacherLoading || areTopicsLoading || areContentLoading || areSubjectsLoading || isSubscribedLoading;
+  const isLoading = isTeacherLoading || areExamTypesLoading || areClassesLoading || areSubjectsLoading || areTopicsLoading || areContentLoading || isSubscribedLoading;
   const canViewPaidContent = isTeacher || isSubscribed;
 
   return (
@@ -359,14 +362,14 @@ export default function ContentPage() {
               <CardDescription>Fill out the form to add a new video lecture or PDF to the content library.</CardDescription>
             </CardHeader>
             <CardContent>
-              {areTopicsLoading || areSubjectsLoading ? (
+              {areTopicsLoading || areSubjectsLoading || areClassesLoading || areExamTypesLoading ? (
                 <div className="space-y-4">
                   <Skeleton className="h-10 w-full" />
                   <Skeleton className="h-20 w-full" />
                   <Skeleton className="h-10 w-1/3" />
                 </div>
               ) : (
-                <ContentForm key={formKey} subjects={subjects || []} topics={topics || []} onFormReset={() => setFormKey(prev => prev + 1)} />
+                <ContentForm key={formKey} examTypes={examTypes || []} classes={classes || []} subjects={subjects || []} topics={topics || []} onFormReset={() => setFormKey(prev => prev + 1)} />
               )}
             </CardContent>
           </Card>
@@ -375,7 +378,7 @@ export default function ContentPage() {
         <Card className="shadow-lg">
           <CardHeader>
             <CardTitle className="font-headline text-2xl flex items-center gap-2"><BookOpen /> Content Library</CardTitle>
-            <CardDescription>Browse materials organized by subject and topic.</CardDescription>
+            <CardDescription>Browse materials organized by exam type, class, subject, and topic.</CardDescription>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -384,36 +387,42 @@ export default function ContentPage() {
                 <Skeleton className="h-20 w-full" />
                 <Skeleton className="h-20 w-full" />
               </div>
-            ) : sortedSubjects.length > 0 ? (
+            ) : contentTree.length > 0 ? (
               <Accordion type="multiple" className="w-full space-y-2">
-                {sortedSubjects.map(subjectName => (
-                  <AccordionItem value={subjectName} key={contentTree[subjectName].subjectId} className="border rounded-lg">
-                    <AccordionTrigger className="text-xl font-semibold px-6">{subjectName}</AccordionTrigger>
-                    <AccordionContent className="px-6">
-                      {contentTree[subjectName] && Object.keys(contentTree[subjectName].topics).length > 0 ? (
-                        <Accordion type="multiple" className="w-full">
-                          {Object.keys(contentTree[subjectName].topics).sort().map(topicName => (
-                            <AccordionItem value={topicName} key={contentTree[subjectName].topics[topicName].topicId}>
-                              <AccordionTrigger className="text-lg font-medium">{topicName}</AccordionTrigger>
-                              <AccordionContent>
-                                {contentTree[subjectName].topics[topicName].items.length > 0 ? (
-                                  <div className="grid gap-4 pt-2">
-                                    {contentTree[subjectName].topics[topicName].items.map(item => <ContentListItem key={item.id} contentItem={item} canViewPaidContent={canViewPaidContent} />)}
-                                  </div>
-                                ) : (
-                                  <div className="text-center text-muted-foreground py-4">
-                                    <p>No content has been added for this topic yet.</p>
-                                  </div>
-                                )}
-                              </AccordionContent>
-                            </AccordionItem>
-                          ))}
-                        </Accordion>
-                      ) : (
-                        <div className="text-center text-muted-foreground py-4">
-                          <p>No topics have been added for this subject yet.</p>
-                        </div>
-                      )}
+                {contentTree.map(et => (
+                  <AccordionItem value={et.id} key={et.id} className="border rounded-lg">
+                    <AccordionTrigger className="text-xl font-semibold px-6">{et.name}</AccordionTrigger>
+                    <AccordionContent className="px-6 pb-2">
+                       <Accordion type="multiple" className="w-full space-y-2" defaultValue={et.classes.map(c => c.id)}>
+                        {et.classes.map(c => (
+                          <AccordionItem value={c.id} key={c.id} className="border rounded-lg">
+                            <AccordionTrigger className="text-lg font-medium px-4">{c.name}</AccordionTrigger>
+                            <AccordionContent className="px-4 pb-2">
+                              <Accordion type="multiple" className="w-full space-y-2" defaultValue={c.subjects.map(s => s.id)}>
+                                {c.subjects.map(s => (
+                                <AccordionItem value={s.id} key={s.id} className="border-l-2 pl-4 border-muted">
+                                  <AccordionTrigger className="font-medium">{s.name}</AccordionTrigger>
+                                  <AccordionContent className="pl-4 pt-2">
+                                     <Accordion type="multiple" className="w-full space-y-1" defaultValue={s.topics.map(t => t.id)}>
+                                      {s.topics.map(t => (
+                                        <AccordionItem value={t.id} key={t.id} className="border-none">
+                                          <AccordionTrigger className="text-sm py-2">{t.name}</AccordionTrigger>
+                                          <AccordionContent className="pl-4">
+                                              <div className="grid gap-4 pt-2">
+                                                {t.items.map(item => <ContentListItem key={item.id} contentItem={item} canViewPaidContent={canViewPaidContent} />)}
+                                              </div>
+                                          </AccordionContent>
+                                        </AccordionItem>
+                                      ))}
+                                    </Accordion>
+                                  </AccordionContent>
+                                </AccordionItem>
+                                ))}
+                              </Accordion>
+                            </AccordionContent>
+                          </AccordionItem>
+                        ))}
+                      </Accordion>
                     </AccordionContent>
                   </AccordionItem>
                 ))}
@@ -430,5 +439,3 @@ export default function ContentPage() {
     </div>
   );
 }
-
-    

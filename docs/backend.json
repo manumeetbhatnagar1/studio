@@ -191,6 +191,14 @@
           "description": "The URL of the PDF file. Required for 'pdf' type.",
           "format": "uri"
         },
+        "examTypeId": {
+          "type": "string",
+          "description": "Reference to the ExamType this content belongs to."
+        },
+        "classId": {
+          "type": "string",
+          "description": "Reference to the Class this content belongs to."
+        },
         "subjectId": {
           "type": "string",
           "description": "Reference to Subject. (Relationship: Subject 1:N Content)"
@@ -217,16 +225,6 @@
             "Both"
           ]
         },
-        "classLevel": {
-          "type": "string",
-          "description": "Specifies the target class level for the content.",
-          "enum": [
-            "Class 11",
-            "Class 12",
-            "Dropper",
-            "All"
-          ]
-        },
         "accessLevel": {
           "type": "string",
           "description": "Specifies if the content is free or requires a subscription.",
@@ -240,11 +238,12 @@
         "title",
         "description",
         "type",
+        "examTypeId",
+        "classId",
         "subjectId",
         "topicId",
         "difficultyLevel",
         "examCategory",
-        "classLevel",
         "accessLevel"
       ]
     },

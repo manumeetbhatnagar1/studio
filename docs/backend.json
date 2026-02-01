@@ -606,7 +606,7 @@
           "description": "Timestamp of when the test was submitted."
         }
       },
-      "required": ["testId", "score", "timeTaken"]
+      "required": ["testId", "score", "timeTaken", "submittedAt"]
     },
     "CustomMockTest": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -693,6 +693,53 @@
         "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp of when the message was sent." }
       },
       "required": ["senderId", "senderName", "text", "createdAt"]
+    },
+    "TestAnalytics": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "TestAnalytics",
+      "type": "object",
+      "description": "Stores aggregated analytics for a specific mock test.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier (matches MockTest id)."
+        },
+        "totalScore": {
+          "type": "number",
+          "description": "Sum of all scores for this test."
+        },
+        "totalTimeTaken": {
+          "type": "number",
+          "description": "Sum of all time taken in minutes for this test."
+        },
+        "numberOfAttempts": {
+          "type": "number",
+          "description": "Total number of times this test has been taken."
+        },
+        "averageScore": {
+          "type": "number",
+          "description": "Average score for this test."
+        },
+        "averageTimeTaken": {
+          "type": "number",
+          "description": "Average time taken in minutes for this test."
+        },
+        "topperScore": {
+          "type": "number",
+          "description": "Highest score achieved on this test."
+        },
+        "topperStudentName": {
+          "type": "string",
+          "description": "Name of the student with the highest score."
+        }
+      },
+      "required": [
+        "id",
+        "totalScore",
+        "numberOfAttempts",
+        "averageScore",
+        "topperScore"
+      ]
     }
   },
   "auth": {
@@ -970,6 +1017,22 @@
           "params": [
             { "name": "chatId", "description": "The composite ID for the chat room." },
             { "name": "messageId", "description": "The unique ID for the chat message." }
+          ]
+        }
+      },
+      {
+        "path": "/test_analytics/{testId}",
+        "definition": {
+          "entityName": "TestAnalytics",
+          "schema": {
+            "$ref": "#/backend/entities/TestAnalytics"
+          },
+          "description": "Stores aggregated analytics for mock tests. Any authenticated user can read this to see comparisons. Writes are handled transactionally on test submission.",
+          "params": [
+            {
+              "name": "testId",
+              "description": "The unique ID for the mock test."
+            }
           ]
         }
       }

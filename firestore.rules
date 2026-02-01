@@ -362,5 +362,23 @@ service cloud.firestore {
         allow get, list: if isSignedIn();
         allow create, update, delete: if false;
     }
+
+    // --------------------------------------------------------------------
+    // Analytics Rules
+    // --------------------------------------------------------------------
+    /**
+     * @description Aggregated analytics for mock tests. Readable by anyone to
+     *              compare scores. Writes should only happen via a transaction
+     *              when a user completes a test.
+     * @path        /test_analytics/{testId}
+     * @allow       (read) Any signed-in user.
+     * @allow       (write) Any signed-in user (NOTE: In production, this should be
+     *              secured, e.g. via Cloud Function or more complex rules).
+     * @principle   Allow public read for comparison, with optimistic writes.
+     */
+    match /test_analytics/{testId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
   }
 }

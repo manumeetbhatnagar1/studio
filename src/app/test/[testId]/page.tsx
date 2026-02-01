@@ -2,19 +2,20 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
-import { useUser, useFirestore, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
-import { doc, getDoc, collection, query, where, getDocs, writeBatch, documentId, serverTimestamp } from 'firebase/firestore';
+import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
+import { doc, getDoc, collection, query, where, getDocs, writeBatch, documentId, serverTimestamp, runTransaction } from 'firebase/firestore';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Timer, User, LoaderCircle, ArrowLeft, Check, XIcon } from 'lucide-react';
+import { Timer, User, LoaderCircle, ArrowLeft, Check, XIcon, Trophy, Users, BarChart } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Logo } from '@/components/icons';
+import { Skeleton } from '@/components/ui/skeleton';
 
 type QuestionType = 'MCQ' | 'Numerical';
 type SubjectName = 'Physics' | 'Chemistry' | 'Mathematics' | string;
@@ -64,6 +65,13 @@ type OfficialTestConfig = {
     };
 }
 
+type TestAnalytics = {
+  averageScore: number;
+  topperScore: number;
+  averageTimeTaken: number;
+  numberOfAttempts: number;
+};
+
 const fetchQuestionsByIds = async (firestore: any, questionIds: string[]): Promise<MockQuestion[]> => {
     if (!questionIds || questionIds.length === 0) {
         return [];
@@ -95,6 +103,50 @@ const fetchQuestionsByIds = async (firestore: any, questionIds: string[]): Promi
     return allQuestions.sort((a, b) => questionIds.indexOf(a.id) - questionIds.indexOf(b.id));
 };
 
+const AnalyticsDashboard: React.FC<{
+  userScore: number;
+  userTime: number;
+  analytics: TestAnalytics | null;
+  isLoading: boolean;
+}> = ({ userScore, userTime, analytics, isLoading }) => {
+    if(isLoading) {
+        return <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8"><Skeleton className="h-28 w-full" /><Skeleton className="h-28 w-full" /><Skeleton className="h-28 w-full" /></div>
+    }
+
+    if (!analytics) return null;
+
+    return (
+        <div className="mt-8">
+             <h3 className="font-headline text-2xl mb-4 text-center">Performance Analysis</h3>
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <Card className="text-center">
+                    <CardHeader className="flex flex-row items-center justify-center gap-2 pb-2"><User className="h-5 w-5 text-muted-foreground" /><CardTitle className="text-lg">Your Score</CardTitle></CardHeader>
+                    <CardContent><p className="text-4xl font-bold text-primary">{userScore}</p></CardContent>
+                </Card>
+                 <Card className="text-center">
+                    <CardHeader className="flex flex-row items-center justify-center gap-2 pb-2"><Trophy className="h-5 w-5 text-muted-foreground" /><CardTitle className="text-lg">Topper's Score</CardTitle></CardHeader>
+                    <CardContent><p className="text-4xl font-bold">{analytics.topperScore.toFixed(0)}</p></CardContent>
+                </Card>
+                 <Card className="text-center">
+                    <CardHeader className="flex flex-row items-center justify-center gap-2 pb-2"><Users className="h-5 w-5 text-muted-foreground" /><CardTitle className="text-lg">Average Score</CardTitle></CardHeader>
+                    <CardContent><p className="text-4xl font-bold">{analytics.averageScore.toFixed(0)}</p></CardContent>
+                </Card>
+                <Card className="text-center">
+                    <CardHeader className="flex flex-row items-center justify-center gap-2 pb-2"><Timer className="h-5 w-5 text-muted-foreground" /><CardTitle className="text-lg">Your Time</CardTitle></CardHeader>
+                    <CardContent><p className="text-4xl font-bold">{userTime} <span className='text-base font-normal'>mins</span></p></CardContent>
+                </Card>
+                <Card className="text-center">
+                    <CardHeader className="flex flex-row items-center justify-center gap-2 pb-2"><Timer className="h-5 w-5 text-muted-foreground" /><CardTitle className="text-lg">Average Time</CardTitle></CardHeader>
+                    <CardContent><p className="text-4xl font-bold">{analytics.averageTimeTaken.toFixed(0)} <span className='text-base font-normal'>mins</span></p></CardContent>
+                </Card>
+                 <Card className="text-center">
+                    <CardHeader className="flex flex-row items-center justify-center gap-2 pb-2"><BarChart className="h-5 w-5 text-muted-foreground" /><CardTitle className="text-lg">Total Attempts</CardTitle></CardHeader>
+                    <CardContent><p className="text-4xl font-bold">{analytics.numberOfAttempts}</p></CardContent>
+                </Card>
+             </div>
+        </div>
+    );
+}
 
 export default function MockTestPage() {
     const { user } = useUser();
@@ -115,11 +167,13 @@ export default function MockTestPage() {
     const [isSubmitDialogOpen, setIsSubmitDialogOpen] = useState(false);
     const [isFinished, setIsFinished] = useState(false);
     const [score, setScore] = useState(0);
+    const [analytics, setAnalytics] = useState<TestAnalytics | null>(null);
+    const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(false);
 
-    const handleSubmitTest = useCallback(() => {
+    const handleSubmitTest = useCallback(async () => {
         setIsSubmitDialogOpen(false);
-        let finalScore = 0;
         
+        let finalScore = 0;
         questions.forEach((question) => {
             const answer = answers.get(question.id);
             if (answer && (answer.value !== '' && answer.value !== undefined)) {
@@ -141,22 +195,68 @@ export default function MockTestPage() {
         setScore(finalScore);
         setIsFinished(true);
 
-        if (user && firestore && testType !== 'custom') { // Only save results for official tests
+        if (user && firestore && (testType !== 'custom')) {
             const timeTaken = duration - Math.floor(timeLeft / 60);
-            const resultsRef = collection(firestore, 'users', user.uid, 'test_results');
-            
-            const answersToSave: Record<string, any> = {};
-            answers.forEach((ans, qId) => {
-                answersToSave[String(qId)] = ans.value;
-            });
-            
-            addDocumentNonBlocking(resultsRef, {
-                testId: testId,
-                score: finalScore,
-                timeTaken: timeTaken > 0 ? timeTaken : 0,
-                answers: answersToSave,
-                submittedAt: serverTimestamp(),
-            });
+            const userTime = timeTaken > 0 ? timeTaken : 0;
+
+            try {
+                await runTransaction(firestore, async (transaction) => {
+                    const analyticsRef = doc(firestore, 'test_analytics', testId);
+                    const userResultRef = doc(collection(firestore, 'users', user.uid, 'test_results'));
+
+                    const analyticsDoc = await transaction.get(analyticsRef);
+
+                    const answersToSave: Record<string, any> = {};
+                    answers.forEach((ans, qId) => { answersToSave[String(qId)] = ans.value; });
+
+                    const userResultData = {
+                        testId: testId,
+                        score: finalScore,
+                        timeTaken: userTime,
+                        answers: answersToSave,
+                        submittedAt: serverTimestamp(),
+                    };
+
+                    if (!analyticsDoc.exists()) {
+                        transaction.set(analyticsRef, {
+                            id: testId,
+                            totalScore: finalScore,
+                            totalTimeTaken: userTime,
+                            numberOfAttempts: 1,
+                            averageScore: finalScore,
+                            averageTimeTaken: userTime,
+                            topperScore: finalScore,
+                            topperStudentName: user.displayName || 'Anonymous',
+                        });
+                    } else {
+                        const oldAnalytics = analyticsDoc.data();
+                        const newNumberOfAttempts = oldAnalytics.numberOfAttempts + 1;
+                        const newTotalScore = oldAnalytics.totalScore + finalScore;
+                        const newTotalTimeTaken = oldAnalytics.totalTimeTaken + userTime;
+                        
+                        let newTopperScore = oldAnalytics.topperScore;
+                        let newTopperStudentName = oldAnalytics.topperStudentName;
+                        if (finalScore > oldAnalytics.topperScore) {
+                            newTopperScore = finalScore;
+                            newTopperStudentName = user.displayName || 'Anonymous';
+                        }
+                        
+                        transaction.update(analyticsRef, {
+                            numberOfAttempts: newNumberOfAttempts,
+                            totalScore: newTotalScore,
+                            totalTimeTaken: newTotalTimeTaken,
+                            averageScore: newTotalScore / newNumberOfAttempts,
+                            averageTimeTaken: newTotalTimeTaken / newNumberOfAttempts,
+                            topperScore: newTopperScore,
+                            topperStudentName: newTopperStudentName,
+                        });
+                    }
+                    
+                    transaction.set(userResultRef, userResultData);
+                });
+            } catch (error) {
+                console.error("Test submission transaction failed: ", error);
+            }
         }
     }, [answers, duration, firestore, questions, testId, testType, timeLeft, user]);
 
@@ -194,6 +294,26 @@ export default function MockTestPage() {
         };
         loadTest();
     }, [testId, testType, user, firestore]);
+    
+    useEffect(() => {
+        const fetchAnalytics = async () => {
+            if (isFinished && firestore && testId && testType !== 'custom') {
+                setIsAnalyticsLoading(true);
+                try {
+                    const analyticsRef = doc(firestore, 'test_analytics', testId);
+                    const docSnap = await getDoc(analyticsRef);
+                    if (docSnap.exists()) {
+                        setAnalytics(docSnap.data() as TestAnalytics);
+                    }
+                } catch (error) {
+                    console.error("Error fetching analytics:", error);
+                } finally {
+                    setIsAnalyticsLoading(false);
+                }
+            }
+        };
+        fetchAnalytics();
+    }, [isFinished, firestore, testId, testType]);
 
     // Timer effect
     useEffect(() => {
@@ -315,19 +435,33 @@ export default function MockTestPage() {
     }
 
     if(isFinished) {
+        const timeTaken = duration - Math.floor(timeLeft / 60);
         return (
-            <div className="flex flex-col items-center justify-center min-h-screen bg-muted/30 py-8">
-                <Card className="w-full max-w-3xl text-center shadow-2xl">
+            <div className="flex flex-col items-center justify-center min-h-screen bg-muted/30 py-8 px-4">
+                <Card className="w-full max-w-4xl text-center shadow-2xl">
                     <CardHeader>
                         <CardTitle className="font-headline text-3xl">Test Finished: {testTitle}</CardTitle>
+                        <CardDescription>
+                            Total Marks: {questions.length * 4} (Scoring: +4 correct, -1 incorrect)
+                        </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        <p className="text-lg text-muted-foreground">Here's your result:</p>
-                        <div className="text-6xl font-bold text-primary">{score}</div>
-                        <p className="font-semibold text-2xl">
-                            Total Marks: {questions.length * 4}
-                        </p>
-                        <p className="text-sm text-muted-foreground">(Scoring: +4 for correct, -1 for incorrect, 0 for unattempted)</p>
+                        
+                        {testType !== 'custom' && (
+                            <AnalyticsDashboard 
+                                userScore={score} 
+                                userTime={timeTaken > 0 ? timeTaken : 0} 
+                                analytics={analytics}
+                                isLoading={isAnalyticsLoading}
+                            />
+                        )}
+
+                        {testType === 'custom' && (
+                             <Card className="text-center w-fit mx-auto">
+                                <CardHeader><CardTitle>Your Score</CardTitle></CardHeader>
+                                <CardContent><p className="text-5xl font-bold text-primary">{score}</p></CardContent>
+                            </Card>
+                        )}
                         
                         <Card className="mt-6 text-left">
                             <CardHeader>

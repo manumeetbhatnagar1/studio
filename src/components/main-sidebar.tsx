@@ -12,6 +12,7 @@ import {
   Video,
   CreditCard,
   ListTree,
+  BookMarked,
 } from 'lucide-react';
 import { Logo } from '@/components/icons';
 import type { NavItem } from '@/lib/types';
@@ -29,6 +30,7 @@ import { Badge } from './ui/badge';
 const navItems: NavItem[] = [
   { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { title: 'Curriculum', href: '/curriculum', icon: ListTree },
+  { title: 'Exams', href: '/exams', icon: BookMarked },
   { title: 'Content', href: '/content', icon: BookOpen },
   { title: 'Live Classes', href: '/live-classes', icon: Video },
   { title: 'Practice', href: '/practice', icon: ClipboardList },

@@ -14,9 +14,9 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { useAuth, useFirestore } from '@/firebase';
+import { useAuth, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { doc } from 'firebase/firestore';
+import { doc, collection } from 'firebase/firestore';
 import { useState } from 'react';
 import { LoaderCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -24,13 +24,17 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Logo } from '@/components/icons';
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
 
+type Exam = { id: string; name: string };
 
 const formSchema = z.object({
   firstName: z.string().min(1, 'First name is required'),
   lastName: z.string().min(1, 'Last name is required'),
   email: z.string().email('Invalid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
+  examId: z.string().min(1, 'Please select an exam.'),
 });
 
 export default function TeacherRegistrationPage() {
@@ -40,6 +44,9 @@ export default function TeacherRegistrationPage() {
   const { toast } = useToast();
   const router = useRouter();
 
+  const examsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'exams') : null, [firestore]);
+  const { data: exams, isLoading: areExamsLoading } = useCollection<Exam>(examsQuery);
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -47,6 +54,7 @@ export default function TeacherRegistrationPage() {
       lastName: '',
       email: '',
       password: '',
+      examId: '',
     },
   });
 
@@ -66,7 +74,8 @@ export default function TeacherRegistrationPage() {
         firstName: values.firstName,
         lastName: values.lastName,
         email: values.email,
-        roleId: 'teacher' 
+        roleId: 'teacher',
+        examId: values.examId,
       };
       await setDocumentNonBlocking(userRef, userData, { merge: false });
 
@@ -158,7 +167,29 @@ export default function TeacherRegistrationPage() {
                     </FormItem>
                 )}
                 />
-                <Button type="submit" className="w-full" disabled={isLoading}>
+                 {areExamsLoading ? <Skeleton className="h-10 w-full" /> : (
+                  <FormField
+                    control={form.control}
+                    name="examId"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Primary Exam Taught</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Which exam do you teach?" />
+                                </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                                {exams?.map(exam => <SelectItem key={exam.id} value={exam.id}>{exam.name}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                  />
+                )}
+                <Button type="submit" className="w-full" disabled={isLoading || areExamsLoading}>
                 {isLoading && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
                 Create Account
                 </Button>

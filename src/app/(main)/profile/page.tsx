@@ -28,6 +28,7 @@ const profileFormSchema = z.object({
   firstName: z.string().min(1, 'First name is required'),
   lastName: z.string().min(1, 'Last name is required'),
   email: z.string().email().optional(), // email is not editable
+  examName: z.string().optional(), // exam is not editable
 });
 
 type UserProfile = {
@@ -37,6 +38,11 @@ type UserProfile = {
     email: string;
     roleId: 'student' | 'teacher';
     photoURL?: string;
+    examId?: string;
+}
+
+type Exam = {
+    name: string;
 }
 
 export default function ProfilePage() {
@@ -56,12 +62,20 @@ export default function ProfilePage() {
 
   const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userDocRef);
 
+  const examDocRef = useMemoFirebase(() => {
+    if (!userProfile?.examId || !firestore) return null;
+    return doc(firestore, 'exams', userProfile.examId);
+  }, [userProfile, firestore]);
+
+  const { data: exam, isLoading: isExamLoading } = useDoc<Exam>(examDocRef);
+
   const form = useForm<z.infer<typeof profileFormSchema>>({
     resolver: zodResolver(profileFormSchema),
     defaultValues: {
       firstName: '',
       lastName: '',
       email: '',
+      examName: '',
     },
   });
 
@@ -71,6 +85,7 @@ export default function ProfilePage() {
         firstName: userProfile.firstName,
         lastName: userProfile.lastName,
         email: userProfile.email,
+        examName: exam?.name || 'Loading...'
       });
       if (userProfile.photoURL) {
         setImagePreview(userProfile.photoURL);
@@ -78,7 +93,7 @@ export default function ProfilePage() {
     } else if (user?.photoURL) {
         setImagePreview(user.photoURL);
     }
-  }, [userProfile, user, form]);
+  }, [userProfile, user, form, exam]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -135,7 +150,7 @@ export default function ProfilePage() {
     }
   }
 
-  const showLoading = isUserLoading || isProfileLoading;
+  const showLoading = isUserLoading || isProfileLoading || isExamLoading;
   
   const getInitials = () => {
     if (userProfile) {
@@ -178,7 +193,11 @@ export default function ProfilePage() {
                                     <Skeleton className="h-10 w-full" />
                                 </div>
                             </div>
-                            <div className="space-y-2">
+                             <div className="space-y-2">
+                                <Skeleton className="h-4 w-20" />
+                                <Skeleton className="h-10 w-full" />
+                            </div>
+                             <div className="space-y-2">
                                 <Skeleton className="h-4 w-20" />
                                 <Skeleton className="h-10 w-full" />
                             </div>
@@ -239,6 +258,19 @@ export default function ProfilePage() {
                                     <FormLabel>Email</FormLabel>
                                     <FormControl>
                                         <Input placeholder="user@example.com" {...field} disabled />
+                                    </FormControl>
+                                    <FormMessage />
+                                    </FormItem>
+                                )}
+                                />
+                                <FormField
+                                control={form.control}
+                                name="examName"
+                                render={({ field }) => (
+                                    <FormItem>
+                                    <FormLabel>Selected Exam</FormLabel>
+                                    <FormControl>
+                                        <Input {...field} disabled />
                                     </FormControl>
                                     <FormMessage />
                                     </FormItem>

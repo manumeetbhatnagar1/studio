@@ -105,10 +105,10 @@ function QuestionItem({ question, topicMap, isTeacher, onEdit, onDelete }: { que
         </AccordionTrigger>
         {isTeacher && (
           <div className="flex items-center gap-1 pr-2">
-            <Button variant="ghost" size="icon" onClick={() => onEdit(question)}>
+            <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); onEdit(question); }}>
               <Edit2 className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" onClick={() => onDelete(question.id)}>
+            <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); onDelete(question.id); }}>
               <Trash2 className="h-4 w-4 text-destructive" />
             </Button>
           </div>

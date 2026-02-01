@@ -60,7 +60,7 @@ const fetchPracticeQuestions = async (firestore: any, params: URLSearchParams): 
 
     if (params.get('difficultyLevel')) q = query(q, where('difficultyLevel', '==', params.get('difficultyLevel')));
     if (params.get('accessLevel')) q = query(q, where('accessLevel', '==', params.get('accessLevel')));
-    if (params.get('examCategory')) q = query(q, where('examCategory', '==', params.get('examCategory')));
+    if (params.get('examTypeId')) q = query(q, where('examTypeId', '==', params.get('examTypeId')));
     
     const allMatchingQuestionsSnap = await getDocs(q);
 

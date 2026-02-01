@@ -49,7 +49,7 @@ const liveClassSchema = z.object({
     message: 'Start time must be in the future.',
   }),
   duration: z.coerce.number().int().min(15, 'Duration must be at least 15 minutes.'),
-  examCategory: z.enum(['JEE Main', 'JEE Advanced', 'Both']),
+  examTypeId: z.string().min(1, 'Please select an exam type.'),
   meetingUrl: z.string().url('Please enter a valid meeting URL.'),
 });
 
@@ -62,10 +62,12 @@ type LiveClass = {
   teacherName: string;
   teacherPhotoUrl?: string;
   meetingUrl: string;
-  examCategory: 'JEE Main' | 'JEE Advanced' | 'Both';
+  examTypeId: string;
 }
 
-const LiveClassForm: FC<{ setOpen: (open: boolean) => void }> = ({ setOpen }) => {
+type ExamType = { id: string; name: string; };
+
+const LiveClassForm: FC<{ setOpen: (open: boolean) => void, examTypes: ExamType[] }> = ({ setOpen, examTypes }) => {
     const { user } = useUser();
     const firestore = useFirestore();
     const { toast } = useToast();
@@ -76,7 +78,7 @@ const LiveClassForm: FC<{ setOpen: (open: boolean) => void }> = ({ setOpen }) =>
         defaultValues: {
             title: '',
             duration: 60,
-            examCategory: 'Both',
+            examTypeId: '',
             meetingUrl: '',
         },
     });
@@ -149,8 +151,8 @@ const LiveClassForm: FC<{ setOpen: (open: boolean) => void }> = ({ setOpen }) =>
                  <FormField control={form.control} name="meetingUrl" render={({ field }) => (
                     <FormItem><FormLabel>Meeting URL</FormLabel><FormControl><Input placeholder="https://meet.google.com/..." {...field} /></FormControl><FormMessage /></FormItem>
                 )} />
-                <FormField control={form.control} name="examCategory" render={({ field }) => (
-                    <FormItem><FormLabel>Exam Category</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger></FormControl><SelectContent><SelectItem value="JEE Main">JEE Main</SelectItem><SelectItem value="JEE Advanced">JEE Advanced</SelectItem><SelectItem value="Both">Both</SelectItem></SelectContent></Select><FormMessage /></FormItem>
+                <FormField control={form.control} name="examTypeId" render={({ field }) => (
+                    <FormItem><FormLabel>Exam Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an exam type" /></SelectTrigger></FormControl><SelectContent>{examTypes.map(et => <SelectItem key={et.id} value={et.id}>{et.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
                 )} />
 
                 <Button type="submit" disabled={isSubmitting}>
@@ -161,7 +163,7 @@ const LiveClassForm: FC<{ setOpen: (open: boolean) => void }> = ({ setOpen }) =>
     );
 };
 
-const LiveClassCard: FC<{ liveClass: LiveClass; currentUserId?: string }> = ({ liveClass, currentUserId }) => {
+const LiveClassCard: FC<{ liveClass: LiveClass; currentUserId?: string, examTypeMap: Record<string, string> }> = ({ liveClass, currentUserId, examTypeMap }) => {
     const firestore = useFirestore();
     const { toast } = useToast();
 
@@ -186,7 +188,7 @@ const LiveClassCard: FC<{ liveClass: LiveClass; currentUserId?: string }> = ({ l
             <CardHeader>
                 <div className="flex justify-between items-start gap-4">
                     <CardTitle className="font-headline text-xl">{liveClass.title}</CardTitle>
-                    <div className="flex-shrink-0"><span className="text-sm font-medium px-3 py-1 rounded-full bg-primary/10 text-primary">{liveClass.examCategory}</span></div>
+                    <div className="flex-shrink-0"><span className="text-sm font-medium px-3 py-1 rounded-full bg-primary/10 text-primary">{examTypeMap[liveClass.examTypeId] || 'General'}</span></div>
                 </div>
                 <CardDescription className="flex items-center gap-2 pt-2">
                     <Avatar className="h-6 w-6">
@@ -235,8 +237,19 @@ export default function LiveClassesPage() {
     if (!firestore) return null;
     return query(collection(firestore, 'live_classes'), orderBy('startTime', 'asc'));
   }, [firestore]);
+  
+  const examTypesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'exam_types'), orderBy('name')) : null, [firestore]);
 
   const { data: liveClasses, isLoading: areClassesLoading, error } = useCollection<LiveClass>(liveClassesQuery);
+  const { data: examTypes, isLoading: areExamTypesLoading } = useCollection<ExamType>(examTypesQuery);
+
+  const examTypeMap = useMemo(() => {
+    if (!examTypes) return {};
+    return examTypes.reduce((acc, et) => {
+      acc[et.id] = et.name;
+      return acc;
+    }, {} as Record<string, string>);
+  }, [examTypes]);
   
   if (error) {
     console.error("Firestore Error:", error);
@@ -245,7 +258,7 @@ export default function LiveClassesPage() {
   const upcomingClasses = useMemo(() => liveClasses?.filter(c => c.startTime.toDate() >= new Date()) || [], [liveClasses]);
   const pastClasses = useMemo(() => liveClasses?.filter(c => c.startTime.toDate() < new Date()).reverse() || [], [liveClasses]);
 
-  const isLoading = isTeacherLoading || areClassesLoading;
+  const isLoading = isTeacherLoading || areClassesLoading || areExamTypesLoading;
 
   return (
     <div className="flex flex-col h-full">
@@ -263,7 +276,7 @@ export default function LiveClassesPage() {
                   <DialogTitle>Schedule a New Live Class</DialogTitle>
                   <DialogDescription>Fill in the details below to add a new class to the schedule.</DialogDescription>
                 </DialogHeader>
-                <LiveClassForm setOpen={setIsFormOpen} />
+                <LiveClassForm setOpen={setIsFormOpen} examTypes={examTypes || []} />
               </DialogContent>
             </Dialog>
           )}
@@ -289,7 +302,7 @@ export default function LiveClassesPage() {
               <h3 className="font-headline text-xl font-semibold mb-4 border-b pb-2">Upcoming Classes</h3>
               {upcomingClasses.length > 0 ? (
                 <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-                    {upcomingClasses.map(cls => <LiveClassCard key={cls.id} liveClass={cls} currentUserId={user?.uid} />)}
+                    {upcomingClasses.map(cls => <LiveClassCard key={cls.id} liveClass={cls} currentUserId={user?.uid} examTypeMap={examTypeMap} />)}
                 </div>
               ) : (
                 <p className="text-muted-foreground">No upcoming classes scheduled.</p>
@@ -299,7 +312,7 @@ export default function LiveClassesPage() {
                 <h3 className="font-headline text-xl font-semibold mb-4 border-b pb-2">Past Classes</h3>
                 {pastClasses.length > 0 ? (
                     <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-                        {pastClasses.map(cls => <LiveClassCard key={cls.id} liveClass={cls} currentUserId={user?.uid} />)}
+                        {pastClasses.map(cls => <LiveClassCard key={cls.id} liveClass={cls} currentUserId={user?.uid} examTypeMap={examTypeMap} />)}
                     </div>
                 ) : (
                     <p className="text-muted-foreground">No past classes found.</p>

@@ -23,16 +23,17 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 
-type Question = { id: string; questionText: string; classId: string; subjectId: string; topicId: string; accessLevel: 'free' | 'paid', examCategory: 'JEE Main' | 'JEE Advanced' | 'Both', difficultyLevel: 'Easy' | 'Medium' | 'Hard' };
-type Class = { id: string; name: string };
+type Question = { id: string; questionText: string; classId: string; subjectId: string; topicId: string; accessLevel: 'free' | 'paid', examTypeId: string, difficultyLevel: 'Easy' | 'Medium' | 'Hard' };
+type Class = { id: string; name: string; };
 type Subject = { id: string; name: string; classId: string };
 type Topic = { id: string; name: string; subjectId: string };
+type ExamType = { id: string; name: string; };
 
 const formSchema = z.object({
   title: z.string().min(5, 'Test title must be at least 5 characters long.'),
   accessLevel: z.enum(['free', 'paid']),
   duration: z.coerce.number().min(1, 'Duration must be at least 1 minute.'),
-  examCategory: z.enum(['JEE Main', 'JEE Advanced', 'Both', 'All']),
+  examTypeId: z.string().optional(),
   difficultyLevel: z.enum(['Easy', 'Medium', 'Hard', 'All']),
 });
 
@@ -40,7 +41,7 @@ type CustomTest = {
   id: string;
   title: string;
   accessLevel: 'free' | 'paid';
-  examCategory: 'JEE Main' | 'JEE Advanced' | 'Both' | 'All';
+  examTypeId: string;
   config: {
       questionIds: string[];
       duration: number;
@@ -70,11 +71,14 @@ export default function EditCustomMockTestPage() {
   const subjectsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'subjects'), orderBy('name')) : null, [firestore]);
   const topicsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'topics'), orderBy('name')) : null, [firestore]);
   const questionsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'practice_questions')) : null, [firestore]);
+  const examTypesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'exam_types'), orderBy('name')) : null, [firestore]);
+
   
   const { data: classes, isLoading: areClassesLoading } = useCollection<Class>(classesQuery);
   const { data: subjects, isLoading: areSubjectsLoading } = useCollection<Subject>(subjectsQuery);
   const { data: topics, isLoading: areTopicsLoading } = useCollection<Topic>(topicsQuery);
   const { data: allQuestions, isLoading: areQuestionsLoading } = useCollection<Question>(questionsQuery);
+  const { data: examTypes, isLoading: areExamTypesLoading } = useCollection<ExamType>(examTypesQuery);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -82,7 +86,7 @@ export default function EditCustomMockTestPage() {
       title: '',
       accessLevel: 'free',
       duration: 60,
-      examCategory: 'All',
+      examTypeId: '',
       difficultyLevel: 'All',
     },
   });
@@ -93,7 +97,7 @@ export default function EditCustomMockTestPage() {
         title: testData.title,
         accessLevel: testData.accessLevel,
         duration: testData.config.duration,
-        examCategory: testData.examCategory || 'All',
+        examTypeId: testData.examTypeId || '',
         difficultyLevel: 'All', // We don't store difficulty in the test itself
       });
       
@@ -108,7 +112,7 @@ export default function EditCustomMockTestPage() {
 
   const { watch } = form;
   const accessLevelFilter = watch('accessLevel');
-  const examCategoryFilter = watch('examCategory');
+  const examTypeIdFilter = watch('examTypeId');
   const difficultyLevelFilter = watch('difficultyLevel');
 
   const curriculumTree = useMemo(() => {
@@ -130,11 +134,11 @@ export default function EditCustomMockTestPage() {
     return allQuestions.filter(q => {
       if (!selectedTopics.includes(q.topicId)) return false;
       if (q.accessLevel !== accessLevelFilter) return false;
-      if (examCategoryFilter !== 'All' && q.examCategory !== examCategoryFilter) return false;
+      if (examTypeIdFilter && q.examTypeId !== examTypeIdFilter) return false;
       if (difficultyLevelFilter !== 'All' && q.difficultyLevel !== difficultyLevelFilter) return false;
       return true;
     });
-  }, [allQuestions, selectedTopics, accessLevelFilter, examCategoryFilter, difficultyLevelFilter]);
+  }, [allQuestions, selectedTopics, accessLevelFilter, examTypeIdFilter, difficultyLevelFilter]);
 
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
@@ -157,7 +161,7 @@ export default function EditCustomMockTestPage() {
         await updateDocumentNonBlocking(testDocRef, {
             title: values.title,
             accessLevel: values.accessLevel,
-            examCategory: values.examCategory === 'All' ? 'Both' : values.examCategory,
+            examTypeId: values.examTypeId || null,
             config: {
                 questionIds,
                 duration: values.duration,
@@ -184,7 +188,7 @@ export default function EditCustomMockTestPage() {
     setSelectedTopics(prev => isChecked ? [...prev, topicId] : prev.filter(id => id !== topicId));
   }
 
-  const isLoading = areSubjectsLoading || isSubscribedLoading || isTestLoading || areClassesLoading || areTopicsLoading || areQuestionsLoading;
+  const isLoading = areSubjectsLoading || isSubscribedLoading || isTestLoading || areClassesLoading || areTopicsLoading || areQuestionsLoading || areExamTypesLoading;
 
   return (
     <div className="flex flex-col h-full">
@@ -226,8 +230,8 @@ export default function EditCustomMockTestPage() {
                                     </RadioGroup>
                                 </FormControl></FormItem>
                             )} />
-                            <FormField control={form.control} name="examCategory" render={({ field }) => (
-                                <FormItem><FormLabel>Exam Category</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="All">All</SelectItem><SelectItem value="JEE Main">JEE Main</SelectItem><SelectItem value="JEE Advanced">JEE Advanced</SelectItem><SelectItem value="Both">Both</SelectItem></SelectContent></Select></FormItem>
+                             <FormField control={form.control} name="examTypeId" render={({ field }) => (
+                                <FormItem><FormLabel>Exam Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="All Exam Types" /></SelectTrigger></FormControl><SelectContent><SelectItem value="">All Exam Types</SelectItem>{(examTypes || []).map(et => <SelectItem key={et.id} value={et.id}>{et.name}</SelectItem>)}</SelectContent></Select></FormItem>
                             )} />
                             <FormField control={form.control} name="difficultyLevel" render={({ field }) => (
                                 <FormItem><FormLabel>Difficulty</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="All">All</SelectItem><SelectItem value="Easy">Easy</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Hard">Hard</SelectItem></SelectContent></Select></FormItem>

@@ -32,13 +32,15 @@ type OfficialTest = {
   id: string;
   title: string;
   startTime: { toDate: () => Date };
-  examCategory: 'JEE Main' | 'JEE Advanced' | 'Both';
+  examTypeId: string;
   accessLevel: 'free' | 'paid';
   config: {
     questionIds: string[];
     duration: number;
   };
 }
+
+type ExamType = { id: string; name: string; };
 
 export default function MockTestsPage() {
   const { user } = useUser();
@@ -64,10 +66,21 @@ export default function MockTestsPage() {
 
   const { data: officialTests, isLoading: areOfficialTestsLoading } = useCollection<OfficialTest>(officialTestsQuery);
 
+  const examTypesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'exam_types'), orderBy('name')) : null, [firestore]);
+  const { data: examTypes, isLoading: areExamTypesLoading } = useCollection<ExamType>(examTypesQuery);
+
+  const examTypeMap = useMemo(() => {
+    if (!examTypes) return {};
+    return examTypes.reduce((acc, et) => {
+      acc[et.id] = et.name;
+      return acc;
+    }, {} as Record<string, string>);
+  }, [examTypes]);
+
   const totalQuestions = (test: CustomTest | OfficialTest) => test.config.questionIds?.length || 0;
   const totalDuration = (test: CustomTest | OfficialTest) => test.config.duration || 0;
   
-  const isLoading = areCustomTestsLoading || isTeacherLoading || areOfficialTestsLoading || isSubscribedLoading;
+  const isLoading = areCustomTestsLoading || isTeacherLoading || areOfficialTestsLoading || isSubscribedLoading || areExamTypesLoading;
 
   const handleDeleteRequest = (id: string, type: 'official' | 'custom', title: string) => {
     setTestToDelete({ id, type, title });
@@ -134,6 +147,7 @@ export default function MockTestsPage() {
                   const isPaidTest = test.accessLevel === 'paid';
                   const canTakeTest = !isPaidTest || isSubscribed || isTeacher;
                   const isUpcoming = test.startTime.toDate() > new Date();
+                  const examTypeName = examTypeMap[test.examTypeId] || 'General';
 
                   return (
                     <Card key={test.id} className="flex flex-col">
@@ -144,7 +158,7 @@ export default function MockTestsPage() {
                                 {test.title}
                             </CardTitle>
                             <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                                <Badge variant="secondary">{test.examCategory}</Badge>
+                                <Badge variant="secondary">{examTypeName}</Badge>
                                 <Badge variant={isPaidTest ? 'destructive' : 'default'}>{isPaidTest ? 'Paid' : 'Free'}</Badge>
                             </div>
                           </div>

@@ -280,7 +280,7 @@ service cloud.firestore {
                     && request.resource.data.title is string && request.resource.data.title.size() > 0 && request.resource.data.title.size() < 100
                     && request.resource.data.duration is number && request.resource.data.duration > 0
                     && request.resource.data.meetingUrl is string && request.resource.data.meetingUrl.matches('https?://.+')
-                    && request.resource.data.examCategory in ['JEE Main', 'JEE Advanced', 'Both']
+                    && exists(/databases/$(database)/documents/exam_types/$(request.resource.data.examTypeId))
                     && request.resource.data.startTime > request.time;
 
       allow update: if resource != null

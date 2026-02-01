@@ -30,6 +30,7 @@ type Question = { id: string; questionText: string; classId: string; subjectId: 
 type Class = { id: string; name: string };
 type Subject = { id: string; name: string; classId: string };
 type Topic = { id: string; name: string; subjectId: string };
+type ExamType = { id: string; name: string; };
 
 const subjectConfigSchema = z.object({
   subjectId: z.string().min(1, 'Please select a subject.'),
@@ -39,7 +40,7 @@ const subjectConfigSchema = z.object({
 const formSchema = z.object({
   title: z.string().min(5, 'Test title must be at least 5 characters long.'),
   startTime: z.date().refine((date) => date > new Date(), { message: 'Start time must be in the future.' }),
-  examCategory: z.enum(['JEE Main', 'JEE Advanced', 'Both']),
+  examTypeId: z.string().min(1, 'Please select an exam type.'),
   accessLevel: z.enum(['free', 'paid']),
   duration: z.coerce.number().min(1, 'Duration must be at least 1 minute.'),
   totalQuestions: z.coerce.number().int().min(1, 'Total questions must be at least 1.'),
@@ -68,17 +69,19 @@ export default function CreateOfficialMockTestPage() {
   const subjectsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'subjects'), orderBy('name')) : null, [firestore]);
   const topicsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'topics'), orderBy('name')) : null, [firestore]);
   const questionsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'practice_questions')) : null, [firestore]);
+  const examTypesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'exam_types'), orderBy('name')) : null, [firestore]);
   
   const { data: classes, isLoading: areClassesLoading } = useCollection<Class>(classesQuery);
   const { data: subjects, isLoading: areSubjectsLoading } = useCollection<Subject>(subjectsQuery);
   const { data: topics, isLoading: areTopicsLoading } = useCollection<Topic>(topicsQuery);
   const { data: allQuestions, isLoading: areQuestionsLoading } = useCollection<Question>(questionsQuery);
+  const { data: examTypes, isLoading: areExamTypesLoading } = useCollection<ExamType>(examTypesQuery);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       title: '',
-      examCategory: 'Both',
+      examTypeId: '',
       accessLevel: 'free',
       duration: 180,
       totalQuestions: 0,
@@ -103,7 +106,7 @@ export default function CreateOfficialMockTestPage() {
       await addDocumentNonBlocking(mockTestsRef, {
           title: values.title,
           startTime: values.startTime,
-          examCategory: values.examCategory,
+          examTypeId: values.examTypeId,
           accessLevel: values.accessLevel,
           config: {
               questionIds: values.questionIds,
@@ -129,7 +132,7 @@ export default function CreateOfficialMockTestPage() {
     }
   }
 
-  const isLoading = areSubjectsLoading || areClassesLoading || areTopicsLoading || areQuestionsLoading;
+  const isLoading = areSubjectsLoading || areClassesLoading || areTopicsLoading || areQuestionsLoading || areExamTypesLoading;
   
   const availableSubjects = useMemo(() => {
     const selectedSubjectIds = subjectConfigs.map(c => c.subjectId);
@@ -190,8 +193,8 @@ export default function CreateOfficialMockTestPage() {
                               </PopoverContent></Popover>
                           <FormMessage /></FormItem>
                       )} />
-                       <FormField control={form.control} name="examCategory" render={({ field }) => (
-                            <FormItem><FormLabel className="text-lg font-semibold">Exam Category</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger></FormControl><SelectContent><SelectItem value="JEE Main">JEE Main</SelectItem><SelectItem value="JEE Advanced">JEE Advanced</SelectItem><SelectItem value="Both">Both</SelectItem></SelectContent></Select><FormMessage /></FormItem>
+                       <FormField control={form.control} name="examTypeId" render={({ field }) => (
+                            <FormItem><FormLabel className="text-lg font-semibold">Exam Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an exam type" /></SelectTrigger></FormControl><SelectContent>{(examTypes || []).map(et => <SelectItem key={et.id} value={et.id}>{et.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
                         )} />
                     </div>
 

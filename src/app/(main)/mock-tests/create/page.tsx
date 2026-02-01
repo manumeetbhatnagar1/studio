@@ -18,11 +18,7 @@ import { useRouter } from 'next/navigation';
 import { useIsSubscribed } from '@/hooks/useIsSubscribed';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription, SheetFooter, SheetClose } from '@/components/ui/sheet';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
 
 type Question = { id: string; questionText: string; classId: string; subjectId: string; topicId: string; accessLevel: 'free' | 'paid' };
 type Class = { id: string; name: string };
@@ -315,23 +311,13 @@ export default function CreateCustomTestPage() {
                         <Card className='p-4'>
                             <div className='flex items-center justify-between'>
                                 <div>
-                                <p className='text-muted-foreground'>You have selected <span className='font-bold text-foreground'>{selectedQuestionIds.length} / {form.getValues('totalQuestions') || 0}</span> question(s).</p>
+                                <p className='text-muted-foreground'>Selected <span className='font-bold text-foreground'>{selectedQuestionIds.length} / {form.getValues('totalQuestions') || 0}</span> question(s).</p>
+                                <FormDescription>
+                                    Click "Auto-select" to randomly fill the test with questions based on your structure.
+                                </FormDescription>
                                 <FormMessage>{form.formState.errors.questionIds?.message}</FormMessage>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <Button type="button" variant="secondary" onClick={handleAutoSelect}>Auto-select</Button>
-                                    <QuestionSelector
-                                        allQuestions={allQuestions || []}
-                                        accessLevel={form.watch('accessLevel')}
-                                        classes={classes || []}
-                                        subjects={subjects || []}
-                                        topics={topics || []}
-                                        selectedQuestionIds={selectedQuestionIds}
-                                        setSelectedQuestionIds={(ids) => form.setValue('questionIds', ids, { shouldValidate: true })}
-                                        totalLimit={form.watch('totalQuestions')}
-                                        subjectLimits={form.watch('subjectConfigs')}
-                                    />
-                                </div>
+                                <Button type="button" variant="secondary" onClick={handleAutoSelect}>Auto-select Questions</Button>
                             </div>
                         </Card>
                     </FormItem>
@@ -352,144 +338,4 @@ export default function CreateCustomTestPage() {
       </main>
     </div>
   );
-}
-
-function QuestionSelector({
-    allQuestions,
-    accessLevel,
-    classes,
-    subjects,
-    topics,
-    selectedQuestionIds,
-    setSelectedQuestionIds,
-    totalLimit,
-    subjectLimits,
-}: {
-    allQuestions: Question[],
-    accessLevel: 'free' | 'paid',
-    classes: Class[],
-    subjects: Subject[],
-    topics: Topic[],
-    selectedQuestionIds: string[],
-    setSelectedQuestionIds: (ids: string[]) => void,
-    totalLimit: number,
-    subjectLimits: { subjectId: string, numQuestions: number }[]
-}) {
-    const [open, setOpen] = useState(false);
-    const [classFilter, setClassFilter] = useState('');
-    const [subjectFilter, setSubjectFilter] = useState('');
-    const [topicFilter, setTopicFilter] = useState('');
-    const { toast } = useToast();
-
-    const filteredSubjects = useMemo(() => subjects.filter(s => s.classId === classFilter), [subjects, classFilter]);
-    const filteredTopics = useMemo(() => topics.filter(t => t.subjectId === subjectFilter), [topics, subjectFilter]);
-    
-    const subjectQuestionCounts = useMemo(() => {
-        const counts: Record<string, number> = {};
-        for(const qId of selectedQuestionIds) {
-            const question = allQuestions.find(q => q.id === qId);
-            if (question) {
-                counts[question.subjectId] = (counts[question.subjectId] || 0) + 1;
-            }
-        }
-        return counts;
-    }, [selectedQuestionIds, allQuestions]);
-
-    const filteredQuestions = useMemo(() => {
-        return allQuestions.filter(q => {
-            if (q.accessLevel !== accessLevel) return false;
-            if (topicFilter && q.topicId !== topicFilter) return false;
-            if (subjectFilter && q.subjectId !== subjectFilter) return false;
-            if (classFilter && q.classId !== classFilter) return false;
-            return true;
-        });
-    }, [allQuestions, classFilter, subjectFilter, topicFilter, accessLevel]);
-
-    const handleToggleQuestion = (question: Question) => {
-        const isSelected = selectedQuestionIds.includes(question.id);
-        
-        if (isSelected) {
-            setSelectedQuestionIds(selectedQuestionIds.filter(id => id !== question.id));
-        } else {
-            if ((totalLimit > 0) && selectedQuestionIds.length >= totalLimit) {
-                toast({ variant: 'destructive', title: "Total question limit reached", description: `You cannot select more than ${totalLimit} questions.`});
-                return;
-            }
-
-            const subjectLimitConfig = subjectLimits.find(sl => sl.subjectId === question.subjectId);
-            if (subjectLimitConfig) {
-                const currentSubjectCount = subjectQuestionCounts[question.subjectId] || 0;
-                if (currentSubjectCount >= subjectLimitConfig.numQuestions) {
-                    toast({ variant: 'destructive', title: "Subject question limit reached", description: `You cannot select more questions for this subject.`});
-                    return;
-                }
-            } else {
-                 toast({ variant: 'destructive', title: "Invalid Subject", description: `This question's subject is not part of the test configuration.`});
-                return;
-            }
-
-            setSelectedQuestionIds([...selectedQuestionIds, question.id]);
-        }
-    }
-    
-    return (
-        <Sheet open={open} onOpenChange={setOpen}>
-            <SheetTrigger asChild>
-                <Button variant="outline">Select Questions</Button>
-            </SheetTrigger>
-            <SheetContent className="sm:max-w-2xl w-full flex flex-col">
-                <SheetHeader>
-                    <SheetTitle>Select Practice Questions</SheetTitle>
-                    <SheetDescription>Filter and select the questions to include in your test. Limits will be enforced.</SheetDescription>
-                </SheetHeader>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 py-4">
-                    <Select value={classFilter} onValueChange={v => { setClassFilter(v); setSubjectFilter(''); setTopicFilter(''); }}>
-                        <SelectTrigger><SelectValue placeholder="Filter by Class" /></SelectTrigger>
-                        <SelectContent>{classes.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-                    </Select>
-                     <Select value={subjectFilter} onValueChange={v => { setSubjectFilter(v); setTopicFilter(''); }} disabled={!classFilter}>
-                        <SelectTrigger><SelectValue placeholder="Filter by Subject" /></SelectTrigger>
-                        <SelectContent>{filteredSubjects.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
-                    </Select>
-                     <Select value={topicFilter} onValueChange={setTopicFilter} disabled={!subjectFilter}>
-                        <SelectTrigger><SelectValue placeholder="Filter by Topic" /></SelectTrigger>
-                        <SelectContent>{filteredTopics.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
-                    </Select>
-                </div>
-                
-                <ScrollArea className="flex-grow border rounded-md p-4">
-                    <div className="space-y-4">
-                        {filteredQuestions.length > 0 ? filteredQuestions.map(q => {
-                             const subjectLimit = subjectLimits.find(sl => sl.subjectId === q.subjectId);
-                             const subjectCount = subjectQuestionCounts[q.subjectId] || 0;
-                             const isSubjectLimitReached = subjectLimit && subjectCount >= subjectLimit.numQuestions;
-                             const isTotalLimitReached = (totalLimit > 0) && selectedQuestionIds.length >= totalLimit;
-                             const isSelected = selectedQuestionIds.includes(q.id);
-                             const isDisabled = !isSelected && (isTotalLimitReached || isSubjectLimitReached || !subjectLimit);
-                            
-                            return (
-                             <div key={q.id} className="flex items-start space-x-3 p-2 rounded-md hover:bg-muted">
-                                <Checkbox
-                                    id={`q-sel-${q.id}`}
-                                    checked={isSelected}
-                                    onCheckedChange={() => handleToggleQuestion(q)}
-                                    disabled={isDisabled}
-                                    className='mt-1'
-                                />
-                                <label htmlFor={`q-sel-${q.id}`} className={cn("flex-1 text-sm font-medium leading-none", isDisabled ? "cursor-not-allowed opacity-70" : "cursor-pointer")}>
-                                    {q.questionText}
-                                </label>
-                            </div>
-                        )}) : <p className='text-sm text-muted-foreground text-center py-8'>No questions match your filters.</p>}
-                    </div>
-                </ScrollArea>
-                <SheetFooter className='pt-4'>
-                    <div className='flex justify-between items-center w-full'>
-                        <Badge variant="secondary">{selectedQuestionIds.length} question(s) selected</Badge>
-                        <SheetClose asChild><Button>Done</Button></SheetClose>
-                    </div>
-                </SheetFooter>
-            </SheetContent>
-        </Sheet>
-    );
 }

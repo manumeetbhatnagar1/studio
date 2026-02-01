@@ -16,7 +16,7 @@ import DashboardHeader from '@/components/dashboard-header';
 import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
 import { collection, query, orderBy, doc } from 'firebase/firestore';
 import { useState, useMemo, useEffect, FC } from 'react';
-import { LoaderCircle, ClipboardList, PlusCircle, CheckCircle, Lock, Edit2, Trash2 } from 'lucide-react';
+import { LoaderCircle, ClipboardList, PlusCircle, CheckCircle, Lock, Edit2, Trash2, Rocket } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useIsTeacher } from '@/hooks/useIsTeacher';
 import { useIsSubscribed } from '@/hooks/useIsSubscribed';
@@ -27,6 +27,8 @@ import { cn } from '@/lib/utils';
 import PdfQuestionExtractor from '@/components/pdf-question-extractor';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { useRouter } from 'next/navigation';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 
 const baseSchema = z.object({
@@ -64,6 +66,15 @@ const questionSchema = z.discriminatedUnion("questionType", [
             });
         }
     }
+});
+
+const practiceQuizSchema = z.object({
+    classId: z.string().optional(),
+    subjectId: z.string().optional(),
+    topicId: z.string().optional(),
+    difficultyLevel: z.string().optional(),
+    accessLevel: z.enum(['free', 'paid']),
+    count: z.coerce.number().min(1, "Please enter at least 1 question.").max(50, "You can practice a maximum of 50 questions at a time."),
 });
 
 type PracticeQuestion = {
@@ -310,6 +321,93 @@ const EditQuestionForm: FC<{
     );
 }
 
+const StartPracticeForm: FC<{
+  classes: Class[],
+  subjects: Subject[],
+  topics: Topic[],
+  isSubscribed: boolean
+}> = ({ classes, subjects, topics, isSubscribed }) => {
+    const router = useRouter();
+    const form = useForm<z.infer<typeof practiceQuizSchema>>({
+        resolver: zodResolver(practiceQuizSchema),
+        defaultValues: {
+            classId: '',
+            subjectId: '',
+            topicId: '',
+            difficultyLevel: 'Medium',
+            accessLevel: 'free',
+            count: 10,
+        }
+    });
+
+    const { watch, setValue } = form;
+    const selectedClass = watch('classId');
+    const selectedSubject = watch('subjectId');
+
+    const filteredSubjects = useMemo(() => {
+        if (!selectedClass) return subjects;
+        return subjects.filter(subject => subject.classId === selectedClass);
+    }, [selectedClass, subjects]);
+
+    const filteredTopics = useMemo(() => {
+        if (!selectedSubject) return topics;
+        return topics.filter(topic => topic.subjectId === selectedSubject);
+    }, [selectedSubject, topics]);
+
+    useEffect(() => {
+        setValue('subjectId', '');
+        setValue('topicId', '');
+    }, [selectedClass, setValue]);
+
+    useEffect(() => {
+        setValue('topicId', '');
+    }, [selectedSubject, setValue]);
+
+    function onSubmit(values: z.infer<typeof practiceQuizSchema>) {
+        const params = new URLSearchParams();
+        Object.entries(values).forEach(([key, value]) => {
+            if (value) {
+                params.append(key, String(value));
+            }
+        });
+        router.push(`/practice/session?${params.toString()}`);
+    }
+
+    return (
+        <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <FormField control={form.control} name="classId" render={({ field }) => (
+                        <FormItem><FormLabel>Class</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="All Classes" /></SelectTrigger></FormControl><SelectContent>{classes.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select></FormItem>
+                    )} />
+                    <FormField control={form.control} name="subjectId" render={({ field }) => (
+                        <FormItem><FormLabel>Subject</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="All Subjects" /></SelectTrigger></FormControl><SelectContent>{filteredSubjects.map(subject => <SelectItem key={subject.id} value={subject.id}>{subject.name}</SelectItem>)}</SelectContent></Select></FormItem>
+                    )} />
+                    <FormField control={form.control} name="topicId" render={({ field }) => (
+                        <FormItem><FormLabel>Topic</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!selectedSubject}><FormControl><SelectTrigger><SelectValue placeholder="All Topics" /></SelectTrigger></FormControl><SelectContent>{filteredTopics.map(topic => <SelectItem key={topic.id} value={topic.id}>{topic.name}</SelectItem>)}</SelectContent></Select></FormItem>
+                    )} />
+                    <FormField control={form.control} name="difficultyLevel" render={({ field }) => (
+                        <FormItem><FormLabel>Difficulty</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select difficulty" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Easy">Easy</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Hard">Hard</SelectItem></SelectContent></Select></FormItem>
+                    )} />
+                    <FormField control={form.control} name="count" render={({ field }) => (
+                        <FormItem><FormLabel>Number of Questions</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>
+                    )} />
+                    <FormField control={form.control} name="accessLevel" render={({ field }) => (
+                        <FormItem><FormLabel>Access Level</FormLabel><FormControl>
+                            <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex pt-2">
+                                <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="free" /></FormControl><FormLabel className="font-normal">Free</FormLabel></FormItem>
+                                <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="paid" disabled={!isSubscribed} /></FormControl><FormLabel className={cn("font-normal", !isSubscribed && "text-muted-foreground")}>Paid {!isSubscribed && "(Pro)"}</FormLabel></FormItem>
+                            </RadioGroup>
+                        </FormControl></FormItem>
+                    )} />
+                </div>
+                <Button type="submit"><Rocket className="mr-2 h-4 w-4" /> Start Practice Session</Button>
+            </form>
+        </Form>
+    );
+};
+
+
 export default function PracticePage() {
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -435,7 +533,7 @@ export default function PracticePage() {
       description: 'The image is ready. Please fill in the question details manually.',
     });
   };
-
+  
   const SubscriptionPrompt = () => (
     <div className="flex flex-col items-center justify-center text-center p-8 md:p-16 border-2 border-dashed rounded-lg h-full bg-amber-500/5">
         <Lock className="w-16 h-16 text-amber-500 mb-4" />
@@ -449,94 +547,89 @@ export default function PracticePage() {
     </div>
   );
 
-  return (
-    <div className="flex flex-col h-full">
-      <DashboardHeader title="Practice Questions" />
+  const TeacherView = () => (
       <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 grid gap-8">
-        {isTeacher && (
-             <div className='space-y-8'>
-                <PdfQuestionExtractor onImageCropped={handleImageCropped} />
-                <Card className="shadow-lg">
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2 font-headline text-2xl">
-                        <PlusCircle className="w-6 h-6" /> Create New Question
-                        </CardTitle>
-                        <CardDescription>Use the tool above to add an image from a PDF, then fill out the form below to create a new question.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      {isLoading ? (<Skeleton className="h-64 w-full" />) : (
-                        <Form {...form}>
-                          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <FormField control={form.control} name="questionType" render={({ field }) => (
-                                    <FormItem className="space-y-3"><FormLabel>Question Type</FormLabel>
-                                        <FormControl>
-                                            <RadioGroup onValueChange={(value) => { field.onChange(value);
-                                                if (value === 'MCQ') { form.reset({ ...form.getValues(), numericalAnswer: undefined, options: ['', '', '', ''], correctAnswer: '' });
-                                                } else { form.reset({ ...form.getValues(), options: undefined, correctAnswer: undefined }); }
-                                            }} defaultValue={field.value} className="flex flex-row space-x-4">
-                                            <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="MCQ" /></FormControl><FormLabel className="font-normal">Multiple Choice</FormLabel></FormItem>
-                                            <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="Numerical" /></FormControl><FormLabel className="font-normal">Numerical Answer</FormLabel></FormItem>
-                                            </RadioGroup>
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )} />
-                                <FormField control={form.control} name="accessLevel" render={({ field }) => (
-                                    <FormItem className="space-y-3"><FormLabel>Access Level</FormLabel>
-                                        <FormControl>
-                                            <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex flex-row space-x-4">
-                                            <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="free" /></FormControl><FormLabel className="font-normal">Free</FormLabel></FormItem>
-                                            <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="paid" /></FormControl><FormLabel className="font-normal">Paid</FormLabel></FormItem>
-                                            </RadioGroup>
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )} />
-                            </div>
-                              <FormField control={form.control} name="questionText" render={({ field }) => (<FormItem><FormLabel>Question Text</FormLabel><FormControl><Textarea placeholder="e.g., What is the formula for..." {...field} rows={4} /></FormControl><FormMessage /></FormItem>)} />
-                              {form.watch('imageUrl') && (<FormItem><FormLabel>Image Preview</FormLabel><FormControl><div className="p-4 border rounded-md flex justify-center bg-muted/50"><Image src={form.watch('imageUrl')!} alt="Extracted image preview" width={400} height={300} className="rounded-md object-contain" /></div></FormControl></FormItem>)}
-                              {questionType === 'MCQ' && (
-                                  <div className="space-y-4">
-                                      <FormLabel>Options & Correct Answer</FormLabel>
-                                      <FormField control={form.control} name="correctAnswer" render={({ field }) => (
-                                          <FormItem className='space-y-0'><FormControl>
-                                              <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                              {fields.map((item, index) => (<FormField key={item.id} control={form.control} name={`options.${index}`} render={({ field: optionField }) => (<FormItem className="flex items-center gap-2 space-y-0 rounded-md border p-4 has-[:checked]:border-primary"><FormControl><RadioGroupItem value={optionField.value} disabled={!optionField.value} /></FormControl><Input {...optionField} placeholder={`Option ${index + 1}`} className="border-none p-0 h-auto focus-visible:ring-0 focus-visible:ring-offset-0" /><FormMessage className="col-span-2"/></FormItem>)} />))}
-                                              </RadioGroup>
-                                          </FormControl><FormMessage /></FormItem>
-                                      )} />
-                                  </div>
-                              )}
-                              {questionType === 'Numerical' && (<FormField control={form.control} name="numericalAnswer" render={({ field }) => (<FormItem><FormLabel>Correct Numerical Answer</FormLabel><FormControl><Input type="number" placeholder="e.g., 42" {...field} onChange={event => field.onChange(+event.target.value)} /></FormControl><FormMessage /></FormItem>)} />)}
-                              
-                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <FormField control={form.control} name="classId" render={({ field }) => (
-                                  <FormItem><FormLabel>Class</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a class" /></SelectTrigger></FormControl><SelectContent>{classes?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
-                                )} />
-                                <FormField control={form.control} name="subjectId" render={({ field }) => (
-                                  <FormItem><FormLabel>Subject</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!selectedClass}><FormControl><SelectTrigger><SelectValue placeholder="Select a subject" /></SelectTrigger></FormControl><SelectContent>{filteredSubjects.map(subject => <SelectItem key={subject.id} value={subject.id}>{subject.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
-                                )} />
-                                <FormField control={form.control} name="topicId" render={({ field }) => (
-                                  <FormItem><FormLabel>Topic</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!selectedSubject}><FormControl><SelectTrigger><SelectValue placeholder="Select a topic" /></SelectTrigger></FormControl><SelectContent>{filteredTopics.map(topic => <SelectItem key={topic.id} value={topic.id}>{topic.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
-                                )} />
-                                <FormField control={form.control} name="difficultyLevel" render={({ field }) => (
-                                  <FormItem><FormLabel>Difficulty</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select difficulty" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Easy">Easy</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Hard">Hard</SelectItem></SelectContent></Select><FormMessage /></FormItem>
-                                )} />
-                                <FormField control={form.control} name="examCategory" render={({ field }) => (
-                                  <FormItem><FormLabel>Exam Category</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger></FormControl><SelectContent><SelectItem value="JEE Main">JEE Main</SelectItem><SelectItem value="JEE Advanced">JEE Advanced</SelectItem><SelectItem value="Both">Both</SelectItem></SelectContent></Select><FormMessage /></FormItem>
-                                )} />
+        <div className='space-y-8'>
+            <PdfQuestionExtractor onImageCropped={handleImageCropped} />
+            <Card className="shadow-lg">
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2 font-headline text-2xl">
+                    <PlusCircle className="w-6 h-6" /> Create New Question
+                    </CardTitle>
+                    <CardDescription>Use the tool above to add an image from a PDF, then fill out the form below to create a new question.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {isLoading ? (<Skeleton className="h-64 w-full" />) : (
+                    <Form {...form}>
+                      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <FormField control={form.control} name="questionType" render={({ field }) => (
+                                <FormItem className="space-y-3"><FormLabel>Question Type</FormLabel>
+                                    <FormControl>
+                                        <RadioGroup onValueChange={(value) => { field.onChange(value);
+                                            if (value === 'MCQ') { form.reset({ ...form.getValues(), numericalAnswer: undefined, options: ['', '', '', ''], correctAnswer: '' });
+                                            } else { form.reset({ ...form.getValues(), options: undefined, correctAnswer: undefined }); }
+                                        }} defaultValue={field.value} className="flex flex-row space-x-4">
+                                        <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="MCQ" /></FormControl><FormLabel className="font-normal">Multiple Choice</FormLabel></FormItem>
+                                        <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="Numerical" /></FormControl><FormLabel className="font-normal">Numerical Answer</FormLabel></FormItem>
+                                        </RadioGroup>
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )} />
+                            <FormField control={form.control} name="accessLevel" render={({ field }) => (
+                                <FormItem className="space-y-3"><FormLabel>Access Level</FormLabel>
+                                    <FormControl>
+                                        <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex flex-row space-x-4">
+                                        <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="free" /></FormControl><FormLabel className="font-normal">Free</FormLabel></FormItem>
+                                        <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="paid" /></FormControl><FormLabel className="font-normal">Paid</FormLabel></FormItem>
+                                        </RadioGroup>
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )} />
+                        </div>
+                          <FormField control={form.control} name="questionText" render={({ field }) => (<FormItem><FormLabel>Question Text</FormLabel><FormControl><Textarea placeholder="e.g., What is the formula for..." {...field} rows={4} /></FormControl><FormMessage /></FormItem>)} />
+                          {form.watch('imageUrl') && (<FormItem><FormLabel>Image Preview</FormLabel><FormControl><div className="p-4 border rounded-md flex justify-center bg-muted/50"><Image src={form.watch('imageUrl')!} alt="Extracted image preview" width={400} height={300} className="rounded-md object-contain" /></div></FormControl></FormItem>)}
+                          {questionType === 'MCQ' && (
+                              <div className="space-y-4">
+                                  <FormLabel>Options & Correct Answer</FormLabel>
+                                  <FormField control={form.control} name="correctAnswer" render={({ field }) => (
+                                      <FormItem className='space-y-0'><FormControl>
+                                          <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                          {fields.map((item, index) => (<FormField key={item.id} control={form.control} name={`options.${index}`} render={({ field: optionField }) => (<FormItem className="flex items-center gap-2 space-y-0 rounded-md border p-4 has-[:checked]:border-primary"><FormControl><RadioGroupItem value={optionField.value} disabled={!optionField.value} /></FormControl><Input {...optionField} placeholder={`Option ${index + 1}`} className="border-none p-0 h-auto focus-visible:ring-0 focus-visible:ring-offset-0" /><FormMessage className="col-span-2"/></FormItem>)} />))}
+                                          </RadioGroup>
+                                      </FormControl><FormMessage /></FormItem>
+                                  )} />
                               </div>
+                          )}
+                          {questionType === 'Numerical' && (<FormField control={form.control} name="numericalAnswer" render={({ field }) => (<FormItem><FormLabel>Correct Numerical Answer</FormLabel><FormControl><Input type="number" placeholder="e.g., 42" {...field} onChange={event => field.onChange(+event.target.value)} /></FormControl><FormMessage /></FormItem>)} />)}
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <FormField control={form.control} name="classId" render={({ field }) => (
+                              <FormItem><FormLabel>Class</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a class" /></SelectTrigger></FormControl><SelectContent>{classes?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+                            )} />
+                            <FormField control={form.control} name="subjectId" render={({ field }) => (
+                              <FormItem><FormLabel>Subject</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!selectedClass}><FormControl><SelectTrigger><SelectValue placeholder="Select a subject" /></SelectTrigger></FormControl><SelectContent>{filteredSubjects.map(subject => <SelectItem key={subject.id} value={subject.id}>{subject.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+                            )} />
+                            <FormField control={form.control} name="topicId" render={({ field }) => (
+                              <FormItem><FormLabel>Topic</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!selectedSubject}><FormControl><SelectTrigger><SelectValue placeholder="Select a topic" /></SelectTrigger></FormControl><SelectContent>{filteredTopics.map(topic => <SelectItem key={topic.id} value={topic.id}>{topic.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+                            )} />
+                            <FormField control={form.control} name="difficultyLevel" render={({ field }) => (
+                              <FormItem><FormLabel>Difficulty</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select difficulty" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Easy">Easy</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Hard">Hard</SelectItem></SelectContent></Select><FormMessage /></FormItem>
+                            )} />
+                            <FormField control={form.control} name="examCategory" render={({ field }) => (
+                              <FormItem><FormLabel>Exam Category</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger></FormControl><SelectContent><SelectItem value="JEE Main">JEE Main</SelectItem><SelectItem value="JEE Advanced">JEE Advanced</SelectItem><SelectItem value="Both">Both</SelectItem></SelectContent></Select><FormMessage /></FormItem>
+                            )} />
+                          </div>
 
-                              <Button type="submit" disabled={isSubmitting || isTeacherLoading}>{isSubmitting ? (<><LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> Adding...</>) : ('Add Question')}</Button>
-                          </form>
-                        </Form>
-                      )}
-                    </CardContent>
-                </Card>
-            </div>
-        )}
-
+                          <Button type="submit" disabled={isSubmitting || isTeacherLoading}>{isSubmitting ? (<><LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> Adding...</>) : ('Add Question')}</Button>
+                      </form>
+                    </Form>
+                  )}
+                </CardContent>
+            </Card>
+        </div>
         <Card className="shadow-lg">
             <CardHeader>
                 <CardTitle className="font-headline text-2xl flex items-center gap-2">
@@ -551,8 +644,7 @@ export default function PracticePage() {
                         <Skeleton className="h-20 w-full" />
                         <Skeleton className="h-20 w-full" />
                     </div>
-                ) : !canViewPaidContent && questions?.some(q => q.accessLevel === 'paid') ? <SubscriptionPrompt /> :
-                questions && questions.length > 0 ? (
+                ) : questions && questions.length > 0 ? (
                     <Accordion type="single" collapsible className="w-full space-y-2">
                         {questions.map(q => (
                             <QuestionItem key={q.id} question={q} topicMap={topicMap} classMap={classMap} isTeacher={!!isTeacher} canViewPaidContent={canViewPaidContent} onEdit={setEditingQuestion} onDelete={handleDeleteRequest} />
@@ -566,46 +658,101 @@ export default function PracticePage() {
                 )}
             </CardContent>
         </Card>
+    </main>
+  );
 
-        <Dialog open={!!editingQuestion} onOpenChange={(isOpen) => !isOpen && setEditingQuestion(null)}>
-            <DialogContent className="sm:max-w-4xl">
-                <DialogHeader>
-                    <DialogTitle>Edit Question</DialogTitle>
-                    <DialogDescription>
-                        Make changes to the question below. Click save when you're done.
-                    </DialogDescription>
-                </DialogHeader>
-                {editingQuestion && !isLoading && (
-                    <EditQuestionForm
-                        key={editingQuestion.id}
-                        questionToEdit={editingQuestion}
-                        classes={classes || []}
-                        subjects={subjects || []}
-                        topics={topics || []}
-                        onFinished={() => setEditingQuestion(null)}
-                    />
-                )}
-            </DialogContent>
-        </Dialog>
-
-        <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-            <AlertDialogContent>
-                <AlertDialogHeader>
-                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                        This action cannot be undone. This will permanently delete this question.
-                    </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                    <AlertDialogCancel onClick={() => setQuestionToDelete(null)}>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={confirmDelete} className={cn(buttonVariants({ variant: "destructive" }))}>Delete</AlertDialogAction>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-        </AlertDialog>
-
+  const StudentView = () => (
+      <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
+          <Tabs defaultValue="quiz" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="quiz">Practice Quiz</TabsTrigger>
+                <TabsTrigger value="bank">Question Bank</TabsTrigger>
+            </TabsList>
+            <TabsContent value="quiz">
+                <Card className="shadow-lg mt-4">
+                    <CardHeader>
+                        <CardTitle className="font-headline text-2xl">Start a New Practice Session</CardTitle>
+                        <CardDescription>Customize your practice session by selecting your desired filters.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        {isLoading ? <Skeleton className="h-48 w-full" /> : (
+                            <StartPracticeForm 
+                                classes={classes || []}
+                                subjects={subjects || []}
+                                topics={topics || []}
+                                isSubscribed={!!isSubscribed}
+                            />
+                        )}
+                    </CardContent>
+                </Card>
+            </TabsContent>
+            <TabsContent value="bank">
+                 <Card className="shadow-lg mt-4">
+                    <CardHeader>
+                        <CardTitle className="font-headline text-2xl flex items-center gap-2">
+                            <ClipboardList className="w-6 h-6" /> All Practice Questions
+                        </CardTitle>
+                        <CardDescription>Browse the question bank. Click on a question to view the answer.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        {isLoading ? (
+                            <div className="space-y-4">
+                                <Skeleton className="h-20 w-full" />
+                                <Skeleton className="h-20 w-full" />
+                            </div>
+                        ) : !canViewPaidContent && questions?.some(q => q.accessLevel === 'paid') ? <SubscriptionPrompt /> :
+                        questions && questions.length > 0 ? (
+                            <Accordion type="single" collapsible className="w-full space-y-2">
+                                {questions.map(q => (
+                                    <QuestionItem key={q.id} question={q} topicMap={topicMap} classMap={classMap} isTeacher={false} canViewPaidContent={canViewPaidContent} onEdit={()=>{}} onDelete={()=>{}} />
+                                ))}
+                            </Accordion>
+                        ) : (
+                            <div className="text-center text-muted-foreground py-8 border-2 border-dashed rounded-lg">
+                                <p className='font-medium'>No practice questions available yet.</p>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+            </TabsContent>
+          </Tabs>
       </main>
+  );
+
+  return (
+    <div className="flex flex-col h-full">
+      <DashboardHeader title="Practice Questions" />
+      {isTeacher ? <TeacherView /> : <StudentView />}
+      <Dialog open={!!editingQuestion} onOpenChange={(isOpen) => !isOpen && setEditingQuestion(null)}>
+        <DialogContent className="sm:max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Edit Question</DialogTitle>
+            <DialogDescription>Make changes to the question below. Click save when you're done.</DialogDescription>
+          </DialogHeader>
+          {editingQuestion && !isLoading && (
+            <EditQuestionForm
+              key={editingQuestion.id}
+              questionToEdit={editingQuestion}
+              classes={classes || []}
+              subjects={subjects || []}
+              topics={topics || []}
+              onFinished={() => setEditingQuestion(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>This action cannot be undone. This will permanently delete this question.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setQuestionToDelete(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className={cn(buttonVariants({ variant: "destructive" }))}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
-
-    

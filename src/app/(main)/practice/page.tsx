@@ -37,6 +37,7 @@ const baseSchema = z.object({
     topicId: z.string().min(1, 'Topic is required.'),
     difficultyLevel: z.enum(['Easy', 'Medium', 'Hard']),
     examCategory: z.enum(['JEE Main', 'JEE Advanced', 'Both']),
+    accessLevel: z.enum(['free', 'paid']),
 });
 
 const mcqSchema = baseSchema.extend({
@@ -78,23 +79,26 @@ type PracticeQuestion = {
   options?: string[];
   correctAnswer?: string;
   numericalAnswer?: number;
+  accessLevel: 'free' | 'paid';
 };
 type Class = { id: string; name: string; };
 type Subject = { id: string; name: string; classId: string; };
 type Topic = { id: string; name: string; subjectId: string; };
 
 
-function QuestionItem({ question, topicMap, classMap, isTeacher, onEdit, onDelete }: { question: PracticeQuestion; topicMap: Record<string, string>; classMap: Record<string, string>; isTeacher: boolean, onEdit: (question: PracticeQuestion) => void, onDelete: (questionId: string) => void }) {
+function QuestionItem({ question, topicMap, classMap, isTeacher, canViewPaidContent, onEdit, onDelete }: { question: PracticeQuestion; topicMap: Record<string, string>; classMap: Record<string, string>; isTeacher: boolean; canViewPaidContent: boolean; onEdit: (question: PracticeQuestion) => void, onDelete: (questionId: string) => void }) {
   const difficultyVariant = {
     'Easy': 'default',
     'Medium': 'secondary',
     'Hard': 'destructive',
   } as const;
 
+  const isLocked = question.accessLevel === 'paid' && !canViewPaidContent;
+
   return (
     <AccordionItem value={question.id}>
       <div className="flex items-center">
-        <AccordionTrigger className="flex-1">
+        <AccordionTrigger className="flex-1" disabled={isLocked}>
           <div className="flex-1 text-left">
             <p className="font-medium">{question.questionText}</p>
             <div className="flex items-center gap-2 mt-2 flex-wrap">
@@ -104,9 +108,11 @@ function QuestionItem({ question, topicMap, classMap, isTeacher, onEdit, onDelet
                 {question.difficultyLevel}
               </Badge>
               <Badge variant="secondary">{question.questionType}</Badge>
+              {question.accessLevel === 'free' && <Badge variant="secondary">Free</Badge>}
             </div>
           </div>
         </AccordionTrigger>
+        {isLocked && <Lock className="h-4 w-4 mr-4 text-muted-foreground" />}
         {isTeacher && (
           <div className="flex items-center gap-1 pr-2">
             <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); onEdit(question); }}>
@@ -119,35 +125,44 @@ function QuestionItem({ question, topicMap, classMap, isTeacher, onEdit, onDelet
         )}
       </div>
       <AccordionContent>
-        {question.imageUrl && (
-            <div className="my-4 p-4 border rounded-md flex justify-center bg-muted/50">
-                <Image
-                    src={question.imageUrl}
-                    alt="Question diagram"
-                    width={400}
-                    height={300}
-                    className="rounded-md object-contain"
-                />
+        {isLocked ? (
+            <div className="text-center text-muted-foreground py-4">
+                <Lock className="mx-auto h-6 w-6 mb-2"/>
+                <p>This is a premium question. <Link href="/subscription" className="text-primary hover:underline">Subscribe</Link> to view the answer.</p>
             </div>
+        ) : (
+            <>
+                {question.imageUrl && (
+                    <div className="my-4 p-4 border rounded-md flex justify-center bg-muted/50">
+                        <Image
+                            src={question.imageUrl}
+                            alt="Question diagram"
+                            width={400}
+                            height={300}
+                            className="rounded-md object-contain"
+                        />
+                    </div>
+                )}
+                {question.questionType === 'MCQ' && question.options ? (
+                     <div className="prose prose-sm max-w-none text-card-foreground/90 bg-primary/5 p-4 rounded-md space-y-2">
+                        <p className="font-semibold text-primary">Options:</p>
+                        <ul className='list-disc pl-5 space-y-1'>
+                            {question.options.map((option, index) => (
+                                <li key={index} className={cn(option === question.correctAnswer && "font-bold text-primary")}>
+                                    {option}
+                                    {option === question.correctAnswer && <CheckCircle className="inline-block ml-2 h-4 w-4" />}
+                                </li>
+                            ))}
+                        </ul>
+                     </div>
+                ) : question.questionType === 'Numerical' ? (
+                    <div className="prose prose-sm max-w-none text-card-foreground/90 bg-primary/5 p-4 rounded-md space-y-2">
+                       <p className="font-semibold text-primary">Correct Answer:</p>
+                       <p className="font-bold text-2xl">{question.numericalAnswer}</p>
+                    </div>
+                ): null}
+            </>
         )}
-        {question.questionType === 'MCQ' && question.options ? (
-             <div className="prose prose-sm max-w-none text-card-foreground/90 bg-primary/5 p-4 rounded-md space-y-2">
-                <p className="font-semibold text-primary">Options:</p>
-                <ul className='list-disc pl-5 space-y-1'>
-                    {question.options.map((option, index) => (
-                        <li key={index} className={cn(option === question.correctAnswer && "font-bold text-primary")}>
-                            {option}
-                            {option === question.correctAnswer && <CheckCircle className="inline-block ml-2 h-4 w-4" />}
-                        </li>
-                    ))}
-                </ul>
-             </div>
-        ) : question.questionType === 'Numerical' ? (
-            <div className="prose prose-sm max-w-none text-card-foreground/90 bg-primary/5 p-4 rounded-md space-y-2">
-               <p className="font-semibold text-primary">Correct Answer:</p>
-               <p className="font-bold text-2xl">{question.numericalAnswer}</p>
-            </div>
-        ): null}
       </AccordionContent>
     </AccordionItem>
   );
@@ -227,20 +242,33 @@ const EditQuestionForm: FC<{
     return (
         <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 max-h-[70vh] overflow-y-auto p-2">
-                <FormField control={form.control} name="questionType" render={({ field }) => (
-                    <FormItem className="space-y-3"><FormLabel>Question Type</FormLabel>
-                        <FormControl>
-                            <RadioGroup onValueChange={(value) => { field.onChange(value);
-                                if (value === 'MCQ') { form.reset({ ...form.getValues(), numericalAnswer: undefined, options: ['', '', '', ''], correctAnswer: '' });
-                                } else { form.reset({ ...form.getValues(), options: undefined, correctAnswer: undefined }); }
-                            }} defaultValue={field.value} className="flex flex-row space-x-4">
-                            <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="MCQ" /></FormControl><FormLabel className="font-normal">Multiple Choice</FormLabel></FormItem>
-                            <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="Numerical" /></FormControl><FormLabel className="font-normal">Numerical Answer</FormLabel></FormItem>
-                            </RadioGroup>
-                        </FormControl>
-                        <FormMessage />
-                    </FormItem>
-                )} />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <FormField control={form.control} name="questionType" render={({ field }) => (
+                        <FormItem className="space-y-3"><FormLabel>Question Type</FormLabel>
+                            <FormControl>
+                                <RadioGroup onValueChange={(value) => { field.onChange(value);
+                                    if (value === 'MCQ') { form.reset({ ...form.getValues(), numericalAnswer: undefined, options: ['', '', '', ''], correctAnswer: '' });
+                                    } else { form.reset({ ...form.getValues(), options: undefined, correctAnswer: undefined }); }
+                                }} defaultValue={field.value} className="flex flex-row space-x-4">
+                                <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="MCQ" /></FormControl><FormLabel className="font-normal">Multiple Choice</FormLabel></FormItem>
+                                <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="Numerical" /></FormControl><FormLabel className="font-normal">Numerical Answer</FormLabel></FormItem>
+                                </RadioGroup>
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                    )} />
+                     <FormField control={form.control} name="accessLevel" render={({ field }) => (
+                        <FormItem className="space-y-3"><FormLabel>Access Level</FormLabel>
+                            <FormControl>
+                                <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex flex-row space-x-4">
+                                <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="free" /></FormControl><FormLabel className="font-normal">Free</FormLabel></FormItem>
+                                <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="paid" /></FormControl><FormLabel className="font-normal">Paid</FormLabel></FormItem>
+                                </RadioGroup>
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                    )} />
+                </div>
                 <FormField control={form.control} name="questionText" render={({ field }) => (<FormItem><FormLabel>Question Text</FormLabel><FormControl><Textarea placeholder="e.g., What is the formula for..." {...field} rows={4} /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="imageUrl" render={({ field }) => (<FormItem><FormLabel>Image URL (Optional)</FormLabel><FormControl><Input placeholder="https://example.com/image.png" {...field} /></FormControl><FormMessage /></FormItem>)} />
 
@@ -319,7 +347,7 @@ export default function PracticePage() {
   }, [classes]);
   
   const isLoading = isTeacherLoading || areQuestionsLoading || areClassesLoading || areSubjectsLoading || areTopicsLoading || isSubscribedLoading;
-  const canViewContent = isTeacher || isSubscribed;
+  const canViewPaidContent = isTeacher || isSubscribed;
 
   const form = useForm<z.infer<typeof questionSchema>>({
     resolver: zodResolver(questionSchema),
@@ -333,7 +361,8 @@ export default function PracticePage() {
         topicId: '', 
         difficultyLevel: 'Easy', 
         examCategory: 'Both',
-        imageUrl: ''
+        imageUrl: '',
+        accessLevel: 'free',
     },
   });
 
@@ -438,20 +467,33 @@ export default function PracticePage() {
                       {isLoading ? (<Skeleton className="h-64 w-full" />) : (
                         <Form {...form}>
                           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                              <FormField control={form.control} name="questionType" render={({ field }) => (
-                                  <FormItem className="space-y-3"><FormLabel>Question Type</FormLabel>
-                                      <FormControl>
-                                          <RadioGroup onValueChange={(value) => { field.onChange(value);
-                                              if (value === 'MCQ') { form.reset({ ...form.getValues(), numericalAnswer: undefined, options: ['', '', '', ''], correctAnswer: '' });
-                                              } else { form.reset({ ...form.getValues(), options: undefined, correctAnswer: undefined }); }
-                                          }} defaultValue={field.value} className="flex flex-row space-x-4">
-                                          <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="MCQ" /></FormControl><FormLabel className="font-normal">Multiple Choice</FormLabel></FormItem>
-                                          <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="Numerical" /></FormControl><FormLabel className="font-normal">Numerical Answer</FormLabel></FormItem>
-                                          </RadioGroup>
-                                      </FormControl>
-                                      <FormMessage />
-                                  </FormItem>
-                              )} />
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <FormField control={form.control} name="questionType" render={({ field }) => (
+                                    <FormItem className="space-y-3"><FormLabel>Question Type</FormLabel>
+                                        <FormControl>
+                                            <RadioGroup onValueChange={(value) => { field.onChange(value);
+                                                if (value === 'MCQ') { form.reset({ ...form.getValues(), numericalAnswer: undefined, options: ['', '', '', ''], correctAnswer: '' });
+                                                } else { form.reset({ ...form.getValues(), options: undefined, correctAnswer: undefined }); }
+                                            }} defaultValue={field.value} className="flex flex-row space-x-4">
+                                            <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="MCQ" /></FormControl><FormLabel className="font-normal">Multiple Choice</FormLabel></FormItem>
+                                            <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="Numerical" /></FormControl><FormLabel className="font-normal">Numerical Answer</FormLabel></FormItem>
+                                            </RadioGroup>
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )} />
+                                <FormField control={form.control} name="accessLevel" render={({ field }) => (
+                                    <FormItem className="space-y-3"><FormLabel>Access Level</FormLabel>
+                                        <FormControl>
+                                            <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex flex-row space-x-4">
+                                            <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="free" /></FormControl><FormLabel className="font-normal">Free</FormLabel></FormItem>
+                                            <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="paid" /></FormControl><FormLabel className="font-normal">Paid</FormLabel></FormItem>
+                                            </RadioGroup>
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )} />
+                            </div>
                               <FormField control={form.control} name="questionText" render={({ field }) => (<FormItem><FormLabel>Question Text</FormLabel><FormControl><Textarea placeholder="e.g., What is the formula for..." {...field} rows={4} /></FormControl><FormMessage /></FormItem>)} />
                               {form.watch('imageUrl') && (<FormItem><FormLabel>Image Preview</FormLabel><FormControl><div className="p-4 border rounded-md flex justify-center bg-muted/50"><Image src={form.watch('imageUrl')!} alt="Extracted image preview" width={400} height={300} className="rounded-md object-contain" /></div></FormControl></FormItem>)}
                               {questionType === 'MCQ' && (
@@ -509,11 +551,11 @@ export default function PracticePage() {
                         <Skeleton className="h-20 w-full" />
                         <Skeleton className="h-20 w-full" />
                     </div>
-                ) : !canViewContent ? <SubscriptionPrompt /> :
+                ) : !canViewPaidContent && questions?.some(q => q.accessLevel === 'paid') ? <SubscriptionPrompt /> :
                 questions && questions.length > 0 ? (
                     <Accordion type="single" collapsible className="w-full space-y-2">
                         {questions.map(q => (
-                            <QuestionItem key={q.id} question={q} topicMap={topicMap} classMap={classMap} isTeacher={!!isTeacher} onEdit={setEditingQuestion} onDelete={handleDeleteRequest} />
+                            <QuestionItem key={q.id} question={q} topicMap={topicMap} classMap={classMap} isTeacher={!!isTeacher} canViewPaidContent={canViewPaidContent} onEdit={setEditingQuestion} onDelete={handleDeleteRequest} />
                         ))}
                     </Accordion>
                 ) : (
@@ -565,3 +607,5 @@ export default function PracticePage() {
     </div>
   );
 }
+
+    

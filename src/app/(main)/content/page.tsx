@@ -13,7 +13,7 @@ import { useIsSubscribed } from '@/hooks/useIsSubscribed';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
@@ -23,6 +23,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { PlusCircle, Film, LoaderCircle, Youtube, BookOpen, FileText, Lock } from 'lucide-react';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { cn } from '@/lib/utils';
 
 const contentSchema = z.object({
   title: z.string().min(5, 'Title must be at least 5 characters long.'),
@@ -34,6 +35,8 @@ const contentSchema = z.object({
   topicId: z.string().min(1, 'You must select a topic.'),
   difficultyLevel: z.enum(['Easy', 'Medium', 'Hard']),
   examCategory: z.enum(['JEE Main', 'JEE Advanced', 'Both']),
+  classLevel: z.enum(['Class 11', 'Class 12', 'Dropper', 'All']),
+  accessLevel: z.enum(['free', 'paid']),
 }).superRefine((data, ctx) => {
     if (data.type === 'video' && (!data.videoUrl || data.videoUrl.length === 0)) {
         ctx.addIssue({
@@ -65,6 +68,8 @@ type Content = {
   subjectId: string;
   difficultyLevel: 'Easy' | 'Medium' | 'Hard';
   examCategory: 'JEE Main' | 'JEE Advanced' | 'Both';
+  classLevel: 'Class 11' | 'Class 12' | 'Dropper' | 'All';
+  accessLevel: 'free' | 'paid';
 };
 
 const getEmbedUrl = (url: string | undefined): { type: 'youtube' | 'direct' | null; src: string | null } => {
@@ -86,6 +91,28 @@ const getEmbedUrl = (url: string | undefined): { type: 'youtube' | 'direct' | nu
   return { type: null, src: null };
 };
 
+const SubscriptionPromptDialog = ({ open, onOpenChange }: { open: boolean, onOpenChange: (open: boolean) => void }) => (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent>
+            <DialogHeader>
+                 <div className="flex flex-col items-center justify-center text-center p-4">
+                    <Lock className="w-16 h-16 text-amber-500 mb-4" />
+                    <DialogTitle className="font-headline text-2xl font-semibold text-amber-600">Premium Content Locked</DialogTitle>
+                    <DialogDescription className="text-amber-700/80 mt-2 max-w-md">
+                        You need an active subscription to access this study material. Please subscribe to unlock all paid content.
+                    </DialogDescription>
+                </div>
+            </DialogHeader>
+            <div className="flex justify-center">
+                <Button asChild className="mt-4 bg-amber-500 hover:bg-amber-600 text-white">
+                    <Link href="/subscription">View Subscription Plans</Link>
+                </Button>
+            </div>
+        </DialogContent>
+    </Dialog>
+);
+
+
 function ContentForm({ subjects, topics, onFormReset }: { subjects: Subject[], topics: Topic[]; onFormReset: () => void }) {
   const { toast } = useToast();
   const firestore = useFirestore();
@@ -102,6 +129,8 @@ function ContentForm({ subjects, topics, onFormReset }: { subjects: Subject[], t
       topicId: '',
       difficultyLevel: 'Medium',
       examCategory: 'Both',
+      classLevel: 'All',
+      accessLevel: 'free',
     },
   });
 
@@ -137,17 +166,30 @@ function ContentForm({ subjects, topics, onFormReset }: { subjects: Subject[], t
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <FormField control={form.control} name="type" render={({ field }) => (
-            <FormItem className="space-y-3"><FormLabel>Content Type</FormLabel>
-                <FormControl>
-                    <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex flex-row space-x-4">
-                        <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="video" /></FormControl><FormLabel className="font-normal">Video</FormLabel></FormItem>
-                        <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="pdf" /></FormControl><FormLabel className="font-normal">PDF</FormLabel></FormItem>
-                    </RadioGroup>
-                </FormControl>
-                <FormMessage />
-            </FormItem>
-        )} />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <FormField control={form.control} name="type" render={({ field }) => (
+                <FormItem className="space-y-3"><FormLabel>Content Type</FormLabel>
+                    <FormControl>
+                        <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex flex-row space-x-4">
+                            <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="video" /></FormControl><FormLabel className="font-normal">Video</FormLabel></FormItem>
+                            <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="pdf" /></FormControl><FormLabel className="font-normal">PDF</FormLabel></FormItem>
+                        </RadioGroup>
+                    </FormControl>
+                    <FormMessage />
+                </FormItem>
+            )} />
+            <FormField control={form.control} name="accessLevel" render={({ field }) => (
+                <FormItem className="space-y-3"><FormLabel>Access Level</FormLabel>
+                    <FormControl>
+                        <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex flex-row space-x-4">
+                            <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="free" /></FormControl><FormLabel className="font-normal">Free</FormLabel></FormItem>
+                            <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="paid" /></FormControl><FormLabel className="font-normal">Paid</FormLabel></FormItem>
+                        </RadioGroup>
+                    </FormControl>
+                    <FormMessage />
+                </FormItem>
+            )} />
+        </div>
         <FormField control={form.control} name="title" render={({ field }) => (
           <FormItem><FormLabel>Title</FormLabel><FormControl><Input placeholder="e.g., Introduction to Kinematics" {...field} /></FormControl><FormMessage /></FormItem>
         )} />
@@ -172,12 +214,15 @@ function ContentForm({ subjects, topics, onFormReset }: { subjects: Subject[], t
             <FormItem><FormLabel>Topic</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value} disabled={!selectedSubject}><FormControl><SelectTrigger><SelectValue placeholder="Select a topic" /></SelectTrigger></FormControl><SelectContent>{filteredTopics.map(topic => <SelectItem key={topic.id} value={topic.id}>{topic.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
           )} />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <FormField control={form.control} name="difficultyLevel" render={({ field }) => (
             <FormItem><FormLabel>Difficulty</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select difficulty" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Easy">Easy</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Hard">Hard</SelectItem></SelectContent></Select><FormMessage /></FormItem>
           )} />
           <FormField control={form.control} name="examCategory" render={({ field }) => (
             <FormItem><FormLabel>Exam Category</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger></FormControl><SelectContent><SelectItem value="JEE Main">JEE Main</SelectItem><SelectItem value="JEE Advanced">JEE Advanced</SelectItem><SelectItem value="Both">Both</SelectItem></SelectContent></Select><FormMessage /></FormItem>
+          )} />
+           <FormField control={form.control} name="classLevel" render={({ field }) => (
+            <FormItem><FormLabel>Class Level</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select class level" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Class 11">Class 11</SelectItem><SelectItem value="Class 12">Class 12</SelectItem><SelectItem value="Dropper">Dropper</SelectItem><SelectItem value="All">All</SelectItem></SelectContent></Select><FormMessage /></FormItem>
           )} />
         </div>
         <Button type="submit" disabled={isSubmitting}>
@@ -188,17 +233,23 @@ function ContentForm({ subjects, topics, onFormReset }: { subjects: Subject[], t
   );
 }
 
-function ContentListItem({ contentItem }: { contentItem: Content }) {
+function ContentListItem({ contentItem, canViewPaidContent }: { contentItem: Content, canViewPaidContent: boolean }) {
+  const [showSubPrompt, setShowSubPrompt] = useState(false);
   const embed = getEmbedUrl(contentItem.videoUrl);
   const difficultyVariant = { Easy: 'default', Medium: 'secondary', Hard: 'destructive' } as const;
+  
+  const isLocked = contentItem.accessLevel === 'paid' && !canViewPaidContent;
 
   const itemContent = (
-    <div className="group flex cursor-pointer items-start gap-4 rounded-lg border p-4 transition-all hover:bg-muted/50">
+    <div className={cn("group flex cursor-pointer items-start gap-4 rounded-lg border p-4 transition-all hover:bg-muted/50", isLocked && "bg-muted/50 hover:bg-muted/50 cursor-not-allowed")}>
         <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            {contentItem.type === 'video' ? (embed?.type === 'youtube' ? <Youtube /> : <Film />) : <FileText />}
+            {isLocked ? <Lock /> : contentItem.type === 'video' ? (embed?.type === 'youtube' ? <Youtube /> : <Film />) : <FileText />}
         </div>
         <div className="flex-1">
-            <h3 className="font-semibold group-hover:underline">{contentItem.title}</h3>
+            <div className="flex justify-between items-center">
+                <h3 className={cn("font-semibold", !isLocked && "group-hover:underline")}>{contentItem.title}</h3>
+                {contentItem.accessLevel === 'free' && <Badge variant="secondary">Free</Badge>}
+            </div>
             <p className="text-sm text-muted-foreground line-clamp-2">{contentItem.description}</p>
             <div className="mt-2 flex items-center gap-2">
                 <Badge variant={difficultyVariant[contentItem.difficultyLevel]}>{contentItem.difficultyLevel}</Badge>
@@ -207,6 +258,17 @@ function ContentListItem({ contentItem }: { contentItem: Content }) {
         </div>
     </div>
   );
+
+  if (isLocked) {
+    return (
+      <>
+        <div onClick={() => setShowSubPrompt(true)}>
+            {itemContent}
+        </div>
+        <SubscriptionPromptDialog open={showSubPrompt} onOpenChange={setShowSubPrompt} />
+      </>
+    )
+  }
 
   if (contentItem.type === 'pdf') {
       return (
@@ -284,20 +346,7 @@ export default function ContentPage() {
   const sortedSubjects = useMemo(() => Object.keys(contentTree).sort(), [contentTree]);
 
   const isLoading = isTeacherLoading || areTopicsLoading || areContentLoading || areSubjectsLoading || isSubscribedLoading;
-  const canViewContent = isTeacher || isSubscribed;
-
-  const SubscriptionPrompt = () => (
-    <div className="flex flex-col items-center justify-center text-center p-8 md:p-16 border-2 border-dashed rounded-lg h-full bg-amber-500/5">
-        <Lock className="w-16 h-16 text-amber-500 mb-4" />
-        <h2 className="font-headline text-2xl font-semibold text-amber-600">Premium Content Locked</h2>
-        <p className="text-amber-700/80 mt-2 max-w-md">
-            You need an active subscription to access our library of study materials. Please subscribe to unlock all content.
-        </p>
-        <Button asChild className="mt-6 bg-amber-500 hover:bg-amber-600 text-white">
-            <Link href="/subscription">View Subscription Plans</Link>
-        </Button>
-    </div>
-  );
+  const canViewPaidContent = isTeacher || isSubscribed;
 
   return (
     <div className="flex flex-col h-full">
@@ -335,8 +384,7 @@ export default function ContentPage() {
                 <Skeleton className="h-20 w-full" />
                 <Skeleton className="h-20 w-full" />
               </div>
-            ) : !canViewContent ? <SubscriptionPrompt /> :
-            sortedSubjects.length > 0 ? (
+            ) : sortedSubjects.length > 0 ? (
               <Accordion type="multiple" className="w-full space-y-2">
                 {sortedSubjects.map(subjectName => (
                   <AccordionItem value={subjectName} key={contentTree[subjectName].subjectId} className="border rounded-lg">
@@ -350,7 +398,7 @@ export default function ContentPage() {
                               <AccordionContent>
                                 {contentTree[subjectName].topics[topicName].items.length > 0 ? (
                                   <div className="grid gap-4 pt-2">
-                                    {contentTree[subjectName].topics[topicName].items.map(item => <ContentListItem key={item.id} contentItem={item} />)}
+                                    {contentTree[subjectName].topics[topicName].items.map(item => <ContentListItem key={item.id} contentItem={item} canViewPaidContent={canViewPaidContent} />)}
                                   </div>
                                 ) : (
                                   <div className="text-center text-muted-foreground py-4">
@@ -382,3 +430,5 @@ export default function ContentPage() {
     </div>
   );
 }
+
+    

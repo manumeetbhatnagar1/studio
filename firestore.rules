@@ -279,6 +279,27 @@ service cloud.firestore {
                     
       allow delete: if resource != null && isOwner(resource.data.studentId);
     }
+    
+    // --------------------------------------------------------------------
+    // Group Chat Rules
+    // --------------------------------------------------------------------
+    /**
+     * @description Public group chat messages. Any authenticated user can read
+     *              and write messages.
+     * @path        /group_chat_messages/{messageId}
+     * @allow       (read) Any signed-in user.
+     * @allow       (create) The owner of the message.
+     * @principle   Enables a public chat forum for all users.
+     */
+    match /group_chat_messages/{messageId} {
+      allow read, list: if isSignedIn();
+      allow create: if isSignedIn()
+                    && request.resource.data.senderId == request.auth.uid
+                    && request.resource.data.text is string 
+                    && request.resource.data.text.size() > 0 
+                    && request.resource.data.text.size() < 500;
+      allow update, delete: if false;
+    }
 
     // --------------------------------------------------------------------
     // Subscription & Billing Rules

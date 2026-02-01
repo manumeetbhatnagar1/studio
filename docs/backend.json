@@ -554,6 +554,21 @@
         "config",
         "createdAt"
       ]
+    },
+    "ChatMessage": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ChatMessage",
+      "type": "object",
+      "description": "Represents a single message in a chat room.",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the message." },
+        "senderId": { "type": "string", "description": "Reference to the User who sent the message." },
+        "senderName": { "type": "string", "description": "Denormalized name of the sender." },
+        "senderPhotoUrl": { "type": "string", "description": "Denormalized photo URL of the sender." },
+        "text": { "type": "string", "description": "The content of the message." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp of when the message was sent." }
+      },
+      "required": ["senderId", "senderName", "text", "createdAt"]
     }
   },
   "auth": {
@@ -788,6 +803,19 @@
           "description": "Stores student doubts. Students can create, teachers can update/answer.",
           "params": [
             { "name": "doubtId", "description": "The unique ID for the doubt." }
+          ]
+        }
+      },
+      {
+        "path": "/group_chat_messages/{messageId}",
+        "definition": {
+          "entityName": "ChatMessage",
+          "schema": {
+            "$ref": "#/backend/entities/ChatMessage"
+          },
+          "description": "Stores all messages for the public group chat.",
+          "params": [
+            { "name": "messageId", "description": "The unique ID for the chat message." }
           ]
         }
       }

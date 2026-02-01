@@ -412,7 +412,7 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "MockTest",
       "type": "object",
-      "description": "Represents a mock test.",
+      "description": "Represents a mock test created by a teacher.",
       "properties": {
         "id": {
           "type": "string",
@@ -427,10 +427,6 @@
           "description": "The date and time the mock test starts.",
           "format": "date-time"
         },
-        "duration": {
-          "type": "number",
-          "description": "The duration of the mock test in minutes."
-        },
         "examCategory": {
           "type": "string",
           "description": "Specifies if the test is for JEE Main, Advanced, or both.",
@@ -439,12 +435,49 @@
             "JEE Advanced",
             "Both"
           ]
+        },
+        "config": {
+          "type": "object",
+          "description": "The configuration of the test, specifying subjects, number of questions, and duration.",
+          "properties": {
+            "subjects": {
+              "type": "array",
+              "description": "Configuration for each subject in the test.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "subjectId": {
+                    "type": "string"
+                  },
+                  "subjectName": {
+                    "type": "string"
+                  },
+                  "numQuestions": {
+                    "type": "number"
+                  },
+                  "duration": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "subjectId",
+                  "subjectName",
+                  "numQuestions",
+                  "duration"
+                ]
+              }
+            }
+          },
+          "required": [
+            "subjects"
+          ]
         }
       },
       "required": [
         "title",
         "startTime",
-        "duration"
+        "config",
+        "examCategory"
       ]
     },
     "SubscriptionPlan": {
@@ -929,5 +962,3 @@
     "reasoning": "The Firestore data structure is designed to support the core features of the DCAM Classes application, focusing on content delivery, live classes, practice questions, mock tests, doubt resolution, personalized learning paths, and progress tracking. The structure prioritizes authorization independence, clarity, and scalability. To achieve Authorization Independence we denormalize data where necessary. For example, teacher information relevant to a LiveClass is accessible without requiring a separate read. Segregation is used extensively to ensure data with different security requirements are stored in different collections, which simplifies the security rules. Path-based ownership is used for user-specific data to easily control access. The use of membership maps are used to support collaborative data access where needed, although in this specific case collaborative data is not explicitly mentioned in the requirements."
   }
 }
-
-    

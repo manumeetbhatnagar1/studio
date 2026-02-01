@@ -52,21 +52,20 @@ type CustomTestConfig = {
     };
 }
 
-// Hardcoded sample questions for JEE Main pattern
-const getSampleQuestions = (): MockQuestion[] => Array.from({ length: 90 }, (_, i) => {
-    const id = i + 1;
-    let subject: SubjectName;
-    if (id <= 30) subject = 'Physics';
-    else if (id <= 60) subject = 'Chemistry';
-    else subject = 'Mathematics';
-    const isMcq = (id % 30 <= 20 && id % 30 !== 0) || (id % 30 === 0 && 20 === 30);
-    return {
-        id, subject,
-        questionText: `This is question number ${id}. It is a ${isMcq ? 'Multiple Choice' : 'Numerical'} question from the subject of ${subject}. What is the correct answer?`,
-        type: isMcq ? 'MCQ' : 'Numerical',
-        ...(isMcq && { options: ['Option A', 'Option B', 'Option C', 'Option D'] }),
+type OfficialTestConfig = {
+    id: string;
+    title: string;
+    startTime: { toDate: () => Date };
+    examCategory: 'JEE Main' | 'JEE Advanced' | 'Both';
+    config: {
+        subjects: {
+            subjectId: string;
+            subjectName: string;
+            numQuestions: number;
+            duration: number;
+        }[];
     };
-});
+}
 
 const shuffleArray = <T>(array: T[]): T[] => {
     const newArray = [...array];
@@ -84,7 +83,7 @@ export default function MockTestPage() {
     const searchParams = useSearchParams();
     const testType = searchParams.get('type');
 
-    const [testTitle, setTestTitle] = useState('JEE Main Mock Test');
+    const [testTitle, setTestTitle] = useState('Loading Test...');
     const [questions, setQuestions] = useState<MockQuestion[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -95,34 +94,41 @@ export default function MockTestPage() {
 
     useEffect(() => {
         const loadTest = async () => {
+            if (!firestore || !user) return;
             setIsLoading(true);
-            if (testType === 'custom' && user && firestore) {
+            
+            let testConfigSnap;
+            if (testType === 'custom') {
                 const testConfigRef = doc(firestore, 'users', user.uid, 'custom_tests', testId);
-                const testConfigSnap = await getDoc(testConfigRef);
-                if (testConfigSnap.exists()) {
-                    const testConfig = testConfigSnap.data() as CustomTestConfig;
-                    setTestTitle(testConfig.title);
-                    
-                    let allQuestions: MockQuestion[] = [];
-                    let totalDuration = 0;
-
-                    for (const subjectConfig of testConfig.config.subjects) {
-                        totalDuration += subjectConfig.duration;
-                        const q = query(collection(firestore, 'practice_questions'), where('subjectId', '==', subjectConfig.subjectId));
-                        const qSnapshot = await getDocs(q);
-                        const subjectQuestions = qSnapshot.docs.map(d => ({ ...d.data(), id: d.id, subject: subjectConfig.subjectName })) as MockQuestion[];
-                        
-                        allQuestions.push(...shuffleArray(subjectQuestions).slice(0, subjectConfig.numQuestions));
-                    }
-
-                    setQuestions(allQuestions);
-                    setTimeLeft(totalDuration * 60);
-                }
+                testConfigSnap = await getDoc(testConfigRef);
             } else {
-                setTestTitle('JEE Main Full Syllabus Mock Test 1');
-                setQuestions(getSampleQuestions());
-                setTimeLeft(180 * 60);
+                const testConfigRef = doc(firestore, 'mock_tests', testId);
+                testConfigSnap = await getDoc(testConfigRef);
             }
+    
+            if (testConfigSnap.exists()) {
+                const testConfig = testConfigSnap.data() as CustomTestConfig | OfficialTestConfig;
+                setTestTitle(testConfig.title);
+                
+                let allQuestions: MockQuestion[] = [];
+                let totalDuration = 0;
+    
+                for (const subjectConfig of testConfig.config.subjects) {
+                    totalDuration += subjectConfig.duration;
+                    const q = query(collection(firestore, 'practice_questions'), where('subjectId', '==', subjectConfig.subjectId));
+                    const qSnapshot = await getDocs(q);
+                    const subjectQuestions = qSnapshot.docs.map(d => ({ ...(d.data() as any), id: d.id, subject: subjectConfig.subjectName })) as MockQuestion[];
+                    
+                    allQuestions.push(...shuffleArray(subjectQuestions).slice(0, subjectConfig.numQuestions));
+                }
+    
+                setQuestions(allQuestions);
+                setTimeLeft(totalDuration * 60);
+            } else {
+                setTestTitle("Test Not Found");
+                setQuestions([]);
+            }
+            
             setIsLoading(false);
         };
         loadTest();
@@ -233,7 +239,15 @@ export default function MockTestPage() {
     }
     
     if (!currentQuestion) {
-        return <div className="p-8">Could not load test questions.</div>
+        return (
+            <div className="flex h-screen w-screen items-center justify-center">
+              <div className="text-center">
+                <h1 className="text-2xl font-bold mb-4">{testTitle}</h1>
+                <p className="text-lg text-destructive">Could not load test questions.</p>
+                <p className="text-muted-foreground mt-2">There may be no questions available for the subjects in this test.</p>
+              </div>
+            </div>
+        );
     }
 
     return (

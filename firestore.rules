@@ -79,7 +79,7 @@ service cloud.firestore {
      * @principle   Enforces strict data ownership and privacy.
      */
     match /users/{userId} {
-      allow get: if isOwner(userId) || isTeacher(); // Allow teachers to read student profiles for chat
+      allow get: if isSignedIn(); // Allow any signed-in user to read profile for chat
       allow list: if isSignedIn(); // Allow any signed-in user to list other users for chat
       allow create: if isOwner(userId) && request.resource.data.id == userId;
       allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;

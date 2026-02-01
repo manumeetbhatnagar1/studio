@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
-import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
-import { doc, getDoc, collection, query, where, getDocs, writeBatch, documentId } from 'firebase/firestore';
+import { useUser, useFirestore, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
+import { doc, getDoc, collection, query, where, getDocs, writeBatch, documentId, serverTimestamp } from 'firebase/firestore';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Timer, User, LoaderCircle, ArrowLeft } from 'lucide-react';
+import { Timer, User, LoaderCircle, ArrowLeft, Check, XIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Logo } from '@/components/icons';
 
@@ -32,7 +32,8 @@ type MockQuestion = {
   questionText: string;
   questionType: 'MCQ' | 'Numerical';
   options?: string[];
-  // Added from join
+  correctAnswer?: string;
+  numericalAnswer?: number;
   subject: SubjectName;
 };
 
@@ -109,8 +110,56 @@ export default function MockTestPage() {
 
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
     const [answers, setAnswers] = useState<Map<string | number, Answer>>(new Map());
+    const [duration, setDuration] = useState(180);
     const [timeLeft, setTimeLeft] = useState(180 * 60);
     const [isSubmitDialogOpen, setIsSubmitDialogOpen] = useState(false);
+    const [isFinished, setIsFinished] = useState(false);
+    const [score, setScore] = useState(0);
+
+    const handleSubmitTest = useCallback(() => {
+        setIsSubmitDialogOpen(false);
+        let finalScore = 0;
+        
+        questions.forEach((question) => {
+            const answer = answers.get(question.id);
+            if (answer && (answer.value !== '' && answer.value !== undefined)) {
+                let isCorrect = false;
+                if (question.questionType === 'MCQ' && question.correctAnswer === answer.value) {
+                    isCorrect = true;
+                } else if (question.questionType === 'Numerical' && Number(question.numericalAnswer) === Number(answer.value)) {
+                    isCorrect = true;
+                }
+
+                if(isCorrect) {
+                    finalScore += 4;
+                } else {
+                    finalScore -= 1;
+                }
+            }
+        });
+        
+        setScore(finalScore);
+        setIsFinished(true);
+
+        if (user && firestore && testType !== 'custom') { // Only save results for official tests
+            const timeTaken = duration - Math.floor(timeLeft / 60);
+            const resultsRef = collection(firestore, 'users', user.uid, 'test_results');
+            
+            const answersToSave: Record<string, any> = {};
+            answers.forEach((ans, qId) => {
+                answersToSave[String(qId)] = ans.value;
+            });
+            
+            addDocumentNonBlocking(resultsRef, {
+                testId: testId,
+                score: finalScore,
+                timeTaken: timeTaken > 0 ? timeTaken : 0,
+                answers: answersToSave,
+                submittedAt: serverTimestamp(),
+            });
+        }
+    }, [answers, duration, firestore, questions, testId, testType, timeLeft, user]);
+
 
     useEffect(() => {
         const loadTest = async () => {
@@ -132,6 +181,7 @@ export default function MockTestPage() {
     
             if (testConfigSnap.exists() && testConfig.config.questionIds) {
                 setTestTitle(testConfig.title);
+                setDuration(testConfig.config.duration);
                 setTimeLeft(testConfig.config.duration * 60);
                 const fetchedQuestions = await fetchQuestionsByIds(firestore, testConfig.config.questionIds);
                 setQuestions(fetchedQuestions);
@@ -147,10 +197,18 @@ export default function MockTestPage() {
 
     // Timer effect
     useEffect(() => {
-        if (isLoading || timeLeft <= 0) return;
-        const timer = setInterval(() => setTimeLeft((prev) => prev - 1), 1000);
+        if (isLoading || isFinished || timeLeft <= 0) return;
+        const timer = setInterval(() => {
+            setTimeLeft((prev) => {
+                if (prev <= 1) {
+                    handleSubmitTest();
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
         return () => clearInterval(timer);
-    }, [timeLeft, isLoading]);
+    }, [timeLeft, isLoading, isFinished, handleSubmitTest]);
 
     const sections = useMemo(() => {
         if (!questions.length) return [];
@@ -204,12 +262,6 @@ export default function MockTestPage() {
         setAnswers(prev => new Map(prev).set(currentQuestion.id, { value, status: newStatus }));
     };
 
-    const handleSubmitTest = () => {
-        setIsSubmitDialogOpen(false);
-        console.log('Test submitted!', { answers: Object.fromEntries(answers) });
-        // Implement submission logic here
-    };
-
     const getStatusClasses = (status: QuestionStatus) => {
         switch (status) {
             case QuestionStatus.Answered: return 'bg-green-500 text-white';
@@ -260,6 +312,58 @@ export default function MockTestPage() {
               </div>
             </div>
         );
+    }
+
+    if(isFinished) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-screen bg-muted/30 py-8">
+                <Card className="w-full max-w-3xl text-center shadow-2xl">
+                    <CardHeader>
+                        <CardTitle className="font-headline text-3xl">Test Finished: {testTitle}</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <p className="text-lg text-muted-foreground">Here's your result:</p>
+                        <div className="text-6xl font-bold text-primary">{score}</div>
+                        <p className="font-semibold text-2xl">
+                            Total Marks: {questions.length * 4}
+                        </p>
+                        <p className="text-sm text-muted-foreground">(Scoring: +4 for correct, -1 for incorrect, 0 for unattempted)</p>
+                        
+                        <Card className="mt-6 text-left">
+                            <CardHeader>
+                                <CardTitle>Review Your Answers</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4 max-h-80 overflow-y-auto">
+                                {questions.map((q, i) => {
+                                    const ans = answers.get(q.id);
+                                    let isCorrect = false;
+                                    if(ans && (ans.value !== '' && ans.value !== undefined)) {
+                                        if(q.questionType === 'MCQ') {
+                                            isCorrect = q.correctAnswer === ans.value;
+                                        } else if(q.questionType === 'Numerical') {
+                                            isCorrect = Number(q.numericalAnswer) === Number(ans.value);
+                                        }
+                                    }
+                                    const attempted = ans && (ans.value !== '' && ans.value !== undefined);
+
+                                    return (
+                                        <div key={q.id} className="flex items-start gap-3 p-3 border-b last:border-b-0">
+                                            {attempted ? (isCorrect ? <Check className="h-5 w-5 text-green-500 mt-1 flex-shrink-0" /> : <XIcon className="h-5 w-5 text-red-500 mt-1 flex-shrink-0" />) : <div className="w-5 h-5 mt-1 flex-shrink-0" />}
+                                            <div className="flex-1">
+                                                <p className="font-medium">Q{i+1}: {q.questionText}</p>
+                                                <p className="text-sm">Your answer: <span className="font-semibold">{attempted ? ans.value : 'Not Answered'}</span></p>
+                                                {!isCorrect && attempted && <p className="text-sm">Correct answer: <span className="font-semibold text-green-600">{q.correctAnswer || q.numericalAnswer}</span></p>}
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+                            </CardContent>
+                        </Card>
+                    </CardContent>
+                </Card>
+                <Button onClick={() => router.push('/mock-tests')} className="mt-8">Back to Mock Tests</Button>
+            </div>
+        )
     }
 
     return (

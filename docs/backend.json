@@ -599,6 +599,11 @@
         "answers": {
           "type": "object",
           "description": "A map of question IDs to the student's answers."
+        },
+        "submittedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of when the test was submitted."
         }
       },
       "required": ["testId", "score", "timeTaken"]

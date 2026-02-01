@@ -88,6 +88,25 @@
         "description"
       ]
     },
+    "ExamType": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ExamType",
+      "type": "object",
+      "description": "Represents a type of exam, like 'IIT-JEE' or 'NEET'.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the ExamType entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the exam type."
+        }
+      },
+      "required": [
+        "name"
+      ]
+    },
     "Class": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Class",
@@ -101,10 +120,15 @@
         "name": {
           "type": "string",
           "description": "The name of the class (e.g., Class 11)."
+        },
+        "examTypeId": {
+          "type": "string",
+          "description": "Reference to the ExamType this class belongs to."
         }
       },
       "required": [
-        "name"
+        "name",
+        "examTypeId"
       ]
     },
     "Subject": {
@@ -832,6 +856,22 @@
             {
               "name": "roleId",
               "description": "The unique identifier for the role."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/exam_types/{examTypeId}",
+        "definition": {
+          "entityName": "ExamType",
+          "schema": {
+            "$ref": "#/backend/entities/ExamType"
+          },
+          "description": "Stores exam type definitions (e.g., IIT-JEE, NEET). Teachers can manage.",
+          "params": [
+            {
+              "name": "examTypeId",
+              "description": "The unique identifier for the exam type."
             }
           ]
         }

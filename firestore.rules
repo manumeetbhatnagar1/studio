@@ -173,6 +173,19 @@ service cloud.firestore {
     // --------------------------------------------------------------------
     
     /**
+     * @description Exam Type definitions (e.g., IIT-JEE). Readable by anyone signed in,
+     *              but only manageable by teachers.
+     * @path        /exam_types/{examTypeId}
+     * @allow       (get, list) Any signed-in user.
+     * @deny        (create) A student trying to create a new exam type.
+     * @principle   Role-restricted writes with public reads.
+     */
+    match /exam_types/{examTypeId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isTeacher();
+    }
+    
+    /**
      * @description Class definitions (e.g., Class 11). Readable by anyone signed in,
      *              but only manageable by teachers.
      * @path        /classes/{classId}
@@ -225,7 +238,7 @@ service cloud.firestore {
      * @description Practice questions. Readable by any signed-in user, but only manageable by teachers.
      *              UI logic restricts view for non-subscribers.
      * @path        /practice_questions/{practiceQuestionId}
-     * @allow       (get, list) Any signed-in user.
+     * @allow       (get, list) if isSignedIn();
      * @deny        (delete) A student trying to delete a question.
      * @principle   Role-restricted writes with public reads.
      */

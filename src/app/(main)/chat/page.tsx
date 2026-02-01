@@ -7,23 +7,22 @@ import * as z from 'zod';
 import { formatRelative } from 'date-fns';
 import type { Timestamp } from 'firebase/firestore';
 import { useUser, useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
-import { collection, query, orderBy, serverTimestamp } from 'firebase/firestore';
+import { collection, query, orderBy, serverTimestamp, where } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { LoaderCircle, MessagesSquare, Send, User as UserIcon } from 'lucide-react';
+import { LoaderCircle, MessagesSquare, Send, User as UserIcon, MessageCircle } from 'lucide-react';
 import DashboardHeader from '@/components/dashboard-header';
 import { cn } from '@/lib/utils';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import Link from 'next/link';
+import { useIsTeacher } from '@/hooks/useIsTeacher';
 
-// Zod schema for the chat message form
-const chatMessageSchema = z.object({
-  text: z.string().min(1, 'Message cannot be empty.').max(500, 'Message is too long.'),
-});
-
-// Type for a chat message document
+// Chat message schema and type
+const chatMessageSchema = z.object({ text: z.string().min(1, 'Message cannot be empty.').max(500, 'Message is too long.') });
 type ChatMessage = {
   id: string;
   senderId: string;
@@ -33,13 +32,13 @@ type ChatMessage = {
   createdAt: Timestamp;
 };
 
-// Component for a single message
+// Single message component
 function Message({ message, isOwnMessage }: { message: ChatMessage; isOwnMessage: boolean }) {
   return (
     <div className={cn('flex items-start gap-3', isOwnMessage && 'flex-row-reverse')}>
       <Avatar className="h-8 w-8">
         <AvatarImage src={message.senderPhotoUrl} />
-        <AvatarFallback>{message.senderName.charAt(0)}</AvatarFallback>
+        <AvatarFallback>{message.senderName?.charAt(0)}</AvatarFallback>
       </Avatar>
       <div className={cn('flex flex-col gap-1', isOwnMessage && 'items-end')}>
         <div className={cn('rounded-lg px-3 py-2', isOwnMessage ? 'bg-primary text-primary-foreground' : 'bg-muted')}>
@@ -54,8 +53,8 @@ function Message({ message, isOwnMessage }: { message: ChatMessage; isOwnMessage
   );
 }
 
-
-export default function ChatPage() {
+// Group Chat Component
+function GroupChat() {
   const { user } = useUser();
   const firestore = useFirestore();
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -65,103 +64,120 @@ export default function ChatPage() {
     defaultValues: { text: '' },
   });
 
-  const chatMessagesQuery = useMemoFirebase(
-    () => (firestore ? query(collection(firestore, 'group_chat_messages'), orderBy('createdAt', 'asc')) : null),
-    [firestore]
-  );
-  
+  const chatMessagesQuery = useMemoFirebase(() => (firestore ? query(collection(firestore, 'group_chat_messages'), orderBy('createdAt', 'asc')) : null), [firestore]);
   const { data: messages, isLoading } = useCollection<ChatMessage>(chatMessagesQuery);
   
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
   useEffect(() => {
-    scrollToBottom();
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   async function onSubmit(values: z.infer<typeof chatMessageSchema>) {
     if (!user || !firestore) return;
-
     const messagesRef = collection(firestore, 'group_chat_messages');
-    await addDocumentNonBlocking(messagesRef, {
-      senderId: user.uid,
-      senderName: user.displayName || 'Anonymous',
-      senderPhotoUrl: user.photoURL || '',
-      text: values.text,
-      createdAt: serverTimestamp(),
-    });
+    await addDocumentNonBlocking(messagesRef, { senderId: user.uid, senderName: user.displayName || 'Anonymous', senderPhotoUrl: user.photoURL || '', text: values.text, createdAt: serverTimestamp() });
     form.reset();
   }
-  
-  const isSubmitting = form.formState.isSubmitting;
 
   return (
-    <div className="flex flex-col h-full">
-      <DashboardHeader title="Group Chat" />
-      <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
-        <Card className="flex flex-col h-full max-h-[calc(100vh-10rem)] shadow-lg">
-          <CardHeader>
-            <CardTitle className="font-headline text-2xl flex items-center gap-2">
-              <MessagesSquare /> General Chat Room
-            </CardTitle>
-            <CardDescription>A place for all students and teachers to connect.</CardDescription>
-          </CardHeader>
-          <CardContent className="flex-1 overflow-y-auto p-4 space-y-4">
-            {isLoading ? (
-              <div className="space-y-4">
-                <div className="flex items-center space-x-4">
-                  <Skeleton className="h-10 w-10 rounded-full" />
-                  <div className="space-y-2">
-                    <Skeleton className="h-4 w-[250px]" />
-                    <Skeleton className="h-4 w-[200px]" />
-                  </div>
-                </div>
-                <div className="flex items-center space-x-4 flex-row-reverse">
-                  <Skeleton className="h-10 w-10 rounded-full" />
-                  <div className="space-y-2 items-end flex flex-col">
-                    <Skeleton className="h-4 w-[250px]" />
-                    <Skeleton className="h-4 w-[200px]" />
-                  </div>
-                </div>
-              </div>
-            ) : messages && messages.length > 0 ? (
-                messages.map(msg => (
-                    <Message key={msg.id} message={msg} isOwnMessage={msg.senderId === user?.uid} />
-                ))
-            ) : (
-                <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-                    <p>No messages yet.</p>
-                    <p className="text-sm">Be the first to start the conversation!</p>
-                </div>
-            )}
-             <div ref={messagesEndRef} />
-          </CardContent>
-          <div className="border-t p-4">
-             <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="flex items-center gap-2">
-                  <FormField
-                    control={form.control}
-                    name="text"
-                    render={({ field }) => (
-                      <FormItem className="flex-1">
-                        <FormControl>
-                          <Input placeholder="Type a message..." autoComplete="off" {...field} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                  <Button type="submit" disabled={isSubmitting}>
-                    {isSubmitting ? (
-                      <LoaderCircle className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Send className="h-4 w-4" />
-                    )}
-                    <span className="sr-only">Send</span>
-                  </Button>
-                </form>
-            </Form>
+    <Card className="flex flex-col h-full max-h-[calc(100vh-16rem)] shadow-none border-none">
+      <CardContent className="flex-1 overflow-y-auto p-4 space-y-4">
+        {isLoading ? (
+          <div className="space-y-4">
+            <Skeleton className="h-16 w-full" /><Skeleton className="h-16 w-full" />
           </div>
+        ) : messages && messages.length > 0 ? (
+          messages.map(msg => <Message key={msg.id} message={msg} isOwnMessage={msg.senderId === user?.uid} />)
+        ) : (
+          <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+            <p>No messages yet. Be the first to start the conversation!</p>
+          </div>
+        )}
+        <div ref={messagesEndRef} />
+      </CardContent>
+      <div className="border-t p-4">
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="flex items-center gap-2">
+            <FormField control={form.control} name="text" render={({ field }) => (<FormItem className="flex-1"><FormControl><Input placeholder="Type a message..." autoComplete="off" {...field} /></FormControl></FormItem>)} />
+            <Button type="submit" disabled={form.formState.isSubmitting}><Send className="h-4 w-4" /><span className="sr-only">Send</span></Button>
+          </form>
+        </Form>
+      </div>
+    </Card>
+  );
+}
+
+// Teacher/Student list for Direct Messages
+function DirectMessagesList() {
+    const { user } = useUser();
+    const { isTeacher, isLoading: isTeacherLoading } = useIsTeacher();
+    const firestore = useFirestore();
+
+    const usersQuery = useMemoFirebase(() => {
+        if (!firestore) return null;
+        // Teachers see a list of students, students see a list of teachers
+        const roleToQuery = isTeacher ? 'student' : 'teacher';
+        return query(collection(firestore, 'users'), where('roleId', '==', roleToQuery));
+    }, [firestore, isTeacher]);
+
+    const { data: users, isLoading: areUsersLoading } = useCollection(usersQuery);
+
+    const createChatId = (uid1: string, uid2: string) => [uid1, uid2].sort().join('_');
+    
+    const isLoading = isTeacherLoading || areUsersLoading;
+
+    if (isLoading) {
+        return <div className="space-y-2 p-4"><Skeleton className="h-12 w-full" /><Skeleton className="h-12 w-full" /></div>;
+    }
+
+    return (
+        <div className="p-2 space-y-2">
+            {users && users.length > 0 ? users.map((otherUser) => {
+                if (otherUser.id === user?.uid) return null;
+                const chatId = createChatId(user!.uid, otherUser.id);
+                return (
+                    <Link href={`/chat/direct/${chatId}`} key={otherUser.id} className="block">
+                        <div className="flex items-center justify-between p-3 rounded-lg hover:bg-muted">
+                            <div className="flex items-center gap-3">
+                                <Avatar><AvatarImage src={otherUser.photoURL} /><AvatarFallback>{otherUser.firstName?.charAt(0)}{otherUser.lastName?.charAt(0)}</AvatarFallback></Avatar>
+                                <div>
+                                    <p className="font-semibold">{otherUser.firstName} {otherUser.lastName}</p>
+                                    <p className="text-sm text-muted-foreground">{otherUser.email}</p>
+                                </div>
+                            </div>
+                            <Button variant="ghost" size="icon"><MessageCircle className="h-5 w-5" /></Button>
+                        </div>
+                    </Link>
+                );
+            }) : <p className="text-muted-foreground text-center p-8">No users to display.</p>}
+        </div>
+    );
+}
+
+// Main Chat Hub Page
+export default function ChatPage() {
+  return (
+    <div className="flex flex-col h-full">
+      <DashboardHeader title="Chat Hub" />
+      <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
+        <Card className="shadow-lg">
+          <CardHeader>
+            <CardTitle className="font-headline text-2xl flex items-center gap-2"><MessagesSquare /> Chat</CardTitle>
+            <CardDescription>Connect with the community or chat directly with teachers and students.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Tabs defaultValue="group">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="group">Group Chat</TabsTrigger>
+                <TabsTrigger value="direct">Direct Messages</TabsTrigger>
+              </TabsList>
+              <TabsContent value="group">
+                <GroupChat />
+              </TabsContent>
+              <TabsContent value="direct">
+                <DirectMessagesList />
+              </TabsContent>
+            </Tabs>
+          </CardContent>
         </Card>
       </main>
     </div>

@@ -6,7 +6,7 @@ import {
   SidebarInset,
 } from "@/components/ui/sidebar";
 import { useUser } from "@/firebase";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { LoaderCircle } from "lucide-react";
 
@@ -17,6 +17,7 @@ export default function MainLayout({
 }) {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -36,6 +37,10 @@ export default function MainLayout({
     return null; 
   }
   
+  if (pathname.startsWith('/chat/direct/')) {
+    return <>{children}</>;
+  }
+
   return (
     <SidebarProvider>
       <Sidebar>

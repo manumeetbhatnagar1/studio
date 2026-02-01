@@ -79,8 +79,8 @@ service cloud.firestore {
      * @principle   Enforces strict data ownership and privacy.
      */
     match /users/{userId} {
-      allow get: if isOwner(userId);
-      allow list: if false;
+      allow get: if isOwner(userId) || isTeacher(); // Allow teachers to read student profiles for chat
+      allow list: if isTeacher(); // Allow teachers to list students for chat
       allow create: if isOwner(userId) && request.resource.data.id == userId;
       allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
       allow delete: if isExistingOwner(userId);
@@ -281,7 +281,7 @@ service cloud.firestore {
     }
     
     // --------------------------------------------------------------------
-    // Group Chat Rules
+    // Chat Rules
     // --------------------------------------------------------------------
     /**
      * @description Public group chat messages. Any authenticated user can read
@@ -294,6 +294,26 @@ service cloud.firestore {
     match /group_chat_messages/{messageId} {
       allow read, list: if isSignedIn();
       allow create: if isSignedIn()
+                    && request.resource.data.senderId == request.auth.uid
+                    && request.resource.data.text is string 
+                    && request.resource.data.text.size() > 0 
+                    && request.resource.data.text.size() < 500;
+      allow update, delete: if false;
+    }
+
+    /**
+     * @description Private 1-on-1 chat messages. The {chatId} is a
+     *              composite of two user IDs. Only those two users can
+     *              read or write messages.
+     * @path        /direct_messages/{chatId}/messages/{messageId}
+     * @allow       (read, create) The user is one of the two participants in the chat.
+     * @deny        (update, delete) Messages are immutable.
+     * @principle   Enforces private communication between two specific users.
+     */
+    match /direct_messages/{chatId}/messages/{messageId} {
+      allow list, get: if isSignedIn() && request.auth.uid in chatId.split('_');
+      allow create: if isSignedIn()
+                    && request.auth.uid in chatId.split('_')
                     && request.resource.data.senderId == request.auth.uid
                     && request.resource.data.text is string 
                     && request.resource.data.text.size() > 0 
@@ -319,5 +339,3 @@ service cloud.firestore {
     }
   }
 }
-
-    

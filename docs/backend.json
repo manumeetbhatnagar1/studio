@@ -764,6 +764,11 @@
           "description": "An array of Subject IDs included in this course.",
           "items": { "type": "string" }
         },
+        "contentIds": {
+          "type": "array",
+          "description": "An array of Content IDs to be included in this course.",
+          "items": { "type": "string" }
+        },
         "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp of when the course was created." }
       },
       "required": ["title", "description", "teacherId", "teacherName", "price", "classLevel", "subjectIds", "createdAt"]

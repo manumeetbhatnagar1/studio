@@ -9,7 +9,7 @@ import { useRouter } from 'next/navigation';
 import DashboardHeader from '@/components/dashboard-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -29,10 +29,17 @@ const courseSchema = z.object({
     subjectIds: z.array(z.string()).refine((value) => value.length > 0, {
         message: 'You must select at least one subject.',
     }),
+    contentIds: z.array(z.string()).optional(),
 });
 
 type Subject = { id: string; name: string; classId: string; };
 type Class = { id: string; name: string; };
+type Content = {
+  id: string;
+  title: string;
+  subjectId: string;
+};
+
 
 export default function CreateCoursePage() {
     const { user } = useUser();
@@ -43,9 +50,11 @@ export default function CreateCoursePage() {
 
     const subjectsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'subjects'), orderBy('name')) : null, [firestore]);
     const classesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'classes'), orderBy('name')) : null, [firestore]);
+    const contentQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'content'), orderBy('title')) : null, [firestore]);
 
     const { data: subjects, isLoading: areSubjectsLoading } = useCollection<Subject>(subjectsQuery);
     const { data: classes, isLoading: areClassesLoading } = useCollection<Class>(classesQuery);
+    const { data: allContent, isLoading: areContentLoading } = useCollection<Content>(contentQuery);
 
     const form = useForm<z.infer<typeof courseSchema>>({
         resolver: zodResolver(courseSchema),
@@ -56,10 +65,12 @@ export default function CreateCoursePage() {
             imageUrl: '',
             classLevel: 'All',
             subjectIds: [],
+            contentIds: [],
         },
     });
 
     const selectedClass = form.watch('classLevel');
+    const selectedSubjects = form.watch('subjectIds');
 
     const filteredSubjects = useMemo(() => {
         if (selectedClass === 'All' || !subjects || !classes) {
@@ -69,6 +80,14 @@ export default function CreateCoursePage() {
         if (!targetClass) return [];
         return subjects.filter(s => s.classId === targetClass.id);
     }, [selectedClass, subjects, classes]);
+
+    const filteredContent = useMemo(() => {
+        if (!selectedSubjects || selectedSubjects.length === 0 || !allContent) {
+            return [];
+        }
+        return allContent.filter(content => selectedSubjects.includes(content.subjectId));
+    }, [selectedSubjects, allContent]);
+
 
     async function onSubmit(values: z.infer<typeof courseSchema>) {
         if (!user) {
@@ -99,7 +118,7 @@ export default function CreateCoursePage() {
         }
     }
     
-    const isLoading = areSubjectsLoading || areClassesLoading;
+    const isLoading = areSubjectsLoading || areClassesLoading || areContentLoading;
 
     return (
         <div className="flex flex-col h-full">
@@ -150,6 +169,49 @@ export default function CreateCoursePage() {
                                                 <FormMessage />
                                             </FormItem>
                                         )} />
+
+                                        <FormField
+                                            control={form.control}
+                                            name="contentIds"
+                                            render={() => (
+                                                <FormItem>
+                                                    <div className="mb-4">
+                                                        <FormLabel>Included Content</FormLabel>
+                                                        <FormDescription>
+                                                            Select content to include in this course. Content will be filtered based on the subjects you selected above.
+                                                        </FormDescription>
+                                                    </div>
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 rounded-md border p-4 max-h-96 overflow-y-auto">
+                                                        {filteredContent.length > 0 ? filteredContent.map((item) => (
+                                                            <FormField
+                                                                key={item.id}
+                                                                control={form.control}
+                                                                name="contentIds"
+                                                                render={({ field }) => (
+                                                                    <FormItem key={item.id} className="flex flex-row items-center space-x-3 space-y-0">
+                                                                        <FormControl>
+                                                                            <Checkbox
+                                                                                checked={field.value?.includes(item.id)}
+                                                                                onCheckedChange={(checked) => {
+                                                                                    return checked
+                                                                                        ? field.onChange([...(field.value || []), item.id])
+                                                                                        : field.onChange(field.value?.filter((value) => value !== item.id));
+                                                                                }}
+                                                                            />
+                                                                        </FormControl>
+                                                                        <FormLabel className="font-normal">{item.title}</FormLabel>
+                                                                    </FormItem>
+                                                                )}
+                                                            />
+                                                        )) : (
+                                                            <p className="text-muted-foreground col-span-2 text-center">Select subjects to see available content.</p>
+                                                        )}
+                                                    </div>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+
                                         <Button type="submit" disabled={isSubmitting} size="lg">
                                             {isSubmitting ? (<><LoaderCircle className="mr-2 animate-spin" /> Creating Course...</>) : (<>Create Course</>)}
                                         </Button>

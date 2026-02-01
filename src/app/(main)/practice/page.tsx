@@ -26,6 +26,8 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
 import PdfQuestionExtractor from '@/components/pdf-question-extractor';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+
 
 const baseSchema = z.object({
     questionText: z.string().min(10, 'Question must be at least 10 characters.'),
@@ -288,6 +290,8 @@ export default function PracticePage() {
   const { isTeacher, isLoading: isTeacherLoading } = useIsTeacher();
   const { isSubscribed, isLoading: isSubscribedLoading } = useIsSubscribed();
   const [editingQuestion, setEditingQuestion] = useState<PracticeQuestion | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [questionToDelete, setQuestionToDelete] = useState<string | null>(null);
 
   const questionsCollectionRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'practice_questions'), orderBy('topicId')) : null, [firestore]);
   const classesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'classes'), orderBy('name')) : null, [firestore]);
@@ -371,14 +375,21 @@ export default function PracticePage() {
     setIsSubmitting(false);
   };
 
-  const handleDeleteQuestion = (questionId: string) => {
-      if (window.confirm('Are you sure you want to delete this question? This action cannot be undone.')) {
-          deleteDocumentNonBlocking(doc(firestore, 'practice_questions', questionId));
-          toast({
-              title: 'Question Deleted',
-              description: 'The question has been removed from the question bank.',
-          });
-      }
+  const handleDeleteRequest = (questionId: string) => {
+    setQuestionToDelete(questionId);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (questionToDelete) {
+      deleteDocumentNonBlocking(doc(firestore, 'practice_questions', questionToDelete));
+      toast({
+        title: 'Question Deleted',
+        description: 'The question has been removed from the question bank.',
+      });
+      setQuestionToDelete(null);
+    }
+    setIsDeleteDialogOpen(false);
   };
   
   const handleImageCropped = (data: { imageUrl: string }) => {
@@ -498,7 +509,7 @@ export default function PracticePage() {
                 questions && questions.length > 0 ? (
                     <Accordion type="single" collapsible className="w-full space-y-2">
                         {questions.map(q => (
-                            <QuestionItem key={q.id} question={q} topicMap={topicMap} isTeacher={!!isTeacher} onEdit={setEditingQuestion} onDelete={handleDeleteQuestion} />
+                            <QuestionItem key={q.id} question={q} topicMap={topicMap} isTeacher={!!isTeacher} onEdit={setEditingQuestion} onDelete={handleDeleteRequest} />
                         ))}
                     </Accordion>
                 ) : (
@@ -530,6 +541,21 @@ export default function PracticePage() {
                 )}
             </DialogContent>
         </Dialog>
+
+        <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        This action cannot be undone. This will permanently delete this question.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel onClick={() => setQuestionToDelete(null)}>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={confirmDelete} className={cn(buttonVariants({ variant: "destructive" }))}>Delete</AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
 
       </main>
     </div>

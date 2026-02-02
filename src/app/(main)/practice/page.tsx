@@ -149,59 +149,63 @@ function QuestionItem({ question, topicMap, classMap, examTypeMap, isTeacher, ca
                 <Lock className="mx-auto h-6 w-6 mb-2"/>
                 <p>This is a premium question. <Link href="/subscription" className="text-primary hover:underline">Subscribe</Link> to view the answer.</p>
             </div>
-        ) : isTeacher ? (
-            <>
-                {question.imageUrl && (
+        ) : (
+          <>
+            {question.imageUrl && (
+              <div className="my-4 space-y-2">
+                  <p className="font-semibold text-sm text-muted-foreground">Question Image:</p>
+                  <div className="p-4 border rounded-md flex justify-center bg-muted/50">
+                      <Image
+                          src={question.imageUrl}
+                          alt="Question diagram"
+                          width={400}
+                          height={300}
+                          className="rounded-md object-contain"
+                      />
+                  </div>
+              </div>
+            )}
+            {isTeacher ? (
+              <>
+                {question.explanationImageUrl && (
                   <div className="my-4 space-y-2">
-                      <p className="font-semibold text-sm text-muted-foreground">Question Image:</p>
-                      <div className="p-4 border rounded-md flex justify-center bg-muted/50">
-                          <Image
-                              src={question.imageUrl}
-                              alt="Question diagram"
-                              width={400}
-                              height={300}
-                              className="rounded-md object-contain"
-                          />
-                      </div>
+                    <p className="font-semibold text-sm text-muted-foreground">Explanation Image:</p>
+                    <div className="p-4 border rounded-md flex justify-center bg-muted/50">
+                      <Image
+                        src={question.explanationImageUrl}
+                        alt="Explanation diagram"
+                        width={400}
+                        height={300}
+                        className="rounded-md object-contain"
+                      />
+                    </div>
                   </div>
                 )}
-                {question.explanationImageUrl && (
-                    <div className="my-4 space-y-2">
-                        <p className="font-semibold text-sm text-muted-foreground">Explanation Image:</p>
-                        <div className="p-4 border rounded-md flex justify-center bg-muted/50">
-                            <Image
-                                src={question.explanationImageUrl}
-                                alt="Explanation diagram"
-                                width={400}
-                                height={300}
-                                className="rounded-md object-contain"
-                            />
-                        </div>
-                    </div>
-                )}
                 {question.questionType === 'MCQ' && question.options ? (
-                     <div className="prose prose-sm max-w-none text-card-foreground/90 bg-primary/5 p-4 rounded-md space-y-2">
-                        <p className="font-semibold text-primary">Options:</p>
-                        <ul className='list-disc pl-5 space-y-1'>
-                            {question.options.map((option, index) => (
-                                <li key={index} className={cn(option === question.correctAnswer && "font-bold text-primary")}>
-                                    {option}
-                                    {option === question.correctAnswer && <CheckCircle className="inline-block ml-2 h-4 w-4" />}
-                                </li>
-                            ))}
-                        </ul>
-                     </div>
+                  <div className="prose prose-sm max-w-none text-card-foreground/90 bg-primary/5 p-4 rounded-md space-y-2">
+                    <p className="font-semibold text-primary">Options:</p>
+                    <ul className='list-disc pl-5 space-y-1'>
+                      {question.options.map((option, index) => (
+                        <li key={index} className={cn(option === question.correctAnswer && "font-bold text-primary")}>
+                          {option}
+                          {option === question.correctAnswer && <CheckCircle className="inline-block ml-2 h-4 w-4" />}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 ) : question.questionType === 'Numerical' ? (
-                    <div className="prose prose-sm max-w-none text-card-foreground/90 bg-primary/5 p-4 rounded-md space-y-2">
-                       <p className="font-semibold text-primary">Correct Answer:</p>
-                       <p className="font-bold text-2xl">{question.numericalAnswer}</p>
-                    </div>
-                ): null}
-            </>
-        ) : (
-            <div className="text-center text-muted-foreground py-4">
-              <p>To see the answer, start a practice session for this topic.</p>
-            </div>
+                  <div className="prose prose-sm max-w-none text-card-foreground/90 bg-primary/5 p-4 rounded-md space-y-2">
+                    <p className="font-semibold text-primary">Correct Answer:</p>
+                    <p className="font-bold text-2xl">{question.numericalAnswer}</p>
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <div className="text-center text-muted-foreground py-4">
+                <p>To see the answer, start a practice session for this topic.</p>
+              </div>
+            )}
+          </>
         )}
       </AccordionContent>
     </AccordionItem>
@@ -644,7 +648,7 @@ export default function PracticePage() {
                 return { ...s, topics: subjectTopics };
             });
 
-            return { ...c, subjects: subjectsWithTopics };
+            return { ...c, subjects: classesWithSubjects };
         });
         return { ...et, classes: classesWithSubjects };
     });

@@ -44,6 +44,53 @@ type Answer = {
   status: QuestionStatus;
 };
 
+const QuestionExplanation: React.FC<{ question: PracticeQuestion; userAnswer: Answer | undefined }> = ({ question, userAnswer }) => {
+    const isAttempted = userAnswer && userAnswer.value !== '';
+    
+    if (!isAttempted) {
+        return null;
+    }
+
+    const isCorrect = 
+        (question.questionType === 'MCQ' && question.correctAnswer === userAnswer.value) || 
+        (question.questionType === 'Numerical' && Number(question.numericalAnswer) === Number(userAnswer.value));
+
+    return (
+        <Card className="mt-4 bg-muted/30 border-dashed">
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                    {isCorrect ? <Check className="h-5 w-5 text-green-500" /> : <XIcon className="h-5 w-5 text-red-500" />}
+                    Feedback
+                </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <p className="text-sm font-semibold">
+                    Your answer: <span className={cn("font-bold", isCorrect ? "text-green-600" : "text-red-600")}>{userAnswer.value}</span>
+                </p>
+                {!isCorrect && (
+                    <p className="text-sm font-semibold">
+                        Correct answer: <span className="font-bold text-green-600">{question.correctAnswer || question.numericalAnswer}</span>
+                    </p>
+                )}
+                {question.explanationImageUrl && (
+                    <div>
+                        <p className="text-sm font-semibold text-muted-foreground">Explanation:</p>
+                        <div className="mt-1 p-2 border rounded-md bg-muted/50">
+                            <Image src={question.explanationImageUrl} alt="Explanation image" width={400} height={300} className="rounded-md object-contain mx-auto" />
+                        </div>
+                    </div>
+                )}
+                {isCorrect && !question.explanationImageUrl && (
+                    <p className="text-green-600 font-medium">Excellent! Your answer is correct.</p>
+                )}
+                 {!isCorrect && !question.explanationImageUrl && (
+                    <p className="text-red-600 font-medium">That's not quite right. Review the correct answer above.</p>
+                )}
+            </CardContent>
+        </Card>
+    );
+};
+
 const fetchPracticeQuestions = async (firestore: any, params: URLSearchParams): Promise<PracticeQuestion[]> => {
     const allFetchedQuestions: (Omit<PracticeQuestion, 'subject'>)[] = [];
 
@@ -145,6 +192,13 @@ function PracticeSession() {
     }, [answers]);
 
     const currentQuestion = questions[currentQuestionIndex];
+    
+    const isAnswered = useMemo(() => {
+        if (!currentQuestion) return false;
+        const answer = answers.get(currentQuestion.id);
+        // A question is considered answered if there is a non-empty value for it.
+        return !!answer && answer.value !== '';
+    }, [answers, currentQuestion]);
 
     const handleSelectQuestion = (index: number) => {
         if (isFinished) return;
@@ -326,18 +380,21 @@ function PracticeSession() {
                     <Card className="flex-grow">
                         <CardContent className="p-6">
                             {currentQuestion.questionType === 'MCQ' ? (
-                                <RadioGroup value={answers.get(currentQuestion.id)?.value as string || ''} onValueChange={handleAnswerChange} disabled={isFinished}>
+                                <RadioGroup value={answers.get(currentQuestion.id)?.value as string || ''} onValueChange={handleAnswerChange} disabled={isFinished || isAnswered}>
                                     {currentQuestion.options?.map((option, index) => (
                                         <div key={index} className="flex items-center space-x-2 p-3 rounded-md hover:bg-muted"><RadioGroupItem value={option} id={`option-${index}`} /><Label htmlFor={`option-${index}`} className="flex-1 text-base">{option}</Label></div>
                                     ))}
                                 </RadioGroup>
-                            ) : (<><Label htmlFor="numerical-answer" className="text-lg">Your Answer</Label><Input id="numerical-answer" type="number" className="mt-2 text-base" placeholder="Enter your numerical answer" value={answers.get(currentQuestion.id)?.value || ''} onChange={(e) => handleAnswerChange(e.target.value)} disabled={isFinished} /></>)}
+                            ) : (<><Label htmlFor="numerical-answer" className="text-lg">Your Answer</Label><Input id="numerical-answer" type="number" className="mt-2 text-base" placeholder="Enter your numerical answer" value={answers.get(currentQuestion.id)?.value || ''} onChange={(e) => handleAnswerChange(e.target.value)} disabled={isFinished || isAnswered} /></>)}
                         </CardContent>
                     </Card>
+
+                    <QuestionExplanation question={currentQuestion} userAnswer={answers.get(currentQuestion.id)} />
+
                     <div className="flex flex-wrap gap-2">
                         <Button onClick={handleSaveAndNext} disabled={isFinished}>Save & Next</Button>
-                        <Button variant="secondary" onClick={handleMarkForReview} disabled={isFinished}>Mark for Review & Next</Button>
-                        <Button variant="outline" onClick={handleClearResponse} disabled={isFinished}>Clear Response</Button>
+                        <Button variant="secondary" onClick={handleMarkForReview} disabled={isFinished || isAnswered}>Mark for Review & Next</Button>
+                        <Button variant="outline" onClick={handleClearResponse} disabled={isFinished || isAnswered}>Clear Response</Button>
                     </div>
                 </div>
                 {/* Right Panel: Info and Navigation */}

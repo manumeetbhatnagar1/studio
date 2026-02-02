@@ -34,6 +34,8 @@ const formSchema = z.object({
   title: z.string().min(5, 'Test title must be at least 5 characters long.'),
   accessLevel: z.enum(['free', 'paid']),
   duration: z.coerce.number().min(1, 'Duration must be at least 1 minute.'),
+  marksPerQuestion: z.coerce.number().min(0, 'Marks cannot be negative.'),
+  negativeMarksPerQuestion: z.coerce.number().min(0, 'Negative marks cannot be negative.'),
   examTypeId: z.string().optional(),
   difficultyLevel: z.enum(['Easy', 'Medium', 'Hard', 'All']),
 });
@@ -67,6 +69,8 @@ export default function CreateCustomTestPage() {
       title: '',
       accessLevel: 'free',
       duration: 60,
+      marksPerQuestion: 4,
+      negativeMarksPerQuestion: 1,
       examTypeId: '',
       difficultyLevel: 'All',
     },
@@ -134,6 +138,8 @@ export default function CreateCustomTestPage() {
           config: {
               questionIds,
               duration: values.duration,
+              marksPerQuestion: values.marksPerQuestion,
+              negativeMarksPerQuestion: values.negativeMarksPerQuestion,
           },
           createdAt: serverTimestamp(),
       });
@@ -183,9 +189,17 @@ export default function CreateCustomTestPage() {
                         <FormField control={form.control} name="title" render={({ field }) => (
                             <FormItem><FormLabel className="text-lg font-semibold">Test Title</FormLabel><FormControl><Input placeholder="e.g., My Weekly Physics & Math Practice" {...field} /></FormControl><FormMessage /></FormItem>
                         )} />
-                        <FormField control={form.control} name="duration" render={({ field }) => (
-                            <FormItem><FormLabel className="text-lg font-semibold">Total Duration (minutes)</FormLabel><FormControl><Input type="number" placeholder="e.g., 180" {...field} /></FormControl><FormMessage /></FormItem>
-                        )} />
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <FormField control={form.control} name="duration" render={({ field }) => (
+                              <FormItem><FormLabel className="font-semibold">Duration (minutes)</FormLabel><FormControl><Input type="number" placeholder="e.g., 180" {...field} /></FormControl><FormMessage /></FormItem>
+                          )} />
+                          <FormField control={form.control} name="marksPerQuestion" render={({ field }) => (
+                              <FormItem><FormLabel className="font-semibold">Marks per Question</FormLabel><FormControl><Input type="number" placeholder="e.g., 4" {...field} /></FormControl><FormMessage /></FormItem>
+                          )} />
+                          <FormField control={form.control} name="negativeMarksPerQuestion" render={({ field }) => (
+                              <FormItem><FormLabel className="font-semibold">Negative Marks</FormLabel><FormControl><Input type="number" placeholder="e.g., 1" {...field} /></FormControl><FormMessage /></FormItem>
+                          )} />
+                        </div>
                     </div>
 
                     {/* Filters */}
@@ -201,7 +215,7 @@ export default function CreateCustomTestPage() {
                                 </FormControl></FormItem>
                             )} />
                             <FormField control={form.control} name="examTypeId" render={({ field }) => (
-                                <FormItem><FormLabel>Exam Type</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="All Exam Types" /></SelectTrigger></FormControl><SelectContent>{(examTypes || []).map(et => <SelectItem key={et.id} value={et.id}>{et.name}</SelectItem>)}</SelectContent></Select></FormItem>
+                                <FormItem><FormLabel>Exam Type</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="All Exam Types" /></SelectTrigger></FormControl><SelectContent><SelectItem value="">All Exam Types</SelectItem>{(examTypes || []).map(et => <SelectItem key={et.id} value={et.id}>{et.name}</SelectItem>)}</SelectContent></Select></FormItem>
                             )} />
                             <FormField control={form.control} name="difficultyLevel" render={({ field }) => (
                                 <FormItem><FormLabel>Difficulty</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="All">All</SelectItem><SelectItem value="Easy">Easy</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Hard">Hard</SelectItem></SelectContent></Select></FormItem>

@@ -50,6 +50,8 @@ type CustomTestConfig = {
     config: {
         questionIds: string[];
         duration: number;
+        marksPerQuestion?: number;
+        negativeMarksPerQuestion?: number;
     };
 }
 
@@ -159,6 +161,7 @@ export default function MockTestPage() {
     const [testTitle, setTestTitle] = useState('Loading Test...');
     const [questions, setQuestions] = useState<MockQuestion[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [testConfig, setTestConfig] = useState<CustomTestConfig | OfficialTestConfig | null>(null);
 
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
     const [answers, setAnswers] = useState<Map<string | number, Answer>>(new Map());
@@ -174,6 +177,9 @@ export default function MockTestPage() {
         setIsSubmitDialogOpen(false);
         
         let finalScore = 0;
+        const marksPerQuestion = (testType === 'custom' && (testConfig as CustomTestConfig)?.config.marksPerQuestion) ?? 4;
+        const negativeMarksPerQuestion = (testType === 'custom' && (testConfig as CustomTestConfig)?.config.negativeMarksPerQuestion) ?? 1;
+
         questions.forEach((question) => {
             const answer = answers.get(question.id);
             if (answer && (answer.value !== '' && answer.value !== undefined)) {
@@ -185,9 +191,9 @@ export default function MockTestPage() {
                 }
 
                 if(isCorrect) {
-                    finalScore += 4;
+                    finalScore += marksPerQuestion;
                 } else {
-                    finalScore -= 1;
+                    finalScore -= negativeMarksPerQuestion;
                 }
             }
         });
@@ -258,7 +264,7 @@ export default function MockTestPage() {
                 console.error("Test submission transaction failed: ", error);
             }
         }
-    }, [answers, duration, firestore, questions, testId, testType, timeLeft, user]);
+    }, [answers, duration, firestore, questions, testId, testType, timeLeft, user, testConfig]);
 
 
     useEffect(() => {
@@ -267,23 +273,24 @@ export default function MockTestPage() {
             setIsLoading(true);
             
             let testConfigSnap;
-            let testConfig: CustomTestConfig | OfficialTestConfig;
+            let loadedTestConfig: CustomTestConfig | OfficialTestConfig;
 
             if (testType === 'custom') {
                 const testConfigRef = doc(firestore, 'users', user.uid, 'custom_tests', testId);
                 testConfigSnap = await getDoc(testConfigRef);
-                testConfig = testConfigSnap.data() as CustomTestConfig;
+                loadedTestConfig = testConfigSnap.data() as CustomTestConfig;
             } else {
                 const testConfigRef = doc(firestore, 'mock_tests', testId);
                 testConfigSnap = await getDoc(testConfigRef);
-                testConfig = testConfigSnap.data() as OfficialTestConfig;
+                loadedTestConfig = testConfigSnap.data() as OfficialTestConfig;
             }
     
-            if (testConfigSnap.exists() && testConfig.config.questionIds) {
-                setTestTitle(testConfig.title);
-                setDuration(testConfig.config.duration);
-                setTimeLeft(testConfig.config.duration * 60);
-                const fetchedQuestions = await fetchQuestionsByIds(firestore, testConfig.config.questionIds);
+            if (testConfigSnap.exists() && loadedTestConfig.config.questionIds) {
+                setTestConfig(loadedTestConfig);
+                setTestTitle(loadedTestConfig.title);
+                setDuration(loadedTestConfig.config.duration);
+                setTimeLeft(loadedTestConfig.config.duration * 60);
+                const fetchedQuestions = await fetchQuestionsByIds(firestore, loadedTestConfig.config.questionIds);
                 setQuestions(fetchedQuestions);
             } else {
                 setTestTitle("Test Not Found or Misconfigured");
@@ -436,13 +443,16 @@ export default function MockTestPage() {
 
     if(isFinished) {
         const timeTaken = duration - Math.floor(timeLeft / 60);
+        const marksPerQuestion = (testType === 'custom' && (testConfig as CustomTestConfig)?.config.marksPerQuestion) ?? 4;
+        const negativeMarksPerQuestion = (testType === 'custom' && (testConfig as CustomTestConfig)?.config.negativeMarksPerQuestion) ?? 1;
+
         return (
             <div className="flex flex-col items-center justify-center min-h-screen bg-muted/30 py-8 px-4">
                 <Card className="w-full max-w-4xl text-center shadow-2xl">
                     <CardHeader>
                         <CardTitle className="font-headline text-3xl">Test Finished: {testTitle}</CardTitle>
                         <CardDescription>
-                            Total Marks: {questions.length * 4} (Scoring: +4 correct, -1 incorrect)
+                            Total Marks: {questions.length * marksPerQuestion} (Scoring: +{marksPerQuestion} correct, -{negativeMarksPerQuestion} incorrect)
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">

@@ -638,7 +638,7 @@
         },
         "config": {
           "type": "object",
-          "description": "The configuration of the test, specifying questions and duration.",
+          "description": "The configuration of the test, specifying questions, duration, and scoring.",
           "properties": {
             "questionIds": {
               "type": "array",
@@ -650,11 +650,21 @@
             "duration": {
               "type": "number",
               "description": "The total duration of the test in minutes."
+            },
+            "marksPerQuestion": {
+              "type": "number",
+              "description": "Marks awarded for a correct answer."
+            },
+            "negativeMarksPerQuestion": {
+              "type": "number",
+              "description": "Marks deducted for an incorrect answer (should be a positive number)."
             }
           },
           "required": [
             "questionIds",
-            "duration"
+            "duration",
+            "marksPerQuestion",
+            "negativeMarksPerQuestion"
           ]
         },
         "createdAt": {

@@ -28,6 +28,7 @@ const planSchema = z.object({
   name: z.string().min(3, 'Plan name must be at least 3 characters.'),
   price: z.coerce.number().min(0, 'Price must be a positive number.'),
   billingInterval: z.enum(['monthly', 'yearly']),
+  numberOfLiveClasses: z.coerce.number().int().min(0, 'Number of live classes cannot be negative.').optional(),
   examTypeId: z.string().min(1, 'You must select an exam type.'),
   classId: z.string().optional(),
   subjectId: z.string().optional(),
@@ -45,6 +46,7 @@ type SubscriptionPlan = {
   name: string;
   price: number;
   billingInterval: 'monthly' | 'yearly';
+  numberOfLiveClasses?: number;
   examTypeId: string;
   classId?: string;
   subjectId?: string;
@@ -70,11 +72,13 @@ const PlanForm: FC<{
         resolver: zodResolver(planSchema),
         defaultValues: planToEdit ? {
             ...planToEdit,
+            numberOfLiveClasses: planToEdit.numberOfLiveClasses ?? 0,
             features: planToEdit.features.join('\n'),
         } : {
             name: '',
             price: 0,
             billingInterval: 'yearly',
+            numberOfLiveClasses: 0,
             examTypeId: '',
             classId: '',
             subjectId: '',
@@ -155,12 +159,15 @@ const PlanForm: FC<{
                 <FormField control={form.control} name="name" render={({ field }) => (
                     <FormItem><FormLabel>Plan Name</FormLabel><FormControl><Input placeholder="e.g., Excel Plan" {...field} /></FormControl><FormMessage /></FormItem>
                 )} />
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <FormField control={form.control} name="price" render={({ field }) => (
                         <FormItem><FormLabel>Price (INR)</FormLabel><FormControl><Input type="number" placeholder="e.g., 18000" {...field} /></FormControl><FormMessage /></FormItem>
                     )} />
                     <FormField control={form.control} name="billingInterval" render={({ field }) => (
                         <FormItem><FormLabel>Billing Interval</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="monthly">Monthly</SelectItem><SelectItem value="yearly">Yearly</SelectItem></SelectContent></Select><FormMessage /></FormItem>
+                    )} />
+                     <FormField control={form.control} name="numberOfLiveClasses" render={({ field }) => (
+                        <FormItem><FormLabel>Live Classes</FormLabel><FormControl><Input type="number" placeholder="e.g., 50" {...field} /></FormControl><FormMessage /></FormItem>
                     )} />
                  </div>
                  <div className="space-y-2 rounded-md border p-4">
@@ -282,6 +289,9 @@ const TeacherView: FC<{
                                     <CardTitle>{plan.name}</CardTitle>
                                     <CardDescription className='font-medium'>{getPlanScope(plan)}</CardDescription>
                                     <CardDescription>₹{plan.price.toLocaleString()} / {plan.billingInterval}</CardDescription>
+                                    {plan.numberOfLiveClasses !== undefined && (
+                                        <CardDescription>{plan.numberOfLiveClasses} Live Classes</CardDescription>
+                                    )}
                                 </CardHeader>
                                 <CardContent className="flex-grow"><ul className="list-disc pl-5 space-y-1 text-sm text-muted-foreground">{plan.features.map((f, i) => <li key={i}>{f}</li>)}</ul></CardContent>
                                 <CardFooter className="flex justify-end gap-2 border-t pt-4 mt-4">
@@ -371,7 +381,15 @@ const StudentView: FC<{
                              </CardHeader>
                              <CardContent className="space-y-6 flex-grow">
                                 <div className="flex items-baseline gap-2"><span className="text-4xl font-bold">₹{plan.price.toLocaleString()}</span><span className="text-muted-foreground">/{billingInterval === 'monthly' ? 'month' : 'year'}</span></div>
-                                <ul className="space-y-3 text-sm">{plan.features.map((feature, index) => (<li key={index} className="flex items-start"><Check className="h-5 w-5 text-green-500 mr-2 flex-shrink-0" /><span>{feature}</span></li>))}</ul>
+                                <ul className="space-y-3 text-sm">
+                                    {plan.numberOfLiveClasses !== undefined && (
+                                        <li className="flex items-start">
+                                            <Check className="h-5 w-5 text-green-500 mr-2 flex-shrink-0" />
+                                            <span>{plan.numberOfLiveClasses} Live Classes</span>
+                                        </li>
+                                    )}
+                                    {plan.features.map((feature, index) => (<li key={index} className="flex items-start"><Check className="h-5 w-5 text-green-500 mr-2 flex-shrink-0" /><span>{feature}</span></li>))}
+                                </ul>
                             </CardContent>
                              <CardFooter><Button className="w-full" variant={plan.isPopular ? 'default' : 'outline'}>Choose Plan</Button></CardFooter>
                         </Card>
@@ -443,3 +461,5 @@ export default function SubscriptionPage() {
     </div>
   );
 }
+
+    

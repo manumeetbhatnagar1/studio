@@ -546,6 +546,10 @@
             "yearly"
           ]
         },
+        "numberOfLiveClasses": {
+          "type": "number",
+          "description": "The number of live classes included in the plan."
+        },
         "features": {
           "type": "array",
           "description": "A list of features included in this plan.",
@@ -1283,3 +1287,5 @@
     "reasoning": "The Firestore data structure is designed to support the core features of the DCAM Classes application, focusing on content delivery, live classes, practice questions, mock tests, doubt resolution, personalized learning paths, and progress tracking. The structure prioritizes authorization independence, clarity, and scalability. To achieve Authorization Independence we denormalize data where necessary. For example, teacher information relevant to a LiveClass is accessible without requiring a separate read. Segregation is used extensively to ensure data with different security requirements are stored in different collections, which simplifies the security rules. Path-based ownership is used for user-specific data to easily control access. The use of membership maps are used to support collaborative data access where needed, although in this specific case collaborative data is not explicitly mentioned in the requirements."
   }
 }
+
+    

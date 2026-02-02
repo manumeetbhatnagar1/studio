@@ -24,6 +24,7 @@ type LiveClass = {
   startTime: { toDate: () => Date };
   recordingUrl?: string;
   teacherName: string;
+  meetingUrl: string;
 };
 
 type Doubt = {
@@ -256,8 +257,11 @@ function UpcomingClasses({ classes, isLoading }: { classes: LiveClass[], isLoadi
                             <p className="font-semibold">{c.title}</p>
                             <p className="text-sm text-muted-foreground">{format(c.startTime.toDate(), "EEE, MMM d 'at' h:mm a")}</p>
                         </div>
-                        <Button asChild variant="ghost" size="sm">
-                            <Link href="/live-classes"><CalendarClock className="h-4 w-4" /></Link>
+                        <Button asChild size="sm">
+                            <Link href={c.meetingUrl} target="_blank">
+                                <Video className="mr-2 h-4 w-4" />
+                                Join
+                            </Link>
                         </Button>
                     </div>
                 ))}

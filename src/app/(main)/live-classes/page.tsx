@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { CalendarIcon, PlusCircle, Video, LoaderCircle, Trash2, User, Clock, Link as LinkIcon, AlertTriangle, CreditCard, PlayCircle, CalendarClock, BookOpen } from 'lucide-react';
-import { format, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
+import { format, startOfWeek, endOfWeek, eachDayOfInterval, formatISO, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase, addDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
 import { useIsTeacher } from '@/hooks/useIsTeacher';
@@ -45,6 +45,8 @@ import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from 'recharts';
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Badge } from '@/components/ui/badge';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
 
 // ===== TYPE DEFINITIONS =====
 
@@ -224,8 +226,11 @@ function UpcomingClassesList({ classes, isLoading }: { classes: LiveClass[], isL
                             <p className="font-semibold">{c.title}</p>
                             <p className="text-sm text-muted-foreground">{format(c.startTime.toDate(), "EEE, MMM d 'at' h:mm a")}</p>
                         </div>
-                        <Button asChild variant="ghost" size="sm">
-                            <Link href={c.meetingUrl} target="_blank"><CalendarClock className="h-4 w-4" /></Link>
+                        <Button asChild size="sm">
+                            <Link href={c.meetingUrl} target="_blank">
+                                <Video className="mr-2 h-4 w-4" />
+                                Join
+                            </Link>
                         </Button>
                     </div>
                 ))}
@@ -426,24 +431,31 @@ const LiveClassForm: FC<{ setOpen: (open: boolean) => void, examTypes: ExamType[
                 )} />
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
+                     <FormField
                         control={form.control}
                         name="startTime"
                         render={({ field }) => (
                             <FormItem className="flex flex-col">
-                                <FormLabel>Start Time</FormLabel>
+                                <FormLabel>Start Date & Time</FormLabel>
                                 <FormControl>
-                                    <Input
+                                     <Input
                                         type="datetime-local"
-                                        value={field.value instanceof Date && !isNaN(field.value.getTime()) ? format(field.value, "yyyy-MM-dd'T'HH:mm") : field.value || ''}
-                                        onChange={field.onChange}
+                                        value={field.value instanceof Date ? format(field.value, "yyyy-MM-dd'T'HH:mm") : ''}
+                                        onChange={(e) => {
+                                            const value = e.target.value;
+                                            if (value) {
+                                                field.onChange(parseISO(value));
+                                            } else {
+                                                field.onChange(undefined);
+                                            }
+                                        }}
                                         min={format(new Date(), "yyyy-MM-dd'T'HH:mm")}
                                     />
                                 </FormControl>
                                 <FormMessage />
                             </FormItem>
                         )}
-                        />
+                    />
                      <FormField control={form.control} name="duration" render={({ field }) => (
                         <FormItem><FormLabel>Duration (minutes)</FormLabel><FormControl><Input type="number" placeholder="e.g., 60" {...field} /></FormControl><FormMessage /></FormItem>
                     )} />
@@ -699,3 +711,4 @@ export default function LiveClassesPage() {
     
 
     
+

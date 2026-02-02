@@ -181,14 +181,38 @@ export default function EditOfficialMockTestPage() {
                                       <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                                   </Button></FormControl>
                               </PopoverTrigger><PopoverContent className="w-auto p-0" align="start">
-                                  <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
+                                  <Calendar
+                                      mode="single"
+                                      selected={field.value}
+                                      onSelect={(date) => {
+                                          if (!date) {
+                                              field.onChange(undefined);
+                                              return;
+                                          }
+                                          const currentTime = field.value || new Date();
+                                          const newDateTime = new Date(
+                                              date.getFullYear(),
+                                              date.getMonth(),
+                                              date.getDate(),
+                                              currentTime.getHours(),
+                                              currentTime.getMinutes()
+                                          );
+                                          field.onChange(newDateTime);
+                                      }}
+                                      initialFocus
+                                  />
                                   <div className="p-3 border-t border-border">
-                                      <Input type="time" value={field.value ? format(field.value, 'HH:mm') : ''} onChange={(e) => {
-                                          const [hours, minutes] = e.target.value.split(':').map(Number);
-                                          const newDate = field.value ? new Date(field.value) : new Date();
-                                          newDate.setHours(hours, minutes);
-                                          field.onChange(newDate);
-                                      }}/>
+                                      <Input
+                                          type="time"
+                                          value={field.value ? format(field.value, 'HH:mm') : ''}
+                                          onChange={(e) => {
+                                              if (!e.target.value) return;
+                                              const [hours, minutes] = e.target.value.split(':').map(Number);
+                                              const currentDate = field.value || new Date();
+                                              currentDate.setHours(hours, minutes);
+                                              field.onChange(new Date(currentDate));
+                                          }}
+                                      />
                                   </div>
                               </PopoverContent></Popover>
                           <FormMessage /></FormItem>

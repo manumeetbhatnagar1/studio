@@ -9,7 +9,7 @@ import { format, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase, addDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
 import { useIsTeacher } from '@/hooks/useIsTeacher';
-import { collection, query, orderBy, doc } from 'firebase/firestore';
+import { collection, query, orderBy, doc, serverTimestamp } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -352,6 +352,18 @@ const LiveClassForm: FC<{ setOpen: (open: boolean) => void, examTypes: ExamType[
               teacherId: user.uid,
               teacherName: user.displayName || 'Unnamed Teacher',
               teacherPhotoUrl: user.photoURL || '',
+          });
+
+          const notificationsRef = collection(firestore, 'notifications');
+          const examTypeName = examTypes.find(et => et.id === values.examTypeId)?.name || 'students';
+          const notificationMessage = `"${values.title}" for ${examTypeName} is scheduled at ${format(values.startTime, 'p, dd/MM/yy')}.`;
+          
+          await addDocumentNonBlocking(notificationsRef, {
+              title: 'New Live Class',
+              message: notificationMessage,
+              href: '/live-classes',
+              createdAt: serverTimestamp(),
+              examTypeId: values.examTypeId
           });
 
           toast({

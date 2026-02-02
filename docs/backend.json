@@ -854,6 +854,46 @@
         "imageUrl",
         "order"
       ]
+    },
+    "Notification": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Notification",
+      "type": "object",
+      "description": "Represents a global notification for an event, like a new live class.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the notification."
+        },
+        "title": {
+          "type": "string",
+          "description": "The title of the notification."
+        },
+        "message": {
+          "type": "string",
+          "description": "The content of the notification message."
+        },
+        "href": {
+          "type": "string",
+          "description": "The URL path to navigate to when the notification is clicked."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of when the notification was created."
+        },
+        "examTypeId": {
+          "type": "string",
+          "description": "The ID of the exam type this notification is relevant for. Helps in filtering."
+        }
+      },
+      "required": [
+        "title",
+        "message",
+        "href",
+        "createdAt",
+        "examTypeId"
+      ]
     }
   },
   "auth": {
@@ -1165,6 +1205,22 @@
         }
       },
       {
+        "path": "/notifications/{notificationId}",
+        "definition": {
+          "entityName": "Notification",
+          "schema": {
+            "$ref": "#/backend/entities/Notification"
+          },
+          "description": "Stores global notifications for events like new live classes. Readable by all, writable only by teachers.",
+          "params": [
+            {
+              "name": "notificationId",
+              "description": "The unique ID for the notification."
+            }
+          ]
+        }
+      },
+      {
         "path": "/test_analytics/{testId}",
         "definition": {
           "entityName": "TestAnalytics",
@@ -1200,5 +1256,3 @@
     "reasoning": "The Firestore data structure is designed to support the core features of the DCAM Classes application, focusing on content delivery, live classes, practice questions, mock tests, doubt resolution, personalized learning paths, and progress tracking. The structure prioritizes authorization independence, clarity, and scalability. To achieve Authorization Independence we denormalize data where necessary. For example, teacher information relevant to a LiveClass is accessible without requiring a separate read. Segregation is used extensively to ensure data with different security requirements are stored in different collections, which simplifies the security rules. Path-based ownership is used for user-specific data to easily control access. The use of membership maps are used to support collaborative data access where needed, although in this specific case collaborative data is not explicitly mentioned in the requirements."
   }
 }
-
-    

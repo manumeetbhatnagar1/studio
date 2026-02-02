@@ -391,6 +391,24 @@ service cloud.firestore {
                     && exists(/databases/$(database)/documents/exam_types/$(request.resource.data.examTypeId));
         allow update, delete: if isTeacher();
     }
+    
+    // --------------------------------------------------------------------
+    // Notification Rules
+    // --------------------------------------------------------------------
+    /**
+     * @description Global notifications. Readable by all authenticated users,
+     *              but only writable by teachers. Notifications are immutable.
+     * @path        /notifications/{notificationId}
+     * @allow       (read) Any signed-in user.
+     * @allow       (create) Any teacher.
+     * @deny        (update, delete) Client-side updates/deletes are forbidden.
+     * @principle   Role-restricted writes with public reads for system announcements.
+     */
+    match /notifications/{notificationId} {
+      allow read, list: if isSignedIn();
+      allow create: if isTeacher();
+      allow update, delete: if false;
+    }
 
     // --------------------------------------------------------------------
     // Analytics Rules

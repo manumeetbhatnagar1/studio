@@ -12,15 +12,77 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Bell, LogOut, User } from "lucide-react";
-import { useAuth, useUser } from "@/firebase";
+import { useAuth, useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase";
 import { Skeleton } from "./ui/skeleton";
 import { signOut } from "firebase/auth";
 import Link from "next/link";
 import { ThemeToggle } from "./theme-toggle";
+import { collection, query, orderBy, limit } from 'firebase/firestore';
+import { formatDistanceToNow } from 'date-fns';
+import { Badge } from "./ui/badge";
 
 type DashboardHeaderProps = {
   title: string;
 };
+
+type Notification = {
+  id: string;
+  title: string;
+  message: string;
+  href: string;
+  createdAt: { toDate: () => Date };
+};
+
+function NotificationsDropdown() {
+  const firestore = useFirestore();
+  const notificationsQuery = useMemoFirebase(
+      () => firestore ? query(collection(firestore, 'notifications'), orderBy('createdAt', 'desc'), limit(5)) : null,
+      [firestore]
+  );
+  const { data: notifications, isLoading } = useCollection<Notification>(notificationsQuery);
+
+  return (
+    <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="rounded-full relative">
+                <Bell className="h-5 w-5" />
+                {!isLoading && notifications && notifications.length > 0 && (
+                    <span className="absolute top-0 right-0 flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                    </span>
+                )}
+                <span className="sr-only">Toggle notifications</span>
+            </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-80 md:w-96">
+            <DropdownMenuLabel>Notifications</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {isLoading ? (
+                <div className="p-2">
+                    <Skeleton className="h-16 w-full" />
+                </div>
+            ) : notifications && notifications.length > 0 ? (
+                <div className="flex flex-col-reverse">
+                    {notifications.map(n => (
+                        <DropdownMenuItem key={n.id} asChild className="cursor-pointer">
+                            <Link href={n.href} className="flex flex-col items-start gap-1 p-2">
+                                <p className="font-semibold">{n.title}</p>
+                                <p className="text-sm text-muted-foreground">{n.message}</p>
+                                <p className="text-xs text-muted-foreground">{formatDistanceToNow(n.createdAt.toDate(), { addSuffix: true })}</p>
+                            </Link>
+                        </DropdownMenuItem>
+                    ))}
+                </div>
+            ) : (
+                <div className="p-4 text-center text-sm text-muted-foreground">
+                    You have no new notifications.
+                </div>
+            )}
+        </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 export default function DashboardHeader({ title }: DashboardHeaderProps) {
   const { user, isUserLoading } = useUser();
@@ -40,10 +102,7 @@ export default function DashboardHeader({ title }: DashboardHeaderProps) {
       <SidebarTrigger className="md:hidden" />
       <h1 className="font-headline text-2xl font-semibold">{title}</h1>
       <div className="ml-auto flex items-center gap-4">
-        <Button variant="ghost" size="icon" className="rounded-full">
-          <Bell className="h-5 w-5" />
-          <span className="sr-only">Toggle notifications</span>
-        </Button>
+        <NotificationsDropdown />
         <ThemeToggle />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

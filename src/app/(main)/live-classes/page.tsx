@@ -441,40 +441,47 @@ const LiveClassForm: FC<{ setOpen: (open: boolean) => void, examTypes: ExamType[
                                     selected={field.value}
                                     onSelect={(selectedDate) => {
                                         if (!selectedDate) {
-                                          field.onChange(undefined);
-                                          return;
+                                            field.onChange(undefined);
+                                            return;
                                         }
-                                        const currentDateTime = field.value || new Date();
+                                        const currentHour = field.value instanceof Date ? field.value.getHours() : 9;
+                                        const currentMinutes = field.value instanceof Date ? field.value.getMinutes() : 0;
+                                        
                                         const newDateTime = new Date(selectedDate);
-                                        newDateTime.setHours(currentDateTime.getHours());
-                                        newDateTime.setMinutes(currentDateTime.getMinutes());
+                                        newDateTime.setHours(currentHour);
+                                        newDateTime.setMinutes(currentMinutes);
+                                        newDateTime.setSeconds(0);
+                                        newDateTime.setMilliseconds(0);
+                                        
                                         field.onChange(newDateTime);
-                                      }}
+                                    }}
                                     disabled={(date) => date < new Date()}
                                     initialFocus
                                 />
                                 <div className="p-3 border-t border-border flex items-center justify-center gap-2">
                                     <Select
+                                        disabled={!field.value}
                                         value={field.value ? String(field.value.getHours()).padStart(2, '0') : '09'}
                                         onValueChange={(hour) => {
-                                            const newDateTime = new Date(field.value || new Date());
+                                            const newDateTime = new Date(field.value!);
                                             newDateTime.setHours(parseInt(hour, 10));
                                             field.onChange(newDateTime);
                                         }}
                                     >
-                                        <SelectTrigger className="w-[60px]"><SelectValue /></SelectTrigger>
+                                        <SelectTrigger className="w-[70px]"><SelectValue /></SelectTrigger>
                                         <SelectContent>{Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}</SelectContent>
                                     </Select>
                                     <span className="font-bold">:</span>
                                     <Select
+                                        disabled={!field.value}
                                         value={field.value ? String(field.value.getMinutes()).padStart(2, '0') : '00'}
                                          onValueChange={(minute) => {
-                                            const newDateTime = new Date(field.value || new Date());
+                                            const newDateTime = new Date(field.value!);
                                             newDateTime.setMinutes(parseInt(minute, 10));
                                             field.onChange(newDateTime);
                                         }}
                                     >
-                                        <SelectTrigger className="w-[60px]"><SelectValue /></SelectTrigger>
+                                        <SelectTrigger className="w-[70px]"><SelectValue /></SelectTrigger>
                                         <SelectContent>{['00', '15', '30', '45'].map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
                                     </Select>
                                 </div>

@@ -111,45 +111,49 @@ function ProgressOverview() {
     }, [practiceResults]);
 
     const isLoading = areLiveClassesLoading || areTestsLoading || areDoubtsLoading || arePracticeResultsLoading;
+    
+    const overviewItems = [
+        {
+            title: "Live Classes Attended",
+            value: pastLiveClasses?.length || 0,
+            icon: Video,
+            href: "/live-classes"
+        },
+        {
+            title: "Mock Tests Completed",
+            value: testResults?.length || 0,
+            icon: ClipboardCheck,
+            href: "/mock-tests"
+        },
+        {
+            title: "Practice Questions",
+            value: practiceQuestionsCompleted,
+            icon: ClipboardList,
+            href: "/practice"
+        },
+        {
+            title: "Doubts Asked",
+            value: doubts?.length || 0,
+            icon: MessageSquare,
+            href: "/doubts"
+        }
+    ];
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Live Classes Attended</CardTitle>
-                    <Video className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    {isLoading ? <Skeleton className="h-8 w-12" /> : <div className="text-2xl font-bold">{pastLiveClasses?.length || 0}</div>}
-                </CardContent>
-            </Card>
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Mock Tests Completed</CardTitle>
-                    <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    {isLoading ? <Skeleton className="h-8 w-12" /> : <div className="text-2xl font-bold">{testResults?.length || 0}</div>}
-                </CardContent>
-            </Card>
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Practice Questions</CardTitle>
-                    <ClipboardList className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    {isLoading ? <Skeleton className="h-8 w-12" /> : <div className="text-2xl font-bold">{practiceQuestionsCompleted}</div>}
-                </CardContent>
-            </Card>
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Doubts Asked</CardTitle>
-                    <MessageSquare className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    {isLoading ? <Skeleton className="h-8 w-12" /> : <div className="text-2xl font-bold">{doubts?.length || 0}</div>}
-                </CardContent>
-            </Card>
+            {overviewItems.map(item => (
+                <Link href={item.href} key={item.title} className="group">
+                    <Card className="h-full transition-all duration-200 hover:border-primary hover:shadow-lg">
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium">{item.title}</CardTitle>
+                            <item.icon className="h-4 w-4 text-muted-foreground" />
+                        </CardHeader>
+                        <CardContent>
+                            {isLoading ? <Skeleton className="h-8 w-12" /> : <div className="text-2xl font-bold">{item.value}</div>}
+                        </CardContent>
+                    </Card>
+                </Link>
+            ))}
         </div>
     );
 }

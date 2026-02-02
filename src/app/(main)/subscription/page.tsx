@@ -157,7 +157,12 @@ const TeacherView: FC<{ plans: SubscriptionPlan[], examTypes: ExamType[] }> = ({
                 <h2 className="font-headline text-2xl font-semibold">Manage Subscription Plans</h2>
                  <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
                     <DialogTrigger asChild><Button><PlusCircle className="mr-2"/>Add New Plan</Button></DialogTrigger>
-                    <DialogContent><DialogHeader><DialogTitle>Add New Subscription Plan</DialogTitle></DialogHeader><PlanForm examTypes={examTypes} onFinished={() => setIsAddDialogOpen(false)} /></DialogContent>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Add New Subscription Plan</DialogTitle>
+                        </DialogHeader>
+                        <PlanForm examTypes={examTypes} onFinished={() => setIsAddDialogOpen(false)} />
+                    </DialogContent>
                 </Dialog>
             </div>
 
@@ -179,8 +184,13 @@ const TeacherView: FC<{ plans: SubscriptionPlan[], examTypes: ExamType[] }> = ({
                 </div>
             )) : <p className="text-muted-foreground text-center py-8">No subscription plans found. Add one to get started.</p>}
 
-             <Dialog open={!!planToEdit} onOpenChange={(open) => !open && setPlanToEdit(null)}>
-                <DialogContent><DialogHeader><DialogTitle>Edit Subscription Plan</DialogTitle></DialogHeader>{planToEdit && <PlanForm examTypes={examTypes} planToEdit={planToEdit} onFinished={() => setPlanToEdit(null)} /></DialogContent>
+            <Dialog open={!!planToEdit} onOpenChange={(open) => !open && setPlanToEdit(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Edit Subscription Plan</DialogTitle>
+                    </DialogHeader>
+                    {planToEdit && <PlanForm examTypes={examTypes} planToEdit={planToEdit} onFinished={() => setPlanToEdit(null)} />}
+                </DialogContent>
             </Dialog>
 
             <AlertDialog open={!!planToDelete} onOpenChange={(open) => !open && setPlanToDelete(null)}>

@@ -364,15 +364,20 @@ service cloud.firestore {
     
     /**
      * @description Defines the available subscription plans. Readable by all signed-in
-     *              users to display on a pricing page. Writable only from the backend.
+     *              users to display on a pricing page. Writable only by teachers.
      * @path        /subscription_plans/{planId}
-     * @allow       (get) Any signed-in user.
-     * @deny        (write) All client-side writes.
-     * @principle   Protects plan definitions from client modification.
+     * @allow       (get, list) Any signed-in user.
+     * @allow       (create, update, delete) Only teachers can manage plans.
+     * @principle   Protects plan definitions from client modification by non-teachers.
      */
     match /subscription_plans/{planId} {
         allow get, list: if isSignedIn();
-        allow create, update, delete: if false;
+        allow create: if isTeacher()
+                    && request.resource.data.name is string && request.resource.data.name.size() > 0
+                    && request.resource.data.price is number && request.resource.data.price >= 0
+                    && request.resource.data.billingInterval in ['monthly', 'yearly']
+                    && exists(/databases/$(database)/documents/exam_types/$(request.resource.data.examTypeId));
+        allow update, delete: if isTeacher();
     }
 
     // --------------------------------------------------------------------
@@ -394,3 +399,5 @@ service cloud.firestore {
     }
   }
 }
+
+    

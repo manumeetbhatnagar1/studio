@@ -487,11 +487,11 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "SubscriptionPlan",
       "type": "object",
-      "description": "Defines a subscription plan available for users.",
+      "description": "Defines a subscription plan available for users, linked to a specific exam type.",
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the SubscriptionPlan entity (e.g., 'basic', 'pro')."
+          "description": "Unique identifier for the SubscriptionPlan entity."
         },
         "name": {
           "type": "string",
@@ -515,13 +515,17 @@
           "items": {
             "type": "string"
           }
+        },
+        "examTypeId": {
+          "type": "string",
+          "description": "Reference to the ExamType this plan is for."
         }
       },
       "required": [
-        "id",
         "name",
         "price",
-        "billingInterval"
+        "billingInterval",
+        "examTypeId"
       ]
     },
     "UserSubscription": {
@@ -990,7 +994,7 @@
           "schema": {
             "$ref": "#/backend/entities/SubscriptionPlan"
           },
-          "description": "Stores all available subscription plans. Publicly readable.",
+          "description": "Stores all available subscription plans. Readable by all users, writable by teachers.",
           "params": [
             {
               "name": "planId",
@@ -1059,3 +1063,5 @@
     "reasoning": "The Firestore data structure is designed to support the core features of the DCAM Classes application, focusing on content delivery, live classes, practice questions, mock tests, doubt resolution, personalized learning paths, and progress tracking. The structure prioritizes authorization independence, clarity, and scalability. To achieve Authorization Independence we denormalize data where necessary. For example, teacher information relevant to a LiveClass is accessible without requiring a separate read. Segregation is used extensively to ensure data with different security requirements are stored in different collections, which simplifies the security rules. Path-based ownership is used for user-specific data to easily control access. The use of membership maps are used to support collaborative data access where needed, although in this specific case collaborative data is not explicitly mentioned in the requirements."
   }
 }
+
+    

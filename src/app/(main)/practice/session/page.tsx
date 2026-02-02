@@ -41,51 +41,60 @@ type Answer = {
 };
 
 const fetchPracticeQuestions = async (firestore: any, params: URLSearchParams): Promise<PracticeQuestion[]> => {
-    let q = query(collection(firestore, 'practice_questions'));
+    const allFetchedQuestions: (Omit<PracticeQuestion, 'subject'>)[] = [];
 
-    const topicIdsParam = params.get('topicIds');
-    if (topicIdsParam) {
-        const topicIds = topicIdsParam.split(',').filter(id => id.trim() !== '');
-        if (topicIds.length > 0) {
-            // Firestore 'in' query is limited to 30 items. We slice to prevent errors.
-            q = query(q, where('topicId', 'in', topicIds.slice(0, 30)));
-        }
-    } else if (params.get('topicId')) {
-        // Fallback for single topic practice (e.g., from question bank link)
-        q = query(q, where('topicId', '==', params.get('topicId')));
-    } else if (params.get('subjectId')) {
-        // Fallback for subject if no topics are specified
-        q = query(q, where('subjectId', '==', params.get('subjectId')));
+    const topicsParam = params.get('topics'); // e.g., 'topicId1:5,topicId2:10'
+    const topicIdParam = params.get('topicId');
+    
+    // Other filters
+    const difficultyLevel = params.get('difficultyLevel');
+    const accessLevel = params.get('accessLevel');
+    const examTypeId = params.get('examTypeId');
+    
+    let topicsConfig: {topicId: string, count: number}[] = [];
+
+    if (topicsParam) {
+        topicsConfig = topicsParam.split(',').map(part => {
+            const [topicId, countStr] = part.split(':');
+            return { topicId, count: parseInt(countStr, 10) };
+        });
+    } else if (topicIdParam) {
+        const count = params.get('count') ? parseInt(params.get('count')!, 10) : 10; // Default to 10 for single topic practice
+        topicsConfig = [{ topicId: topicIdParam, count }];
+    } else {
+        return [];
     }
 
-    if (params.get('difficultyLevel')) q = query(q, where('difficultyLevel', '==', params.get('difficultyLevel')));
-    if (params.get('accessLevel')) q = query(q, where('accessLevel', '==', params.get('accessLevel')));
-    if (params.get('examTypeId')) q = query(q, where('examTypeId', '==', params.get('examTypeId')));
-    
-    const allMatchingQuestionsSnap = await getDocs(q);
+    for (const config of topicsConfig) {
+        if (!config.topicId || isNaN(config.count) || config.count <= 0) continue;
 
+        let q = query(
+            collection(firestore, 'practice_questions'), 
+            where('topicId', '==', config.topicId)
+        );
+        if (difficultyLevel) q = query(q, where('difficultyLevel', '==', difficultyLevel));
+        if (accessLevel) q = query(q, where('accessLevel', '==', accessLevel));
+        if (examTypeId) q = query(q, where('examTypeId', '==', examTypeId));
+        
+        const querySnapshot = await getDocs(q);
+        const topicQuestions = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Omit<PracticeQuestion, 'subject'>));
+
+        const shuffled = [...topicQuestions].sort(() => 0.5 - Math.random());
+        const selected = shuffled.slice(0, config.count);
+        
+        allFetchedQuestions.push(...selected);
+    }
+    
     const subjectsMap = new Map<string, string>();
     const subjectsSnapshot = await getDocs(collection(firestore, 'subjects'));
     subjectsSnapshot.forEach(doc => subjectsMap.set(doc.id, doc.data().name));
 
-    const allMatchingQuestions = allMatchingQuestionsSnap.docs.map(d => {
-        const data = d.data();
-        return { 
-            ...(data as any), 
-            id: d.id,
-            subject: subjectsMap.get(data.subjectId) || 'Unknown Subject'
-        } as PracticeQuestion;
-    });
+    const questionsWithSubjects = allFetchedQuestions.map(q => ({
+        ...q,
+        subject: subjectsMap.get(q.subjectId) || 'Unknown Subject',
+    }));
 
-    const countParam = params.get('count');
-    const shuffled = [...allMatchingQuestions].sort(() => 0.5 - Math.random());
-    
-    if (countParam) {
-      const count = parseInt(countParam, 10);
-      return shuffled.slice(0, count);
-    }
-    
-    return shuffled;
+    return [...questionsWithSubjects].sort(() => 0.5 - Math.random());
 };
 
 

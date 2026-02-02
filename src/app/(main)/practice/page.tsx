@@ -10,13 +10,13 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDes
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import DashboardHeader from '@/components/dashboard-header';
 import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
 import { collection, query, orderBy, doc } from 'firebase/firestore';
 import { useState, useMemo, useEffect, FC } from 'react';
-import { LoaderCircle, ClipboardList, PlusCircle, CheckCircle, Lock, Edit2, Trash2, Rocket } from 'lucide-react';
+import { LoaderCircle, ClipboardList, PlusCircle, CheckCircle, Lock, Edit2, Trash2, Rocket, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useIsTeacher } from '@/hooks/useIsTeacher';
 import { useIsSubscribed } from '@/hooks/useIsSubscribed';
@@ -71,11 +71,14 @@ const questionSchema = z.discriminatedUnion("questionType", [
 });
 
 const practiceQuizSchema = z.object({
-    topicIds: z.array(z.string()).min(1, 'Please select at least one topic.'),
+    topicsConfig: z.array(z.object({
+        topicId: z.string(),
+        topicName: z.string(),
+        count: z.coerce.number().min(1, "Must be > 0"),
+    })).min(1, 'Please select at least one topic.'),
     difficultyLevel: z.string().optional(),
     examTypeId: z.string().optional(),
     accessLevel: z.enum(['free', 'paid']),
-    count: z.coerce.number().min(1, "Please enter at least 1 question.").max(50, "You can practice a maximum of 50 questions at a time."),
 });
 
 type PracticeQuestion = {
@@ -354,20 +357,23 @@ const StartPracticeForm: FC<{
     const form = useForm<z.infer<typeof practiceQuizSchema>>({
         resolver: zodResolver(practiceQuizSchema),
         defaultValues: {
-            topicIds: [],
+            topicsConfig: [],
             difficultyLevel: 'Medium',
             examTypeId: '',
             accessLevel: 'free',
-            count: 10,
         }
     });
 
-    const { watch, setValue } = form;
-    const selectedTopics = watch('topicIds');
+    const { fields, append, remove } = useFieldArray({
+        control: form.control,
+        name: "topicsConfig"
+    });
 
     function onSubmit(values: z.infer<typeof practiceQuizSchema>) {
         const params = new URLSearchParams();
-        params.append('topicIds', values.topicIds.join(','));
+        const topicsParam = values.topicsConfig.map(tc => `${tc.topicId}:${tc.count}`).join(',');
+        params.append('topics', topicsParam);
+        
         if (values.difficultyLevel) {
             params.append('difficultyLevel', values.difficultyLevel);
         }
@@ -375,31 +381,30 @@ const StartPracticeForm: FC<{
             params.append('examTypeId', values.examTypeId);
         }
         params.append('accessLevel', values.accessLevel);
-        params.append('count', String(values.count));
 
         router.push(`/practice/session?${params.toString()}`);
     }
     
-    const handleTopicToggle = (topicId: string, isChecked: boolean) => {
-      const currentTopics = form.getValues('topicIds');
-      const newTopics = isChecked ? [...currentTopics, topicId] : currentTopics.filter(id => id !== topicId);
-      setValue('topicIds', newTopics, { shouldValidate: true });
-    }
+    const handleTopicToggle = (topic: { id: string; name: string }, isChecked: boolean) => {
+        const index = fields.findIndex(field => field.topicId === topic.id);
+        if (isChecked && index === -1) {
+            append({ topicId: topic.id, topicName: topic.name, count: 5 });
+        } else if (!isChecked && index !== -1) {
+            remove(index);
+        }
+    };
 
     return (
         <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                 <div className="space-y-4 rounded-lg border p-4">
                   <h3 className="text-base font-semibold">Filters</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
                       <FormField control={form.control} name="difficultyLevel" render={({ field }) => (
                           <FormItem><FormLabel>Difficulty</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select difficulty" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Easy">Easy</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Hard">Hard</SelectItem></SelectContent></Select></FormItem>
                       )} />
                        <FormField control={form.control} name="examTypeId" render={({ field }) => (
                           <FormItem><FormLabel>Exam Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an exam type" /></SelectTrigger></FormControl><SelectContent>{examTypes.map(et => <SelectItem key={et.id} value={et.id}>{et.name}</SelectItem>)}</SelectContent></Select></FormItem>
-                      )} />
-                      <FormField control={form.control} name="count" render={({ field }) => (
-                          <FormItem><FormLabel>Number of Questions</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>
                       )} />
                       <FormField control={form.control} name="accessLevel" render={({ field }) => (
                           <FormItem><FormLabel>Access Level</FormLabel><FormControl>
@@ -435,7 +440,7 @@ const StartPracticeForm: FC<{
                                                         <div className="space-y-2">
                                                             {s.topics.map((t:any) => (
                                                                 <div key={t.id} className="flex items-center space-x-2">
-                                                                    <Checkbox id={`practice-${t.id}`} onCheckedChange={(checked) => handleTopicToggle(t.id, !!checked)} checked={selectedTopics.includes(t.id)}/>
+                                                                    <Checkbox id={`practice-${t.id}`} onCheckedChange={(checked) => handleTopicToggle(t, !!checked)} checked={fields.some(f => f.topicId === t.id)}/>
                                                                     <label htmlFor={`practice-${t.id}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">{t.name}</label>
                                                                 </div>
                                                             ))}
@@ -454,16 +459,65 @@ const StartPracticeForm: FC<{
                             </Accordion>
                         </CardContent>
                     </Card>
-                     <FormField
-                      control={form.control}
-                      name="topicIds"
-                      render={() => (
-                          <FormItem>
+                </div>
+
+                <div className="space-y-4">
+                    <Label className="text-base font-semibold">Selected Topics & Question Count</Label>
+                    {fields.length > 0 ? (
+                        <Card>
+                        <CardContent className="p-4 space-y-4 max-h-60 overflow-y-auto">
+                            {fields.map((field, index) => (
+                            <div key={field.id} className="flex items-center justify-between gap-4 p-2 rounded-md bg-muted/50">
+                                <span className="font-medium text-sm flex-1">{field.topicName}</span>
+                                <div className="flex items-center gap-2">
+                                <Label htmlFor={`topicsConfig.${index}.count`} className="text-sm">Questions:</Label>
+                                <FormField
+                                    control={form.control}
+                                    name={`topicsConfig.${index}.count`}
+                                    render={({ field: countField }) => (
+                                    <FormItem>
+                                        <FormControl>
+                                            <Input
+                                                id={`topicsConfig.${index}.count`}
+                                                type="number"
+                                                min="1"
+                                                className="w-20 h-8"
+                                                {...countField}
+                                            />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                    )}
+                                />
+                                </div>
+                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => remove(index)}>
+                                <X className="h-4 w-4" />
+                                </Button>
+                            </div>
+                            ))}
+                        </CardContent>
+                        <CardFooter>
+                            <p className="text-sm text-muted-foreground">
+                            Total questions: {form.watch('topicsConfig').reduce((acc, curr) => acc + (Number(curr.count) || 0), 0)}
+                            </p>
+                        </CardFooter>
+                        </Card>
+                    ) : (
+                        <div className="text-sm text-muted-foreground text-center p-4 border border-dashed rounded-md">
+                        Select topics from the curriculum above.
+                        </div>
+                    )}
+                    <FormField
+                        control={form.control}
+                        name="topicsConfig"
+                        render={() => (
+                        <FormItem>
                             <FormMessage />
-                          </FormItem>
-                      )}
+                        </FormItem>
+                        )}
                     />
                 </div>
+
 
                 <Button type="submit"><Rocket className="mr-2 h-4 w-4" /> Start Practice Session</Button>
             </form>

@@ -35,7 +35,9 @@ type PracticeQuestion = {
   correctAnswer?: string;
   numericalAnswer?: number;
   subject: string; // Added from join
+  imageUrl?: string;
   imageUrls?: string[];
+  explanationImageUrl?: string;
   explanationImageUrls?: string[];
 };
 
@@ -47,6 +49,16 @@ type Answer = {
 const QuestionExplanation: React.FC<{ question: PracticeQuestion; userAnswer: Answer | undefined }> = ({ question, userAnswer }) => {
     const isAttempted = userAnswer && userAnswer.value !== '';
     
+    const explanationImages = useMemo(() => {
+        if (question.explanationImageUrls && Array.isArray(question.explanationImageUrls)) {
+            return question.explanationImageUrls;
+        }
+        if (question.explanationImageUrl && typeof question.explanationImageUrl === 'string') {
+            return [question.explanationImageUrl];
+        }
+        return [];
+    }, [question]);
+
     if (!isAttempted) {
         return null;
     }
@@ -72,11 +84,11 @@ const QuestionExplanation: React.FC<{ question: PracticeQuestion; userAnswer: An
                         Correct answer: <span className="font-bold text-green-600">{question.correctAnswer || question.numericalAnswer}</span>
                     </p>
                 )}
-                {question.explanationImageUrls && question.explanationImageUrls.length > 0 && (
+                {explanationImages.length > 0 && (
                     <div>
                         <p className="text-sm font-semibold text-muted-foreground">Explanation:</p>
                         <div className="mt-1 space-y-2">
-                            {question.explanationImageUrls.map((url, index) => (
+                            {explanationImages.map((url, index) => (
                                 <div key={index} className="p-2 border rounded-md bg-muted/50">
                                     <Image src={url} alt={`Explanation image ${index + 1}`} width={2000} height={1500} className="rounded-md object-contain mx-auto" />
                                 </div>
@@ -84,10 +96,10 @@ const QuestionExplanation: React.FC<{ question: PracticeQuestion; userAnswer: An
                         </div>
                     </div>
                 )}
-                {isCorrect && (!question.explanationImageUrls || question.explanationImageUrls.length === 0) && (
+                {isCorrect && explanationImages.length === 0 && (
                     <p className="text-green-600 font-medium">Excellent! Your answer is correct.</p>
                 )}
-                 {!isCorrect && (!question.explanationImageUrls || question.explanationImageUrls.length === 0) && (
+                 {!isCorrect && explanationImages.length === 0 && (
                     <p className="text-red-600 font-medium">That's not quite right. Review the correct answer above.</p>
                 )}
             </CardContent>
@@ -289,6 +301,17 @@ function PracticeSession() {
         return summaryData;
     }, [answers, questions]);
 
+    const questionImages = useMemo(() => {
+        if (!currentQuestion) return [];
+        if (currentQuestion.imageUrls && Array.isArray(currentQuestion.imageUrls)) {
+            return currentQuestion.imageUrls;
+        }
+        if (currentQuestion.imageUrl && typeof currentQuestion.imageUrl === 'string') {
+            return [currentQuestion.imageUrl];
+        }
+        return [];
+    }, [currentQuestion]);
+
     if (isLoading) {
         return (
             <div className="flex h-screen w-screen items-center justify-center">
@@ -328,14 +351,16 @@ function PracticeSession() {
                             {questions.map((q, i) => {
                                 const ans = answers.get(q.id);
                                 const isCorrect = (q.questionType === 'MCQ' && q.correctAnswer === ans?.value) || (q.questionType === 'Numerical' && Number(q.numericalAnswer) === Number(ans?.value));
+                                const questionImagesList = Array.isArray(q.imageUrls) ? q.imageUrls : (q.imageUrl ? [q.imageUrl] : []);
+                                const explanationImagesList = Array.isArray(q.explanationImageUrls) ? q.explanationImageUrls : (q.explanationImageUrl ? [q.explanationImageUrl] : []);
                                 return (
                                     <div key={q.id} className="flex items-start gap-2 p-2 border-b">
                                         {isCorrect ? <Check className="h-5 w-5 text-green-500 mt-1" /> : <XIcon className="h-5 w-5 text-red-500 mt-1" />}
                                         <div className="flex-1">
                                             <p className="font-medium">Q{i+1}: {q.questionText}</p>
-                                            {q.imageUrls && q.imageUrls.length > 0 && (
+                                            {questionImagesList.length > 0 && (
                                                 <div className="my-2 space-y-2">
-                                                    {q.imageUrls.map((url, index) => (
+                                                    {questionImagesList.map((url, index) => (
                                                         <div key={index} className="p-2 border rounded-md bg-muted/50">
                                                             <Image src={url} alt={`Question ${i + 1} image ${index + 1}`} width={1000} height={750} className="rounded-md object-contain mx-auto" />
                                                         </div>
@@ -344,11 +369,11 @@ function PracticeSession() {
                                             )}
                                             <p className="text-sm">Your answer: <span className="font-semibold">{ans?.value || 'Not Answered'}</span></p>
                                             {!isCorrect && <p className="text-sm">Correct answer: <span className="font-semibold text-green-600">{q.correctAnswer || q.numericalAnswer}</span></p>}
-                                            {q.explanationImageUrls && q.explanationImageUrls.length > 0 && (
+                                            {explanationImagesList.length > 0 && (
                                                 <div className="my-2">
                                                     <p className="text-sm font-semibold text-muted-foreground">Explanation:</p>
                                                     <div className="mt-1 space-y-2">
-                                                        {q.explanationImageUrls.map((url, index) => (
+                                                        {explanationImagesList.map((url, index) => (
                                                             <div key={index} className="p-2 border rounded-md bg-muted/50">
                                                                 <Image src={url} alt={`Explanation for question ${i + 1} image ${index + 1}`} width={1000} height={750} className="rounded-md object-contain mx-auto" />
                                                             </div>
@@ -382,9 +407,9 @@ function PracticeSession() {
                       <CardHeader className="flex flex-row justify-between items-center"><CardTitle>Question No. {currentQuestionIndex + 1}</CardTitle></CardHeader>
                       <CardContent className="prose max-w-none">
                           <p>{currentQuestion.questionText}</p>
-                          {currentQuestion.imageUrls && currentQuestion.imageUrls.length > 0 && (
+                          {questionImages.length > 0 && (
                               <div className="my-4 space-y-2">
-                                  {currentQuestion.imageUrls.map((url, index) => (
+                                  {questionImages.map((url, index) => (
                                       <div key={index} className="p-2 border rounded-md bg-muted/50">
                                           <Image src={url} alt={`Question image ${index + 1}`} width={2000} height={1500} className="rounded-md object-contain mx-auto" />
                                       </div>

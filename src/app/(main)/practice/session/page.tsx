@@ -76,7 +76,7 @@ const QuestionExplanation: React.FC<{ question: PracticeQuestion; userAnswer: An
                     <div>
                         <p className="text-sm font-semibold text-muted-foreground">Explanation:</p>
                         <div className="mt-1 p-2 border rounded-md bg-muted/50">
-                            <Image src={question.explanationImageUrl} alt="Explanation image" width={600} height={450} className="rounded-md object-contain mx-auto" />
+                            <Image src={question.explanationImageUrl} alt="Explanation image" width={1000} height={750} className="rounded-md object-contain mx-auto" />
                         </div>
                     </div>
                 )}
@@ -331,7 +331,7 @@ function PracticeSession() {
                                             <p className="font-medium">Q{i+1}: {q.questionText}</p>
                                             {q.imageUrl && (
                                                 <div className="my-2 p-2 border rounded-md bg-muted/50">
-                                                    <Image src={q.imageUrl} alt={`Question ${i + 1} image`} width={450} height={300} className="rounded-md object-contain mx-auto" />
+                                                    <Image src={q.imageUrl} alt={`Question ${i + 1} image`} width={1000} height={750} className="rounded-md object-contain mx-auto" />
                                                 </div>
                                             )}
                                             <p className="text-sm">Your answer: <span className="font-semibold">{ans?.value || 'Not Answered'}</span></p>
@@ -340,7 +340,7 @@ function PracticeSession() {
                                                 <div className="my-2">
                                                     <p className="text-sm font-semibold text-muted-foreground">Explanation:</p>
                                                     <div className="mt-1 p-2 border rounded-md bg-muted/50">
-                                                        <Image src={q.explanationImageUrl} alt={`Explanation for question ${i + 1}`} width={450} height={300} className="rounded-md object-contain mx-auto" />
+                                                        <Image src={q.explanationImageUrl} alt={`Explanation for question ${i + 1}`} width={1000} height={750} className="rounded-md object-contain mx-auto" />
                                                     </div>
                                                 </div>
                                             )}
@@ -372,7 +372,7 @@ function PracticeSession() {
                           <p>{currentQuestion.questionText}</p>
                           {currentQuestion.imageUrl && (
                               <div className="my-4 p-2 border rounded-md bg-muted/50">
-                                  <Image src={currentQuestion.imageUrl} alt={`Question image`} width={600} height={450} className="rounded-md object-contain mx-auto" />
+                                  <Image src={currentQuestion.imageUrl} alt={`Question image`} width={1000} height={750} className="rounded-md object-contain mx-auto" />
                               </div>
                           )}
                       </CardContent>

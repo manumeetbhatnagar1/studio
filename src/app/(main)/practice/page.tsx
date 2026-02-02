@@ -35,8 +35,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 
 const baseSchema = z.object({
     questionText: z.string().min(10, 'Question must be at least 10 characters.'),
-    imageUrl: z.string().optional(),
-    explanationImageUrl: z.string().optional(),
+    imageUrls: z.array(z.string().url()).optional(),
+    explanationImageUrls: z.array(z.string().url()).optional(),
     classId: z.string().min(1, 'Class is required.'),
     subjectId: z.string().min(1, 'Subject is required.'),
     topicId: z.string().min(1, 'Topic is required.'),
@@ -90,8 +90,8 @@ type PracticeQuestion = {
   classId: string;
   subjectId: string;
   topicId: string;
-  imageUrl?: string;
-  explanationImageUrl?: string;
+  imageUrls?: string[];
+  explanationImageUrls?: string[];
   questionType: 'MCQ' | 'Numerical';
   options?: string[];
   correctAnswer?: string;
@@ -153,31 +153,39 @@ function QuestionItem({ question, topicMap, classMap, examTypeMap, isTeacher, ca
           <>
             {isTeacher ? (
               <>
-                {question.imageUrl && (
+                {question.imageUrls && question.imageUrls.length > 0 && (
                   <div className="my-4 space-y-2">
-                      <p className="font-semibold text-sm text-muted-foreground">Question Image:</p>
-                      <div className="p-4 border rounded-md flex justify-center bg-muted/50">
-                          <Image
-                              src={question.imageUrl}
-                              alt="Question diagram"
-                              width={2000}
-                              height={1500}
-                              className="rounded-md object-contain"
-                          />
+                      <p className="font-semibold text-sm text-muted-foreground">Question Image(s):</p>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                          {question.imageUrls.map((url, index) => (
+                              <div key={index} className="p-2 border rounded-md flex justify-center bg-muted/50">
+                                  <Image
+                                      src={url}
+                                      alt={`Question image ${index + 1}`}
+                                      width={1000}
+                                      height={750}
+                                      className="rounded-md object-contain"
+                                  />
+                              </div>
+                          ))}
                       </div>
                   </div>
                 )}
-                {question.explanationImageUrl && (
+                {question.explanationImageUrls && question.explanationImageUrls.length > 0 && (
                   <div className="my-4 space-y-2">
-                    <p className="font-semibold text-sm text-muted-foreground">Explanation Image:</p>
-                    <div className="p-4 border rounded-md flex justify-center bg-muted/50">
-                      <Image
-                        src={question.explanationImageUrl}
-                        alt="Explanation diagram"
-                        width={2000}
-                        height={1500}
-                        className="rounded-md object-contain"
-                      />
+                    <p className="font-semibold text-sm text-muted-foreground">Explanation Image(s):</p>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                      {question.explanationImageUrls.map((url, index) => (
+                          <div key={index} className="p-2 border rounded-md flex justify-center bg-muted/50">
+                            <Image
+                              src={url}
+                              alt={`Explanation image ${index + 1}`}
+                              width={1000}
+                              height={750}
+                              className="rounded-md object-contain"
+                            />
+                          </div>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -303,10 +311,41 @@ const EditQuestionForm: FC<{
                 </div>
                 <FormField control={form.control} name="questionText" render={({ field }) => (<FormItem><FormLabel>Question Text</FormLabel><FormControl><Textarea placeholder="e.g., What is the formula for..." {...field} rows={4} /></FormControl><FormMessage /></FormItem>)} />
                 
-                <FormField control={form.control} name="imageUrl" render={({ field }) => (<FormItem><FormLabel>Image URL (Optional)</FormLabel><FormControl><Input placeholder="https://example.com/image.png" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                {form.watch('imageUrl') && (<FormItem><FormLabel>Image Preview</FormLabel><FormControl><div className="p-4 border rounded-md flex justify-center bg-muted/50"><Image src={form.watch('imageUrl')!} alt="Question image preview" width={1000} height={750} className="rounded-md object-contain" /></div></FormControl></FormItem>)}
-                <FormField control={form.control} name="explanationImageUrl" render={({ field }) => (<FormItem><FormLabel>Explanation Image URL (Optional)</FormLabel><FormControl><Input placeholder="https://example.com/explanation-image.png" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                {form.watch('explanationImageUrl') && (<FormItem><FormLabel>Explanation Image Preview</FormLabel><FormControl><div className="p-4 border rounded-md flex justify-center bg-muted/50"><Image src={form.watch('explanationImageUrl')!} alt="Explanation image preview" width={1000} height={750} className="rounded-md object-contain" /></div></FormControl></FormItem>)}
+                <div className="space-y-2">
+                    <FormLabel>Question Images (Optional)</FormLabel>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {form.watch('imageUrls')?.map((url, index) => (
+                            <div key={index} className="relative group">
+                                <Image src={url} alt={`Question image ${index + 1}`} width={200} height={150} className="rounded-md object-cover border" />
+                                <Button type="button" variant="destructive" size="icon" className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100"
+                                    onClick={() => {
+                                        const currentUrls = form.getValues('imageUrls') || [];
+                                        form.setValue('imageUrls', currentUrls.filter((_, i) => i !== index));
+                                    }}>
+                                    <X className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="space-y-2">
+                    <FormLabel>Explanation Images (Optional)</FormLabel>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {form.watch('explanationImageUrls')?.map((url, index) => (
+                            <div key={index} className="relative group">
+                                <Image src={url} alt={`Explanation image ${index + 1}`} width={200} height={150} className="rounded-md object-cover border" />
+                                <Button type="button" variant="destructive" size="icon" className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100"
+                                    onClick={() => {
+                                        const currentUrls = form.getValues('explanationImageUrls') || [];
+                                        form.setValue('explanationImageUrls', currentUrls.filter((_, i) => i !== index));
+                                    }}>
+                                    <X className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
 
                 {questionType === 'MCQ' && (
                     <div className="space-y-4">
@@ -673,8 +712,8 @@ export default function PracticePage() {
         topicId: '', 
         difficultyLevel: 'Easy', 
         examTypeId: '',
-        imageUrl: '',
-        explanationImageUrl: '',
+        imageUrls: [],
+        explanationImageUrls: [],
         accessLevel: 'free',
     },
   });
@@ -735,21 +774,20 @@ export default function PracticePage() {
   };
   
   const handleQuestionImageCropped = (data: { imageUrl: string }) => {
-    form.setValue('imageUrl', data.imageUrl);
-    form.setValue('questionText', '');
-    form.setValue('options', ['', '', '', '']);
-    form.setValue('correctAnswer', '');
+    const currentUrls = form.getValues('imageUrls') || [];
+    form.setValue('imageUrls', [...currentUrls, data.imageUrl]);
     toast({
       title: 'Question Image Added',
-      description: 'The image is ready. Please fill in the question details manually.',
+      description: 'The image has been added. You can add more or fill in the details.',
     });
   };
 
   const handleExplanationImageCropped = (data: { imageUrl: string }) => {
-    form.setValue('explanationImageUrl', data.imageUrl);
+    const currentUrls = form.getValues('explanationImageUrls') || [];
+    form.setValue('explanationImageUrls', [...currentUrls, data.imageUrl]);
     toast({
       title: 'Explanation Image Added',
-      description: 'The explanation image is ready.',
+      description: 'The explanation image has been added.',
     });
   };
   
@@ -823,11 +861,55 @@ export default function PracticePage() {
                         </div>
                           <FormField control={form.control} name="questionText" render={({ field }) => (<FormItem><FormLabel>Question Text</FormLabel><FormControl><Textarea placeholder="e.g., What is the formula for..." {...field} rows={4} /></FormControl><FormMessage /></FormItem>)} />
                           
-                          <FormField control={form.control} name="imageUrl" render={({ field }) => (<FormItem><FormLabel>Image URL (Optional)</FormLabel><FormControl><Input placeholder="https://example.com/image.png" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                          {form.watch('imageUrl') && (<FormItem><FormLabel>Question Image Preview</FormLabel><FormControl><div className="p-4 border rounded-md flex justify-center bg-muted/50"><Image src={form.watch('imageUrl')!} alt="Question image preview" width={1000} height={750} className="rounded-md object-contain" /></div></FormControl></FormItem>)}
+                          {form.watch('imageUrls') && form.watch('imageUrls').length > 0 && (
+                            <div className="space-y-2">
+                                <FormLabel>Question Image Previews</FormLabel>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    {form.watch('imageUrls').map((url, index) => (
+                                        <div key={index} className="relative group">
+                                            <Image src={url} alt={`Question image ${index + 1}`} width={200} height={150} className="rounded-md object-cover border" />
+                                            <Button
+                                                type="button"
+                                                variant="destructive"
+                                                size="icon"
+                                                className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100"
+                                                onClick={() => {
+                                                    const currentUrls = form.getValues('imageUrls') || [];
+                                                    form.setValue('imageUrls', currentUrls.filter((_, i) => i !== index));
+                                                }}
+                                            >
+                                                <X className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                           )}
                           
-                          <FormField control={form.control} name="explanationImageUrl" render={({ field }) => (<FormItem><FormLabel>Explanation Image URL (Optional)</FormLabel><FormControl><Input placeholder="https://example.com/explanation-image.png" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                          {form.watch('explanationImageUrl') && (<FormItem><FormLabel>Explanation Image Preview</FormLabel><FormControl><div className="p-4 border rounded-md flex justify-center bg-muted/50"><Image src={form.watch('explanationImageUrl')!} alt="Explanation image preview" width={1000} height={750} className="rounded-md object-contain" /></div></FormControl></FormItem>)}
+                           {form.watch('explanationImageUrls') && form.watch('explanationImageUrls').length > 0 && (
+                            <div className="space-y-2">
+                                <FormLabel>Explanation Image Previews</FormLabel>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    {form.watch('explanationImageUrls').map((url, index) => (
+                                        <div key={index} className="relative group">
+                                            <Image src={url} alt={`Explanation image ${index + 1}`} width={200} height={150} className="rounded-md object-cover border" />
+                                            <Button
+                                                type="button"
+                                                variant="destructive"
+                                                size="icon"
+                                                className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100"
+                                                onClick={() => {
+                                                    const currentUrls = form.getValues('explanationImageUrls') || [];
+                                                    form.setValue('explanationImageUrls', currentUrls.filter((_, i) => i !== index));
+                                                }}
+                                            >
+                                                <X className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                           )}
 
                           {questionType === 'MCQ' && (
                               <div className="space-y-4">

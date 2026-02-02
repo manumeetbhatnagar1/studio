@@ -370,15 +370,21 @@
           "type": "string",
           "description": "The text of the practice question."
         },
-        "imageUrl": {
-          "type": "string",
-          "description": "An optional URL for an image associated with the question.",
-          "format": "uri"
+        "imageUrls": {
+          "type": "array",
+          "description": "Optional URLs for images associated with the question.",
+          "items": {
+            "type": "string",
+            "format": "uri"
+          }
         },
-        "explanationImageUrl": {
-          "type": "string",
-          "description": "An optional URL for an image associated with the question's explanation.",
-          "format": "uri"
+        "explanationImageUrls": {
+          "type": "array",
+          "description": "Optional URLs for images associated with the question's explanation.",
+          "items": {
+            "type": "string",
+            "format": "uri"
+          }
         },
         "options": {
           "type": "array",

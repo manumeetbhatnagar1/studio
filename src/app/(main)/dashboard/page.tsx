@@ -1,6 +1,27 @@
+'use client';
+
 import DashboardHeader from "@/components/dashboard-header";
-import PersonalizedLearning from "@/components/personalized-learning";
 import QuickLinks from "@/components/quick-links";
+import { useIsTeacher } from "@/hooks/useIsTeacher";
+import { Skeleton } from "@/components/ui/skeleton";
+import StudentDashboardWidgets from "@/components/student-dashboard-widgets";
+import TeacherDashboardWidgets from "@/components/teacher-dashboard-widgets";
+
+function RoleBasedDashboard() {
+  const { isTeacher, isLoading } = useIsTeacher();
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-24 w-full" />
+        <Skeleton className="h-24 w-full" />
+      </div>
+    );
+  }
+
+  return isTeacher ? <TeacherDashboardWidgets /> : <StudentDashboardWidgets />;
+}
+
 
 export default function DashboardPage() {
   return (
@@ -8,7 +29,7 @@ export default function DashboardPage() {
       <DashboardHeader title="Dashboard" />
       <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
         <div className="grid gap-8">
-          <PersonalizedLearning />
+          <RoleBasedDashboard />
           <QuickLinks />
         </div>
       </main>

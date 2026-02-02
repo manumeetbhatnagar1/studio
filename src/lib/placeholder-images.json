@@ -21,8 +21,8 @@
     {
       "id": "practice-questions",
       "description": "Card image for practice questions section",
-      "imageUrl": "https://images.unsplash.com/photo-1597011770032-32243bed61f7?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw0fHx0ZXN0JTIwcGFwZXJ8ZW58MHx8fHwxNzY5ODU4OTA0fDA&ixlib=rb-4.1.0&q=80&w=1080",
-      "imageHint": "test paper"
+      "imageUrl": "https://images.unsplash.com/photo-1587116987844-bd3d2f866f16?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwyfHxwcmFjdGljZSUyMHF1ZXN0aW9ufGVufDB8fHx8MTc3MDAxNDY0N3ww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "practice question"
     },
     {
       "id": "mock-tests",

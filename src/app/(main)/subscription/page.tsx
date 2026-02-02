@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, FC } from 'react';
+import { useState, useMemo, FC, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -29,16 +29,26 @@ const planSchema = z.object({
   price: z.coerce.number().min(0, 'Price must be a positive number.'),
   billingInterval: z.enum(['monthly', 'yearly']),
   examTypeId: z.string().min(1, 'You must select an exam type.'),
+  classId: z.string().optional(),
+  subjectId: z.string().optional(),
+  topicId: z.string().optional(),
   features: z.string().min(10, 'Please list at least one feature (one per line).'),
 });
 
 type ExamType = { id: string; name: string; };
+type Class = { id: string; name: string; examTypeId: string; };
+type Subject = { id: string; name: string; classId: string; };
+type Topic = { id: string; name: string; subjectId: string; };
+
 type SubscriptionPlan = {
   id: string;
   name: string;
   price: number;
   billingInterval: 'monthly' | 'yearly';
   examTypeId: string;
+  classId?: string;
+  subjectId?: string;
+  topicId?: string;
   features: string[];
   isPopular?: boolean; // For styling
 };
@@ -46,9 +56,12 @@ type SubscriptionPlan = {
 // PlanForm Component (for Create/Edit)
 const PlanForm: FC<{
   examTypes: ExamType[];
+  classes: Class[];
+  subjects: Subject[];
+  topics: Topic[];
   onFinished: () => void;
   planToEdit?: SubscriptionPlan;
-}> = ({ examTypes, onFinished, planToEdit }) => {
+}> = ({ examTypes, classes, subjects, topics, onFinished, planToEdit }) => {
     const firestore = useFirestore();
     const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -63,16 +76,60 @@ const PlanForm: FC<{
             price: 0,
             billingInterval: 'yearly',
             examTypeId: '',
+            classId: '',
+            subjectId: '',
+            topicId: '',
             features: '',
         },
     });
 
+    const { watch, setValue } = form;
+    const selectedExamType = watch('examTypeId');
+    const selectedClass = watch('classId');
+    const selectedSubject = watch('subjectId');
+
+    const filteredClasses = useMemo(() => {
+        if (!selectedExamType) return [];
+        return classes.filter(c => c.examTypeId === selectedExamType);
+    }, [selectedExamType, classes]);
+    const filteredSubjects = useMemo(() => {
+        if (!selectedClass) return [];
+        return subjects.filter(subject => subject.classId === selectedClass);
+    }, [selectedClass, subjects]);
+    const filteredTopics = useMemo(() => {
+        if (!selectedSubject) return [];
+        return topics.filter(topic => topic.subjectId === selectedSubject);
+    }, [selectedSubject, topics]);
+
+    useEffect(() => {
+        setValue('classId', '');
+        setValue('subjectId', '');
+        setValue('topicId', '');
+    }, [selectedExamType, setValue]);
+
+    useEffect(() => {
+        setValue('subjectId', '');
+        setValue('topicId', '');
+    }, [selectedClass, setValue]);
+
+    useEffect(() => {
+        setValue('topicId', '');
+    }, [selectedSubject, setValue]);
+
+
     async function onSubmit(values: z.infer<typeof planSchema>) {
         setIsSubmitting(true);
-        const dataToSave = {
-            ...values,
-            features: values.features.split('\n').filter(f => f.trim() !== ''),
+        const { features, classId, subjectId, topicId, ...rest } = values;
+        
+        const dataToSave: any = {
+            ...rest,
+            features: features.split('\n').filter(f => f.trim() !== ''),
         };
+
+        if (classId) dataToSave.classId = classId;
+        if (subjectId) dataToSave.subjectId = subjectId;
+        if (topicId) dataToSave.topicId = topicId;
+
 
         try {
             if (planToEdit) {
@@ -98,15 +155,46 @@ const PlanForm: FC<{
                 <FormField control={form.control} name="name" render={({ field }) => (
                     <FormItem><FormLabel>Plan Name</FormLabel><FormControl><Input placeholder="e.g., Excel Plan" {...field} /></FormControl><FormMessage /></FormItem>
                 )} />
-                <FormField control={form.control} name="examTypeId" render={({ field }) => (
-                    <FormItem><FormLabel>Exam Type</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an exam type" /></SelectTrigger></FormControl><SelectContent>{examTypes.map(et => <SelectItem key={et.id} value={et.id}>{et.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
-                )} />
-                 <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-4">
                     <FormField control={form.control} name="price" render={({ field }) => (
                         <FormItem><FormLabel>Price (INR)</FormLabel><FormControl><Input type="number" placeholder="e.g., 18000" {...field} /></FormControl><FormMessage /></FormItem>
                     )} />
                     <FormField control={form.control} name="billingInterval" render={({ field }) => (
                         <FormItem><FormLabel>Billing Interval</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="monthly">Monthly</SelectItem><SelectItem value="yearly">Yearly</SelectItem></SelectContent></Select><FormMessage /></FormItem>
+                    )} />
+                 </div>
+                 <div className="space-y-2 rounded-md border p-4">
+                    <FormLabel>Plan Scope</FormLabel>
+                    <FormDescription>Select the hierarchy for this plan. Selections are optional.</FormDescription>
+                    <FormField control={form.control} name="examTypeId" render={({ field }) => (
+                        <FormItem><FormLabel>Exam Type</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an exam type" /></SelectTrigger></FormControl><SelectContent>{examTypes.map(et => <SelectItem key={et.id} value={et.id}>{et.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+                    )} />
+                     <FormField control={form.control} name="classId" render={({ field }) => (
+                        <FormItem><FormLabel>Class (Optional)</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value || ''} disabled={!selectedExamType}>
+                                <FormControl><SelectTrigger><SelectValue placeholder="All Classes" /></SelectTrigger></FormControl>
+                                <SelectContent>{filteredClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
+                    )} />
+                     <FormField control={form.control} name="subjectId" render={({ field }) => (
+                        <FormItem><FormLabel>Subject (Optional)</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value || ''} disabled={!selectedClass}>
+                                <FormControl><SelectTrigger><SelectValue placeholder="All Subjects" /></SelectTrigger></FormControl>
+                                <SelectContent>{filteredSubjects.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
+                    )} />
+                    <FormField control={form.control} name="topicId" render={({ field }) => (
+                        <FormItem><FormLabel>Topic (Optional)</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value || ''} disabled={!selectedSubject}>
+                                <FormControl><SelectTrigger><SelectValue placeholder="All Topics" /></SelectTrigger></FormControl>
+                                <SelectContent>{filteredTopics.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
                     )} />
                  </div>
                  <FormField control={form.control} name="features" render={({ field }) => (
@@ -122,7 +210,13 @@ const PlanForm: FC<{
 };
 
 // Teacher View Component
-const TeacherView: FC<{ plans: SubscriptionPlan[], examTypes: ExamType[] }> = ({ plans, examTypes }) => {
+const TeacherView: FC<{ 
+    plans: SubscriptionPlan[]; 
+    examTypes: ExamType[]; 
+    classes: Class[];
+    subjects: Subject[];
+    topics: Topic[];
+}> = ({ plans, examTypes, classes, subjects, topics }) => {
     const firestore = useFirestore();
     const { toast } = useToast();
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -130,6 +224,18 @@ const TeacherView: FC<{ plans: SubscriptionPlan[], examTypes: ExamType[] }> = ({
     const [planToDelete, setPlanToDelete] = useState<SubscriptionPlan | null>(null);
     
     const examTypeMap = useMemo(() => examTypes.reduce((acc, et) => ({ ...acc, [et.id]: et.name }), {} as Record<string, string>), [examTypes]);
+    const classMap = useMemo(() => classes.reduce((acc, c) => ({...acc, [c.id]: c.name}), {} as Record<string, string>), [classes]);
+    const subjectMap = useMemo(() => subjects.reduce((acc, s) => ({...acc, [s.id]: s.name}), {} as Record<string, string>), [subjects]);
+    const topicMap = useMemo(() => topics.reduce((acc, t) => ({...acc, [t.id]: t.name}), {} as Record<string, string>), [topics]);
+
+    const getPlanScope = (plan: SubscriptionPlan): string => {
+        const scopeParts = [examTypeMap[plan.examTypeId]];
+        if (plan.classId && classMap[plan.classId]) scopeParts.push(classMap[plan.classId]);
+        if (plan.subjectId && subjectMap[plan.subjectId]) scopeParts.push(subjectMap[plan.subjectId]);
+        if (plan.topicId && topicMap[plan.topicId]) scopeParts.push(topicMap[plan.topicId]);
+        return scopeParts.join(' / ');
+    };
+
     const plansByExamType = useMemo(() => {
         return plans.reduce((acc, plan) => {
             const examTypeName = examTypeMap[plan.examTypeId] || 'Uncategorized';
@@ -161,7 +267,7 @@ const TeacherView: FC<{ plans: SubscriptionPlan[], examTypes: ExamType[] }> = ({
                         <DialogHeader>
                             <DialogTitle>Add New Subscription Plan</DialogTitle>
                         </DialogHeader>
-                        <PlanForm examTypes={examTypes} onFinished={() => setIsAddDialogOpen(false)} />
+                        <PlanForm examTypes={examTypes} classes={classes} subjects={subjects} topics={topics} onFinished={() => setIsAddDialogOpen(false)} />
                     </DialogContent>
                 </Dialog>
             </div>
@@ -172,7 +278,11 @@ const TeacherView: FC<{ plans: SubscriptionPlan[], examTypes: ExamType[] }> = ({
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {plans.map(plan => (
                             <Card key={plan.id} className="flex flex-col">
-                                <CardHeader><CardTitle>{plan.name}</CardTitle><CardDescription>₹{plan.price.toLocaleString()} / {plan.billingInterval}</CardDescription></CardHeader>
+                                <CardHeader>
+                                    <CardTitle>{plan.name}</CardTitle>
+                                    <CardDescription className='font-medium'>{getPlanScope(plan)}</CardDescription>
+                                    <CardDescription>₹{plan.price.toLocaleString()} / {plan.billingInterval}</CardDescription>
+                                </CardHeader>
                                 <CardContent className="flex-grow"><ul className="list-disc pl-5 space-y-1 text-sm text-muted-foreground">{plan.features.map((f, i) => <li key={i}>{f}</li>)}</ul></CardContent>
                                 <CardFooter className="flex justify-end gap-2 border-t pt-4 mt-4">
                                     <Button variant="ghost" onClick={() => setPlanToEdit(plan)}><Edit className="mr-2"/>Edit</Button>
@@ -189,7 +299,7 @@ const TeacherView: FC<{ plans: SubscriptionPlan[], examTypes: ExamType[] }> = ({
                     <DialogHeader>
                         <DialogTitle>Edit Subscription Plan</DialogTitle>
                     </DialogHeader>
-                    {planToEdit && <PlanForm examTypes={examTypes} planToEdit={planToEdit} onFinished={() => setPlanToEdit(null)} />}
+                    {planToEdit && <PlanForm examTypes={examTypes} classes={classes} subjects={subjects} topics={topics} planToEdit={planToEdit} onFinished={() => setPlanToEdit(null)} />}
                 </DialogContent>
             </Dialog>
 
@@ -204,9 +314,28 @@ const TeacherView: FC<{ plans: SubscriptionPlan[], examTypes: ExamType[] }> = ({
 }
 
 // Student View Component
-const StudentView: FC<{ plans: SubscriptionPlan[], examTypes: ExamType[] }> = ({ plans, examTypes }) => {
+const StudentView: FC<{ 
+    plans: SubscriptionPlan[]; 
+    examTypes: ExamType[],
+    classes: Class[],
+    subjects: Subject[],
+    topics: Topic[],
+}> = ({ plans, examTypes, classes, subjects, topics }) => {
     const [billingInterval, setBillingInterval] = useState<'monthly' | 'yearly'>('yearly');
     const [selectedExamType, setSelectedExamType] = useState<string>('all');
+
+    const classMap = useMemo(() => classes.reduce((acc, c) => ({...acc, [c.id]: c.name}), {} as Record<string, string>), [classes]);
+    const subjectMap = useMemo(() => subjects.reduce((acc, s) => ({...acc, [s.id]: s.name}), {} as Record<string, string>), [subjects]);
+    const topicMap = useMemo(() => topics.reduce((acc, t) => ({...acc, [t.id]: t.name}), {} as Record<string, string>), [topics]);
+
+    const getPlanScope = (plan: SubscriptionPlan): string => {
+        const examTypeMap = examTypes.reduce((acc, et) => ({ ...acc, [et.id]: et.name }), {} as Record<string, string>);
+        const scopeParts = [examTypeMap[plan.examTypeId]];
+        if (plan.classId && classMap[plan.classId]) scopeParts.push(classMap[plan.classId]);
+        if (plan.subjectId && subjectMap[plan.subjectId]) scopeParts.push(subjectMap[plan.subjectId]);
+        if (plan.topicId && topicMap[plan.topicId]) scopeParts.push(topicMap[plan.topicId]);
+        return scopeParts.join(' / ');
+    };
 
     const filteredPlans = useMemo(() => {
         return plans.filter(plan => 
@@ -237,7 +366,9 @@ const StudentView: FC<{ plans: SubscriptionPlan[], examTypes: ExamType[] }> = ({
                     {filteredPlans.map((plan) => (
                         <Card key={plan.id} className={`shadow-lg flex flex-col h-full ${plan.isPopular ? 'border-primary border-2 shadow-primary/20' : ''}`}>
                              {plan.isPopular && <div className="bg-primary text-primary-foreground text-sm font-semibold text-center py-1 rounded-t-lg">Most Popular</div>}
-                             <CardHeader><CardTitle className="font-headline text-2xl">{plan.name}</CardTitle><CardDescription>{examTypes.find(et => et.id === plan.examTypeId)?.name}</CardDescription></CardHeader>
+                             <CardHeader><CardTitle className="font-headline text-2xl">{plan.name}</CardTitle>
+                                <CardDescription>{getPlanScope(plan)}</CardDescription>
+                             </CardHeader>
                              <CardContent className="space-y-6 flex-grow">
                                 <div className="flex items-baseline gap-2"><span className="text-4xl font-bold">₹{plan.price.toLocaleString()}</span><span className="text-muted-foreground">/{billingInterval === 'monthly' ? 'month' : 'year'}</span></div>
                                 <ul className="space-y-3 text-sm">{plan.features.map((feature, index) => (<li key={index} className="flex items-start"><Check className="h-5 w-5 text-green-500 mr-2 flex-shrink-0" /><span>{feature}</span></li>))}</ul>
@@ -265,11 +396,18 @@ export default function SubscriptionPage() {
 
   const plansQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'subscription_plans'), orderBy('price')) : null, [firestore]);
   const examTypesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'exam_types'), orderBy('name')) : null, [firestore]);
+  const classesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'classes'), orderBy('name')) : null, [firestore]);
+  const subjectsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'subjects'), orderBy('name')) : null, [firestore]);
+  const topicsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'topics'), orderBy('name')) : null, [firestore]);
   
   const { data: plans, isLoading: arePlansLoading } = useCollection<SubscriptionPlan>(plansQuery);
   const { data: examTypes, isLoading: areExamTypesLoading } = useCollection<ExamType>(examTypesQuery);
+  const { data: classes, isLoading: areClassesLoading } = useCollection<Class>(classesQuery);
+  const { data: subjects, isLoading: areSubjectsLoading } = useCollection<Subject>(subjectsQuery);
+  const { data: topics, isLoading: areTopicsLoading } = useCollection<Topic>(topicsQuery);
 
-  const isLoading = isTeacherLoading || arePlansLoading || areExamTypesLoading;
+
+  const isLoading = isTeacherLoading || arePlansLoading || areExamTypesLoading || areClassesLoading || areSubjectsLoading || areTopicsLoading;
 
   return (
     <div className="flex flex-col h-full">
@@ -285,9 +423,21 @@ export default function SubscriptionPage() {
                 </div>
             </div>
         ) : isTeacher ? (
-            <TeacherView plans={plans || []} examTypes={examTypes || []} />
+            <TeacherView 
+                plans={plans || []} 
+                examTypes={examTypes || []} 
+                classes={classes || []}
+                subjects={subjects || []}
+                topics={topics || []}
+            />
         ) : (
-            <StudentView plans={plans || []} examTypes={examTypes || []} />
+            <StudentView 
+                plans={plans || []} 
+                examTypes={examTypes || []}
+                classes={classes || []}
+                subjects={subjects || []}
+                topics={topics || []}
+            />
         )}
       </main>
     </div>

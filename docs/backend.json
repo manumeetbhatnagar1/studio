@@ -487,7 +487,7 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "SubscriptionPlan",
       "type": "object",
-      "description": "Defines a subscription plan available for users, linked to a specific exam type.",
+      "description": "Defines a subscription plan available for users, linked to a specific exam type, class, subject, or topic.",
       "properties": {
         "id": {
           "type": "string",
@@ -519,6 +519,18 @@
         "examTypeId": {
           "type": "string",
           "description": "Reference to the ExamType this plan is for."
+        },
+        "classId": {
+          "type": "string",
+          "description": "Optional reference to a Class. Narrows the plan scope."
+        },
+        "subjectId": {
+          "type": "string",
+          "description": "Optional reference to a Subject. Narrows the plan scope."
+        },
+        "topicId": {
+          "type": "string",
+          "description": "Optional reference to a Topic. Narrows the plan scope."
         }
       },
       "required": [
@@ -1063,5 +1075,3 @@
     "reasoning": "The Firestore data structure is designed to support the core features of the DCAM Classes application, focusing on content delivery, live classes, practice questions, mock tests, doubt resolution, personalized learning paths, and progress tracking. The structure prioritizes authorization independence, clarity, and scalability. To achieve Authorization Independence we denormalize data where necessary. For example, teacher information relevant to a LiveClass is accessible without requiring a separate read. Segregation is used extensively to ensure data with different security requirements are stored in different collections, which simplifies the security rules. Path-based ownership is used for user-specific data to easily control access. The use of membership maps are used to support collaborative data access where needed, although in this specific case collaborative data is not explicitly mentioned in the requirements."
   }
 }
-
-    

@@ -15,8 +15,8 @@
     {
       "id": "live-classes",
       "description": "Card image for live classes section",
-      "imageUrl": "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHxzdHVkZW50cyUyMGxhcHRvcHxlbnwwfHx8fDE3MTc2ODE1ODV8MA&ixlib=rb-4.0.3&q=80&w=1080",
-      "imageHint": "students laptop"
+      "imageUrl": "https://images.unsplash.com/photo-1597933471507-1ca5765185d8?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxNXx8b25saW5lJTIwY2xhc3N8ZW58MHx8fHwxNzcwMDE0NzYxfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "online class"
     },
     {
       "id": "practice-questions",

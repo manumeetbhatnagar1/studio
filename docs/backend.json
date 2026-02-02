@@ -310,6 +310,11 @@
         "examTypeId": {
           "type": "string",
           "description": "Reference to the ExamType this live class is for."
+        },
+        "recordingUrl": {
+          "type": "string",
+          "description": "The URL for the class recording. Available after the class has ended.",
+          "format": "uri"
         }
       },
       "required": [

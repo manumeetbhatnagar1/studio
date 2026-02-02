@@ -351,36 +351,13 @@ function PracticeSession() {
                             {questions.map((q, i) => {
                                 const ans = answers.get(q.id);
                                 const isCorrect = (q.questionType === 'MCQ' && q.correctAnswer === ans?.value) || (q.questionType === 'Numerical' && Number(q.numericalAnswer) === Number(ans?.value));
-                                const questionImagesList = Array.isArray(q.imageUrls) ? q.imageUrls : (q.imageUrl ? [q.imageUrl] : []);
-                                const explanationImagesList = Array.isArray(q.explanationImageUrls) ? q.explanationImageUrls : (q.explanationImageUrl ? [q.explanationImageUrl] : []);
                                 return (
                                     <div key={q.id} className="flex items-start gap-2 p-2 border-b">
                                         {isCorrect ? <Check className="h-5 w-5 text-green-500 mt-1" /> : <XIcon className="h-5 w-5 text-red-500 mt-1" />}
                                         <div className="flex-1">
                                             <p className="font-medium">Q{i+1}: {q.questionText}</p>
-                                            {questionImagesList.length > 0 && (
-                                                <div className="my-2 space-y-2">
-                                                    {questionImagesList.map((url, index) => (
-                                                        <div key={index} className="p-2 border rounded-md bg-muted/50">
-                                                            <Image src={url} alt={`Question ${i + 1} image ${index + 1}`} width={1000} height={750} className="rounded-md object-contain mx-auto" />
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
                                             <p className="text-sm">Your answer: <span className="font-semibold">{ans?.value || 'Not Answered'}</span></p>
                                             {!isCorrect && <p className="text-sm">Correct answer: <span className="font-semibold text-green-600">{q.correctAnswer || q.numericalAnswer}</span></p>}
-                                            {explanationImagesList.length > 0 && (
-                                                <div className="my-2">
-                                                    <p className="text-sm font-semibold text-muted-foreground">Explanation:</p>
-                                                    <div className="mt-1 space-y-2">
-                                                        {explanationImagesList.map((url, index) => (
-                                                            <div key={index} className="p-2 border rounded-md bg-muted/50">
-                                                                <Image src={url} alt={`Explanation for question ${i + 1} image ${index + 1}`} width={1000} height={750} className="rounded-md object-contain mx-auto" />
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            )}
                                         </div>
                                     </div>
                                 )

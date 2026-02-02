@@ -17,6 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogTrigger,
 } from '@/components/ui/dialog';
 import {
   Form,
@@ -350,18 +351,28 @@ const LiveClassForm: FC<{ setOpen: (open: boolean) => void, examTypes: ExamType[
         },
     });
 
-    const selectedExamType = form.watch('examTypeId');
-    const selectedClass = form.watch('classId');
-
+    const { watch, setValue } = form;
+    const selectedExamType = watch('examTypeId');
+    const selectedClass = watch('classId');
+    
     const filteredClasses = useMemo(() => {
-        if (!selectedExamType) return [];
-        return classes.filter(c => c.examTypeId === selectedExamType);
+      if (!selectedExamType) return [];
+      return classes.filter((c) => c.examTypeId === selectedExamType);
     }, [selectedExamType, classes]);
-
+  
     const filteredSubjects = useMemo(() => {
-        if (!selectedClass) return [];
-        return subjects.filter(subject => subject.classId === selectedClass);
+      if (!selectedClass) return [];
+      return subjects.filter((subject) => subject.classId === selectedClass);
     }, [selectedClass, subjects]);
+  
+    useEffect(() => {
+      setValue('classId', '');
+      setValue('subjectId', '');
+    }, [selectedExamType, setValue]);
+  
+    useEffect(() => {
+      setValue('subjectId', '');
+    }, [selectedClass, setValue]);
 
     async function onSubmit(values: z.infer<typeof liveClassSchema>) {
         if (!user) {
@@ -428,26 +439,27 @@ const LiveClassForm: FC<{ setOpen: (open: boolean) => void, examTypes: ExamType[
                                 <Calendar
                                     mode="single"
                                     selected={field.value}
-                                    onSelect={(day) => {
-                                        if (!day) return;
-                                        const hours = field.value ? field.value.getHours() : 9;
-                                        const minutes = field.value ? field.value.getMinutes() : 0;
-                                        const newDate = new Date(day);
-                                        newDate.setHours(hours, minutes, 0, 0);
-                                        field.onChange(newDate);
-                                    }}
+                                    onSelect={(selectedDate) => {
+                                        if (!selectedDate) {
+                                          field.onChange(undefined);
+                                          return;
+                                        }
+                                        const currentDateTime = field.value || new Date();
+                                        const newDateTime = new Date(selectedDate);
+                                        newDateTime.setHours(currentDateTime.getHours());
+                                        newDateTime.setMinutes(currentDateTime.getMinutes());
+                                        field.onChange(newDateTime);
+                                      }}
                                     disabled={(date) => date < new Date()}
                                     initialFocus
                                 />
                                 <div className="p-3 border-t border-border flex items-center justify-center gap-2">
                                     <Select
-                                        disabled={!field.value}
-                                        value={field.value ? String(field.value.getHours()).padStart(2, '0') : ''}
+                                        value={field.value ? String(field.value.getHours()).padStart(2, '0') : '09'}
                                         onValueChange={(hour) => {
-                                            if (!field.value) return;
-                                            const newDate = new Date(field.value);
-                                            newDate.setHours(parseInt(hour, 10));
-                                            field.onChange(newDate);
+                                            const newDateTime = new Date(field.value || new Date());
+                                            newDateTime.setHours(parseInt(hour, 10));
+                                            field.onChange(newDateTime);
                                         }}
                                     >
                                         <SelectTrigger className="w-[60px]"><SelectValue /></SelectTrigger>
@@ -455,13 +467,11 @@ const LiveClassForm: FC<{ setOpen: (open: boolean) => void, examTypes: ExamType[
                                     </Select>
                                     <span className="font-bold">:</span>
                                     <Select
-                                        disabled={!field.value}
-                                        value={field.value ? String(field.value.getMinutes()).padStart(2, '0') : ''}
-                                            onValueChange={(minute) => {
-                                            if (!field.value) return;
-                                            const newDate = new Date(field.value);
-                                            newDate.setMinutes(parseInt(minute, 10));
-                                            field.onChange(newDate);
+                                        value={field.value ? String(field.value.getMinutes()).padStart(2, '0') : '00'}
+                                         onValueChange={(minute) => {
+                                            const newDateTime = new Date(field.value || new Date());
+                                            newDateTime.setMinutes(parseInt(minute, 10));
+                                            field.onChange(newDateTime);
                                         }}
                                     >
                                         <SelectTrigger className="w-[60px]"><SelectValue /></SelectTrigger>
@@ -488,13 +498,13 @@ const LiveClassForm: FC<{ setOpen: (open: boolean) => void, examTypes: ExamType[
                 )} />
                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <FormField control={form.control} name="examTypeId" render={({ field }) => (
-                        <FormItem><FormLabel>Exam Type</FormLabel><Select onValueChange={(value) => { field.onChange(value); form.setValue('classId', ''); form.setValue('subjectId', ''); }} value={field.value}>
+                        <FormItem><FormLabel>Exam Type</FormLabel><Select onValueChange={field.onChange} value={field.value}>
                             <FormControl><SelectTrigger><SelectValue placeholder="Select an exam type" /></SelectTrigger></FormControl>
                             <SelectContent>{examTypes.map(et => <SelectItem key={et.id} value={et.id}>{et.name}</SelectItem>)}</SelectContent>
                         </Select><FormMessage /></FormItem>
                     )} />
                     <FormField control={form.control} name="classId" render={({ field }) => (
-                        <FormItem><FormLabel>Class</FormLabel><Select onValueChange={(value) => { field.onChange(value); form.setValue('subjectId', ''); }} value={field.value} disabled={!selectedExamType}>
+                        <FormItem><FormLabel>Class</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!selectedExamType}>
                             <FormControl><SelectTrigger><SelectValue placeholder="Select a class" /></SelectTrigger></FormControl>
                             <SelectContent>{filteredClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
                         </Select><FormMessage /></FormItem>
@@ -722,7 +732,5 @@ export default function LiveClassesPage() {
       </div>
     );
   }
-
-    
 
     

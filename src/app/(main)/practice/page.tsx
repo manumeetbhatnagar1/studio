@@ -224,16 +224,17 @@ const EditQuestionForm: FC<{
     const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // Find the subject and class for the initial topic
-    const initialTopic = topics.find(t => t.id === questionToEdit.topicId);
-    const initialSubject = subjects.find(s => s.id === initialTopic?.subjectId);
-    const initialClass = classes.find(c => c.id === initialSubject?.classId);
-    const initialExamTypeId = initialClass?.examTypeId || '';
-
     const form = useForm<z.infer<typeof questionSchema>>({
         resolver: zodResolver(questionSchema),
-        defaultValues: { ...questionToEdit, examTypeId: initialExamTypeId },
     });
+
+    useEffect(() => {
+      const initialTopic = topics.find(t => t.id === questionToEdit.topicId);
+      const initialSubject = subjects.find(s => s.id === initialTopic?.subjectId);
+      const initialClass = classes.find(c => c.id === initialSubject?.classId);
+      const initialExamTypeId = initialClass?.examTypeId || '';
+      form.reset({ ...questionToEdit, examTypeId: initialExamTypeId, classId: initialClass?.id || '' });
+    }, [questionToEdit, form, topics, subjects, classes]);
 
     const { fields } = useFieldArray({ control: form.control, name: "options" });
     
@@ -241,36 +242,6 @@ const EditQuestionForm: FC<{
     const selectedExamType = form.watch('examTypeId');
     const selectedClass = form.watch('classId');
     const selectedSubject = form.watch('subjectId');
-
-    useEffect(() => {
-        const newInitialTopic = topics.find(t => t.id === questionToEdit.topicId);
-        const newInitialSubject = subjects.find(s => s.id === newInitialTopic?.subjectId);
-        const newInitialClass = classes.find(c => c.id === newInitialSubject?.classId);
-        const newInitialExamTypeId = newInitialClass?.examTypeId || '';
-        form.reset({ ...questionToEdit, examTypeId: newInitialExamTypeId, classId: newInitialClass?.id || '' });
-    }, [questionToEdit, form, topics, subjects, classes]);
-
-    useEffect(() => {
-        if (form.getValues('examTypeId') !== initialExamTypeId) {
-            form.setValue('classId', '');
-            form.setValue('subjectId', '');
-            form.setValue('topicId', '');
-        }
-    }, [selectedExamType, form, initialExamTypeId]);
-
-    useEffect(() => {
-        if (form.getValues('classId') !== initialSubject?.classId) {
-            form.setValue('subjectId', '');
-            form.setValue('topicId', '');
-        }
-    }, [selectedClass, form, initialSubject]);
-    
-    useEffect(() => {
-        if (form.getValues('subjectId') !== initialTopic?.subjectId) {
-            form.setValue('topicId', '');
-        }
-    }, [selectedSubject, form, initialTopic]);
-
 
     const filteredClasses = useMemo(() => {
         if (!selectedExamType || !classes) return [];
@@ -353,13 +324,43 @@ const EditQuestionForm: FC<{
                 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                      <FormField control={form.control} name="examTypeId" render={({ field }) => (
-                        <FormItem><FormLabel>Exam Type</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an exam type" /></SelectTrigger></FormControl><SelectContent>{examTypes?.map(et => <SelectItem key={et.id} value={et.id}>{et.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+                        <FormItem><FormLabel>Exam Type</FormLabel>
+                            <Select onValueChange={(value) => {
+                                field.onChange(value);
+                                form.setValue('classId', '');
+                                form.setValue('subjectId', '');
+                                form.setValue('topicId', '');
+                            }} value={field.value}>
+                                <FormControl><SelectTrigger><SelectValue placeholder="Select an exam type" /></SelectTrigger></FormControl>
+                                <SelectContent>{examTypes?.map(et => <SelectItem key={et.id} value={et.id}>{et.name}</SelectItem>)}</SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
                     )} />
                     <FormField control={form.control} name="classId" render={({ field }) => (
-                        <FormItem><FormLabel>Class</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!selectedExamType}><FormControl><SelectTrigger><SelectValue placeholder="Select a class" /></SelectTrigger></FormControl><SelectContent>{filteredClasses?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+                        <FormItem><FormLabel>Class</FormLabel>
+                            <Select onValueChange={(value) => {
+                                field.onChange(value);
+                                form.setValue('subjectId', '');
+                                form.setValue('topicId', '');
+                            }} value={field.value} disabled={!selectedExamType}>
+                                <FormControl><SelectTrigger><SelectValue placeholder="Select a class" /></SelectTrigger></FormControl>
+                                <SelectContent>{filteredClasses?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
                     )} />
                     <FormField control={form.control} name="subjectId" render={({ field }) => (
-                        <FormItem><FormLabel>Subject</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!selectedClass}><FormControl><SelectTrigger><SelectValue placeholder="Select a subject" /></SelectTrigger></FormControl><SelectContent>{filteredSubjects.map(subject => <SelectItem key={subject.id} value={subject.id}>{subject.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+                        <FormItem><FormLabel>Subject</FormLabel>
+                            <Select onValueChange={(value) => {
+                                field.onChange(value);
+                                form.setValue('topicId', '');
+                            }} value={field.value} disabled={!selectedClass}>
+                                <FormControl><SelectTrigger><SelectValue placeholder="Select a subject" /></SelectTrigger></FormControl>
+                                <SelectContent>{filteredSubjects.map(subject => <SelectItem key={subject.id} value={subject.id}>{subject.name}</SelectItem>)}</SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
                     )} />
                     <FormField control={form.control} name="topicId" render={({ field }) => (
                         <FormItem><FormLabel>Topic</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!selectedSubject}><FormControl><SelectTrigger><SelectValue placeholder="Select a topic" /></SelectTrigger></FormControl><SelectContent>{filteredTopics.map(topic => <SelectItem key={topic.id} value={topic.id}>{topic.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
@@ -684,21 +685,6 @@ export default function PracticePage() {
   const selectedExamType = form.watch('examTypeId');
   const selectedClass = form.watch('classId');
   const selectedSubject = form.watch('subjectId');
-
-  useEffect(() => {
-    form.setValue('classId', '');
-    form.setValue('subjectId', '');
-    form.setValue('topicId', '');
-  }, [selectedExamType, form]);
-  
-  useEffect(() => {
-    form.setValue('subjectId', '');
-    form.setValue('topicId', '');
-  }, [selectedClass, form]);
-
-  useEffect(() => {
-      form.setValue('topicId', '');
-  }, [selectedSubject, form]);
   
   const filteredClasses = useMemo(() => {
     if (!selectedExamType || !classes) return [];
@@ -859,13 +845,43 @@ export default function PracticePage() {
                           
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <FormField control={form.control} name="examTypeId" render={({ field }) => (
-                              <FormItem><FormLabel>Exam Type</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an exam type" /></SelectTrigger></FormControl><SelectContent>{examTypes?.map(et => <SelectItem key={et.id} value={et.id}>{et.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+                              <FormItem><FormLabel>Exam Type</FormLabel>
+                                <Select onValueChange={(value) => {
+                                  field.onChange(value);
+                                  form.setValue('classId', '');
+                                  form.setValue('subjectId', '');
+                                  form.setValue('topicId', '');
+                                }} value={field.value}>
+                                  <FormControl><SelectTrigger><SelectValue placeholder="Select an exam type" /></SelectTrigger></FormControl>
+                                  <SelectContent>{examTypes?.map(et => <SelectItem key={et.id} value={et.id}>{et.name}</SelectItem>)}</SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
                             )} />
                             <FormField control={form.control} name="classId" render={({ field }) => (
-                              <FormItem><FormLabel>Class</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!selectedExamType}><FormControl><SelectTrigger><SelectValue placeholder="Select a class" /></SelectTrigger></FormControl><SelectContent>{filteredClasses?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+                              <FormItem><FormLabel>Class</FormLabel>
+                                <Select onValueChange={(value) => {
+                                  field.onChange(value);
+                                  form.setValue('subjectId', '');
+                                  form.setValue('topicId', '');
+                                }} value={field.value} disabled={!selectedExamType}>
+                                  <FormControl><SelectTrigger><SelectValue placeholder="Select a class" /></SelectTrigger></FormControl>
+                                  <SelectContent>{filteredClasses?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
                             )} />
                             <FormField control={form.control} name="subjectId" render={({ field }) => (
-                              <FormItem><FormLabel>Subject</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!selectedClass}><FormControl><SelectTrigger><SelectValue placeholder="Select a subject" /></SelectTrigger></FormControl><SelectContent>{filteredSubjects.map(subject => <SelectItem key={subject.id} value={subject.id}>{subject.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+                              <FormItem><FormLabel>Subject</FormLabel>
+                                <Select onValueChange={(value) => {
+                                  field.onChange(value);
+                                  form.setValue('topicId', '');
+                                }} value={field.value} disabled={!selectedClass}>
+                                  <FormControl><SelectTrigger><SelectValue placeholder="Select a subject" /></SelectTrigger></FormControl>
+                                  <SelectContent>{filteredSubjects.map(subject => <SelectItem key={subject.id} value={subject.id}>{subject.name}</SelectItem>)}</SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
                             )} />
                             <FormField control={form.control} name="topicId" render={({ field }) => (
                               <FormItem><FormLabel>Topic</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!selectedSubject}><FormControl><SelectTrigger><SelectValue placeholder="Select a topic" /></SelectTrigger></FormControl><SelectContent>{filteredTopics.map(topic => <SelectItem key={topic.id} value={topic.id}>{topic.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>

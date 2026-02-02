@@ -295,6 +295,7 @@ service cloud.firestore {
                     && exists(/databases/$(database)/documents/exam_types/$(request.resource.data.examTypeId))
                     && exists(/databases/$(database)/documents/classes/$(request.resource.data.classId))
                     && exists(/databases/$(database)/documents/subjects/$(request.resource.data.subjectId))
+                    && exists(/databases/$(database)/documents/topics/$(request.resource.data.topicId))
                     && request.resource.data.accessLevel in ['free', 'paid']
                     && request.resource.data.startTime > request.time;
 
@@ -303,7 +304,8 @@ service cloud.firestore {
                     && request.resource.data.teacherId == resource.data.teacherId
                     && request.resource.data.examTypeId == resource.data.examTypeId
                     && request.resource.data.classId == resource.data.classId
-                    && request.resource.data.subjectId == resource.data.subjectId;
+                    && request.resource.data.subjectId == resource.data.subjectId
+                    && request.resource.data.topicId == resource.data.topicId;
 
       allow delete: if resource != null && isOwner(resource.data.teacherId);
     }

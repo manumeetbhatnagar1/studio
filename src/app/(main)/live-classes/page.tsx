@@ -56,6 +56,7 @@ const liveClassSchema = z.object({
   examTypeId: z.string().min(1, 'Please select an exam type.'),
   classId: z.string().min(1, 'Please select a class.'),
   subjectId: z.string().min(1, 'Please select a subject.'),
+  topicId: z.string().min(1, 'Please select a topic.'),
   accessLevel: z.enum(['free', 'paid']),
   meetingUrl: z.string().url('Please enter a valid meeting URL.'),
 });
@@ -72,6 +73,7 @@ type LiveClass = {
   examTypeId: string;
   classId: string;
   subjectId: string;
+  topicId: string;
   accessLevel: 'free' | 'paid';
   recordingUrl?: string;
 };
@@ -79,6 +81,7 @@ type LiveClass = {
 type ExamType = { id: string; name: string; };
 type Class = { id: string; name: string; examTypeId: string; };
 type Subject = { id: string; name: string; classId: string };
+type Topic = { id: string; name: string; subjectId: string; };
 
 type UserProfile = {
   subscriptionStatus?: 'active' | 'canceled' | 'past_due' | 'trialing';
@@ -128,7 +131,7 @@ function FeePaymentReminder() {
     return null;
 }
 
-const LiveClassCard: FC<{ liveClass: LiveClass; currentUserId?: string, examTypeMap: Record<string, string>, classMap: Record<string, string>, subjectMap: Record<string, string> }> = ({ liveClass, currentUserId, examTypeMap, classMap, subjectMap }) => {
+const LiveClassCard: FC<{ liveClass: LiveClass; currentUserId?: string, examTypeMap: Record<string, string>, classMap: Record<string, string>, subjectMap: Record<string, string>, topicMap: Record<string, string> }> = ({ liveClass, currentUserId, examTypeMap, classMap, subjectMap, topicMap }) => {
     const firestore = useFirestore();
     const { toast } = useToast();
     const [isRecordingDialogOpen, setIsRecordingDialogOpen] = useState(false);
@@ -172,7 +175,7 @@ const LiveClassCard: FC<{ liveClass: LiveClass; currentUserId?: string, examType
             <CardContent className="flex-grow space-y-4">
                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <BookOpen className="h-4 w-4"/>
-                    <span>{classMap[liveClass.classId] || 'N/A'} / {subjectMap[liveClass.subjectId] || 'N/A'}</span>
+                    <span>{classMap[liveClass.classId] || 'N/A'} / {subjectMap[liveClass.subjectId] || 'N/A'} / {topicMap[liveClass.topicId] || 'N/A'}</span>
                 </div>
                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
                     <div className="flex items-center gap-2"><CalendarIcon className="h-4 w-4"/><span>{format(classTime, 'E, d MMM yyyy')}</span></div>
@@ -238,11 +241,13 @@ const PastClassesCurriculumView: FC<{
     examTypes: ExamType[];
     classes: Class[];
     subjects: Subject[];
+    topics: Topic[];
     examTypeMap: Record<string, string>;
     classMap: Record<string, string>;
     subjectMap: Record<string, string>;
+    topicMap: Record<string, string>;
     currentUserId?: string;
-}> = ({ pastClasses, examTypes, classes, subjects, examTypeMap, classMap, subjectMap, currentUserId }) => {
+}> = ({ pastClasses, examTypes, classes, subjects, topics, examTypeMap, classMap, subjectMap, topicMap, currentUserId }) => {
 
     const curriculumTree = useMemo(() => {
         if (!examTypes || !classes || !subjects || !pastClasses) return [];
@@ -293,6 +298,7 @@ const PastClassesCurriculumView: FC<{
                                                                 examTypeMap={examTypeMap}
                                                                 classMap={classMap}
                                                                 subjectMap={subjectMap}
+                                                                topicMap={topicMap}
                                                             />
                                                         ))}
                                                     </AccordionContent>
@@ -323,12 +329,14 @@ function StudentView() {
     const examTypesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'exam_types'), orderBy('name')) : null, [firestore]);
     const classesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'classes'), orderBy('name')) : null, [firestore]);
     const subjectsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'subjects'), orderBy('name')) : null, [firestore]);
+    const topicsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'topics'), orderBy('name')) : null, [firestore]);
 
     const { data: examTypes, isLoading: areExamTypesLoading } = useCollection<ExamType>(examTypesQuery);
     const { data: classes, isLoading: areClassesDataLoading } = useCollection<Class>(classesQuery);
     const { data: subjects, isLoading: areSubjectsLoading } = useCollection<Subject>(subjectsQuery);
+    const { data: topics, isLoading: areTopicsLoading } = useCollection<Topic>(topicsQuery);
 
-    const isLoading = areLiveClassesLoading || areExamTypesLoading || areClassesDataLoading || areSubjectsLoading;
+    const isLoading = areLiveClassesLoading || areExamTypesLoading || areClassesDataLoading || areSubjectsLoading || areTopicsLoading;
 
     const { upcomingClasses, pastClasses } = useMemo(() => {
         if (!liveClasses) return { upcomingClasses: [], pastClasses: [] };
@@ -345,6 +353,7 @@ function StudentView() {
     
     const classMap = useMemo(() => classes ? classes.reduce((acc, c) => ({...acc, [c.id]: c.name}), {} as Record<string, string>) : {}, [classes]);
     const subjectMap = useMemo(() => subjects ? subjects.reduce((acc, s) => ({...acc, [s.id]: s.name}), {} as Record<string, string>) : {}, [subjects]);
+    const topicMap = useMemo(() => topics ? topics.reduce((acc, t) => ({...acc, [t.id]: t.name}), {} as Record<string, string>) : {}, [topics]);
 
     return (
         <div className="space-y-6">
@@ -383,9 +392,11 @@ function StudentView() {
                                     <p className="font-semibold">{c.title}</p>
                                     <p className="text-sm text-muted-foreground">{format(c.startTime.toDate(), "MMM d, yyyy")} &middot; by {c.teacherName}</p>
                                 </div>
-                                <Button asChild variant="ghost" size="sm">
-                                    <Link href={c.recordingUrl!} target="_blank"><PlayCircle className="h-4 w-4" /></Link>
-                                </Button>
+                                {c.recordingUrl && (
+                                    <Button asChild variant="ghost" size="sm">
+                                        <Link href={c.recordingUrl} target="_blank"><PlayCircle className="h-4 w-4" /></Link>
+                                    </Button>
+                                )}
                             </div>
                         )) : <p className="text-muted-foreground">No recordings available yet.</p>
                        }
@@ -404,9 +415,11 @@ function StudentView() {
                             examTypes={examTypes || []}
                             classes={classes || []}
                             subjects={subjects || []}
+                            topics={topics || []}
                             examTypeMap={examTypeMap}
                             classMap={classMap}
                             subjectMap={subjectMap}
+                            topicMap={topicMap}
                         />
                     }
                 </CardContent>
@@ -417,12 +430,11 @@ function StudentView() {
 
 // ===== TEACHER VIEW: COMPONENTS =====
 
-const LiveClassForm: FC<{ setOpen: (open: boolean) => void, examTypes: ExamType[], classes: Class[], subjects: Subject[] }> = ({ setOpen, examTypes, classes, subjects }) => {
+const LiveClassForm: FC<{ setOpen: (open: boolean) => void, examTypes: ExamType[], classes: Class[], subjects: Subject[], topics: Topic[] }> = ({ setOpen, examTypes, classes, subjects, topics }) => {
     const { user } = useUser();
     const firestore = useFirestore();
     const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
     const form = useForm<z.infer<typeof liveClassSchema>>({
         resolver: zodResolver(liveClassSchema),
@@ -432,6 +444,7 @@ const LiveClassForm: FC<{ setOpen: (open: boolean) => void, examTypes: ExamType[
             examTypeId: '',
             classId: '',
             subjectId: '',
+            topicId: '',
             accessLevel: 'free',
             meetingUrl: '',
         },
@@ -440,6 +453,7 @@ const LiveClassForm: FC<{ setOpen: (open: boolean) => void, examTypes: ExamType[
     const { watch, setValue } = form;
     const selectedExamType = watch('examTypeId');
     const selectedClass = watch('classId');
+    const selectedSubject = watch('subjectId');
     
     const filteredClasses = useMemo(() => {
       if (!selectedExamType) return [];
@@ -450,15 +464,26 @@ const LiveClassForm: FC<{ setOpen: (open: boolean) => void, examTypes: ExamType[
       if (!selectedClass) return [];
       return subjects.filter((subject) => subject.classId === selectedClass);
     }, [selectedClass, subjects]);
+
+    const filteredTopics = useMemo(() => {
+        if (!selectedSubject) return [];
+        return topics.filter((topic) => topic.subjectId === selectedSubject);
+    }, [selectedSubject, topics]);
   
     useEffect(() => {
       setValue('classId', '');
       setValue('subjectId', '');
+      setValue('topicId', '');
     }, [selectedExamType, setValue]);
   
     useEffect(() => {
       setValue('subjectId', '');
+      setValue('topicId', '');
     }, [selectedClass, setValue]);
+
+    useEffect(() => {
+        setValue('topicId', '');
+    }, [selectedSubject, setValue]);
 
     async function onSubmit(values: z.infer<typeof liveClassSchema>) {
         if (!user) {
@@ -479,7 +504,8 @@ const LiveClassForm: FC<{ setOpen: (open: boolean) => void, examTypes: ExamType[
           const notificationsRef = collection(firestore, 'notifications');
           const className = classes.find(c => c.id === values.classId)?.name || '';
           const subjectName = subjects.find(s => s.id === values.subjectId)?.name || '';
-          const notificationMessage = `"${values.title}" for ${className} (${subjectName}) is scheduled at ${format(values.startTime, 'p, dd/MM/yy')}.`;
+          const topicName = topics.find(t => t.id === values.topicId)?.name || '';
+          const notificationMessage = `"${values.title}" for ${className} (${subjectName} - ${topicName}) is scheduled at ${format(values.startTime, 'p, dd/MM/yy')}.`;
           
           await addDocumentNonBlocking(notificationsRef, {
               title: 'New Live Class',
@@ -577,6 +603,12 @@ const LiveClassForm: FC<{ setOpen: (open: boolean) => void, examTypes: ExamType[
                         </Select><FormMessage /></FormItem>
                     )} />
                  </div>
+                 <FormField control={form.control} name="topicId" render={({ field }) => (
+                    <FormItem><FormLabel>Topic</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!selectedSubject}>
+                        <FormControl><SelectTrigger><SelectValue placeholder="Select a topic" /></SelectTrigger></FormControl>
+                        <SelectContent>{filteredTopics.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
+                    </Select><FormMessage /></FormItem>
+                )} />
                  <FormField control={form.control} name="meetingUrl" render={({ field }) => (
                     <FormItem><FormLabel>Meeting URL</FormLabel><FormControl><Input placeholder="https://meet.google.com/..." {...field} /></FormControl><FormMessage /></FormItem>
                 )} />
@@ -652,11 +684,13 @@ function TeacherView() {
     const examTypesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'exam_types'), orderBy('name')) : null, [firestore]);
     const classesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'classes'), orderBy('name')) : null, [firestore]);
     const subjectsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'subjects'), orderBy('name')) : null, [firestore]);
+    const topicsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'topics'), orderBy('name')) : null, [firestore]);
 
     const { data: liveClasses, isLoading: areLiveClassesLoading, error } = useCollection<LiveClass>(liveClassesQuery);
     const { data: examTypes, isLoading: areExamTypesLoading } = useCollection<ExamType>(examTypesQuery);
     const { data: classes, isLoading: areClassesDataLoading } = useCollection<Class>(classesQuery);
     const { data: subjects, isLoading: areSubjectsLoading } = useCollection<Subject>(subjectsQuery);
+    const { data: topics, isLoading: areTopicsLoading } = useCollection<Topic>(topicsQuery);
   
     const examTypeMap = useMemo(() => {
       if (!examTypes) return {};
@@ -665,6 +699,7 @@ function TeacherView() {
     
     const classMap = useMemo(() => classes ? classes.reduce((acc, c) => ({...acc, [c.id]: c.name}), {} as Record<string, string>) : {}, [classes]);
     const subjectMap = useMemo(() => subjects ? subjects.reduce((acc, s) => ({...acc, [s.id]: s.name}), {} as Record<string, string>) : {}, [subjects]);
+    const topicMap = useMemo(() => topics ? topics.reduce((acc, t) => ({...acc, [t.id]: t.name}), {} as Record<string, string>) : {}, [topics]);
     
     if (error) {
       console.error("Firestore Error:", error);
@@ -673,7 +708,7 @@ function TeacherView() {
     const upcomingClasses = useMemo(() => liveClasses?.filter(c => c.startTime.toDate() >= new Date()) || [], [liveClasses]);
     const pastClasses = useMemo(() => liveClasses?.filter(c => c.startTime.toDate() < new Date()).reverse() || [], [liveClasses]);
   
-    const isLoading = areLiveClassesLoading || areExamTypesLoading || areClassesDataLoading || areSubjectsLoading;
+    const isLoading = areLiveClassesLoading || areExamTypesLoading || areClassesDataLoading || areSubjectsLoading || areTopicsLoading;
 
     return (
         <>
@@ -688,7 +723,7 @@ function TeacherView() {
                         <DialogTitle>Schedule a New Live Class</DialogTitle>
                         <DialogDescription>Fill in the details below to add a new class to the schedule.</DialogDescription>
                     </DialogHeader>
-                    {isLoading ? <Skeleton className="h-64"/> : <LiveClassForm setOpen={setIsFormOpen} examTypes={examTypes || []} classes={classes || []} subjects={subjects || []} />}
+                    {isLoading ? <Skeleton className="h-64"/> : <LiveClassForm setOpen={setIsFormOpen} examTypes={examTypes || []} classes={classes || []} subjects={subjects || []} topics={topics || []} />}
                     </DialogContent>
                 </Dialog>
             </div>
@@ -713,7 +748,7 @@ function TeacherView() {
                   <h3 className="font-headline text-xl font-semibold mb-4 border-b pb-2">Upcoming Classes</h3>
                   {upcomingClasses.length > 0 ? (
                     <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-                        {upcomingClasses.map(cls => <LiveClassCard key={cls.id} liveClass={cls} currentUserId={user?.uid} examTypeMap={examTypeMap} classMap={classMap} subjectMap={subjectMap} />)}
+                        {upcomingClasses.map(cls => <LiveClassCard key={cls.id} liveClass={cls} currentUserId={user?.uid} examTypeMap={examTypeMap} classMap={classMap} subjectMap={subjectMap} topicMap={topicMap} />)}
                     </div>
                   ) : (
                     <p className="text-muted-foreground">No upcoming classes scheduled.</p>
@@ -727,9 +762,11 @@ function TeacherView() {
                             examTypes={examTypes || []}
                             classes={classes || []}
                             subjects={subjects || []}
+                            topics={topics || []}
                             examTypeMap={examTypeMap}
                             classMap={classMap}
                             subjectMap={subjectMap}
+                            topicMap={topicMap}
                             currentUserId={user?.uid}
                         />
                     ) : (

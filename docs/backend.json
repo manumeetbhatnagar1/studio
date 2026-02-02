@@ -319,6 +319,10 @@
             "type": "string",
             "description": "Reference to the Subject this live class is for."
         },
+        "topicId": {
+            "type": "string",
+            "description": "Reference to the Topic this live class is for."
+        },
         "accessLevel": {
             "type": "string",
             "description": "Specifies if the class is free or requires a subscription.",
@@ -340,6 +344,7 @@
         "examTypeId",
         "classId",
         "subjectId",
+        "topicId",
         "accessLevel"
       ]
     },

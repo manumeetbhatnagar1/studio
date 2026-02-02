@@ -24,7 +24,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 
 type Question = { id: string; questionText: string; classId: string; subjectId: string; topicId: string; accessLevel: 'free' | 'paid', examTypeId: string, difficultyLevel: 'Easy' | 'Medium' | 'Hard' };
-type Class = { id: string; name: string; };
+type Class = { id: string; name: string; examTypeId: string };
 type Subject = { id: string; name: string; classId: string };
 type Topic = { id: string; name: string; subjectId: string };
 type ExamType = { id: string; name: string; };
@@ -118,16 +118,21 @@ export default function EditCustomMockTestPage() {
   const curriculumTree = useMemo(() => {
     if (!classes || !subjects || !topics) return [];
 
-    return classes.map(c => ({
+    const filteredClasses = examTypeIdFilter
+      ? classes.filter(c => c.examTypeId === examTypeIdFilter)
+      : classes;
+
+    return filteredClasses.map(c => ({
       ...c,
       subjects: subjects
         .filter(s => s.classId === c.id)
         .map(s => ({
           ...s,
           topics: topics.filter(t => t.subjectId === s.id),
-        })),
-    }));
-  }, [classes, subjects, topics]);
+        }))
+        .filter(s => s.topics.length > 0),
+    })).filter(c => c.subjects.length > 0);
+  }, [classes, subjects, topics, examTypeIdFilter]);
 
   const filteredQuestions = useMemo(() => {
     if (!allQuestions) return [];

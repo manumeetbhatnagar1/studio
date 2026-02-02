@@ -151,7 +151,7 @@ const PlanForm: FC<{
 
     return (
         <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 max-h-[70vh] overflow-y-auto pr-4">
                 <FormField control={form.control} name="name" render={({ field }) => (
                     <FormItem><FormLabel>Plan Name</FormLabel><FormControl><Input placeholder="e.g., Excel Plan" {...field} /></FormControl><FormMessage /></FormItem>
                 )} />
@@ -263,7 +263,7 @@ const TeacherView: FC<{
                 <h2 className="font-headline text-2xl font-semibold">Manage Subscription Plans</h2>
                  <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
                     <DialogTrigger asChild><Button><PlusCircle className="mr-2"/>Add New Plan</Button></DialogTrigger>
-                    <DialogContent>
+                    <DialogContent className="sm:max-w-2xl">
                         <DialogHeader>
                             <DialogTitle>Add New Subscription Plan</DialogTitle>
                         </DialogHeader>
@@ -295,7 +295,7 @@ const TeacherView: FC<{
             )) : <p className="text-muted-foreground text-center py-8">No subscription plans found. Add one to get started.</p>}
 
             <Dialog open={!!planToEdit} onOpenChange={(open) => !open && setPlanToEdit(null)}>
-                <DialogContent>
+                <DialogContent className="sm:max-w-2xl">
                     <DialogHeader>
                         <DialogTitle>Edit Subscription Plan</DialogTitle>
                     </DialogHeader>

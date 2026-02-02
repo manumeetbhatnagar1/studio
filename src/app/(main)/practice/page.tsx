@@ -119,19 +119,6 @@ function QuestionItem({ question, topicMap, classMap, examTypeMap, isTeacher, ca
         <AccordionTrigger className="flex-1" disabled={isLocked}>
           <div className="flex-1 text-left">
             <p className="font-medium">{question.questionText}</p>
-             {question.imageUrl && (
-              <div className="my-4 space-y-2">
-                  <div className="p-4 border rounded-md flex justify-center bg-muted/50">
-                      <Image
-                          src={question.imageUrl}
-                          alt="Question diagram"
-                          width={1000}
-                          height={750}
-                          className="rounded-md object-contain"
-                      />
-                  </div>
-              </div>
-            )}
             <div className="flex items-center gap-2 mt-2 flex-wrap">
               <Badge variant="outline">{classMap[question.classId] || 'Unknown Class'}</Badge>
               <Badge variant="outline">{examTypeMap[question.examTypeId] || 'Unknown Exam'}</Badge>
@@ -166,6 +153,20 @@ function QuestionItem({ question, topicMap, classMap, examTypeMap, isTeacher, ca
           <>
             {isTeacher ? (
               <>
+                {question.imageUrl && (
+                  <div className="my-4 space-y-2">
+                      <p className="font-semibold text-sm text-muted-foreground">Question Image:</p>
+                      <div className="p-4 border rounded-md flex justify-center bg-muted/50">
+                          <Image
+                              src={question.imageUrl}
+                              alt="Question diagram"
+                              width={2000}
+                              height={1500}
+                              className="rounded-md object-contain"
+                          />
+                      </div>
+                  </div>
+                )}
                 {question.explanationImageUrl && (
                   <div className="my-4 space-y-2">
                     <p className="font-semibold text-sm text-muted-foreground">Explanation Image:</p>
@@ -173,8 +174,8 @@ function QuestionItem({ question, topicMap, classMap, examTypeMap, isTeacher, ca
                       <Image
                         src={question.explanationImageUrl}
                         alt="Explanation diagram"
-                        width={1000}
-                        height={750}
+                        width={2000}
+                        height={1500}
                         className="rounded-md object-contain"
                       />
                     </div>
@@ -1047,8 +1048,3 @@ export default function PracticePage() {
     </div>
   );
 }
-
-    
-
-    
-

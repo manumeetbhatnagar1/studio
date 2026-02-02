@@ -135,16 +135,18 @@ const LiveClassForm: FC<{ setOpen: (open: boolean) => void, examTypes: ExamType[
                                 <Calendar
                                     mode="single"
                                     selected={field.value}
-                                    onSelect={(date) => {
-                                        if (!date) {
-                                            field.onChange(undefined);
-                                            return;
+                                    onSelect={(selectedDate) => {
+                                        if (!selectedDate) {
+                                          field.onChange(undefined);
+                                          return;
                                         }
-                                        const newDateTime = new Date(date);
-                                        const currentTime = field.value || new Date();
-                                        newDateTime.setHours(
-                                            currentTime.getHours(),
-                                            currentTime.getMinutes()
+                                        const currentDateTime = field.value || new Date();
+                                        const newDateTime = new Date(
+                                          selectedDate.getFullYear(),
+                                          selectedDate.getMonth(),
+                                          selectedDate.getDate(),
+                                          currentDateTime.getHours(),
+                                          currentDateTime.getMinutes()
                                         );
                                         field.onChange(newDateTime);
                                     }}
@@ -155,8 +157,14 @@ const LiveClassForm: FC<{ setOpen: (open: boolean) => void, examTypes: ExamType[
                                     <Select
                                         value={field.value ? String(field.value.getHours()).padStart(2, '0') : '09'}
                                         onValueChange={(hour) => {
-                                            const newDateTime = new Date(field.value || new Date());
-                                            newDateTime.setHours(parseInt(hour, 10));
+                                            const currentDateTime = field.value || new Date();
+                                            const newDateTime = new Date(
+                                                currentDateTime.getFullYear(),
+                                                currentDateTime.getMonth(),
+                                                currentDateTime.getDate(),
+                                                parseInt(hour, 10),
+                                                currentDateTime.getMinutes()
+                                            );
                                             field.onChange(newDateTime);
                                         }}
                                     >
@@ -167,8 +175,14 @@ const LiveClassForm: FC<{ setOpen: (open: boolean) => void, examTypes: ExamType[
                                     <Select
                                         value={field.value ? String(field.value.getMinutes()).padStart(2, '0') : '00'}
                                          onValueChange={(minute) => {
-                                            const newDateTime = new Date(field.value || new Date());
-                                            newDateTime.setMinutes(parseInt(minute, 10));
+                                            const currentDateTime = field.value || new Date();
+                                            const newDateTime = new Date(
+                                                currentDateTime.getFullYear(),
+                                                currentDateTime.getMonth(),
+                                                currentDateTime.getDate(),
+                                                currentDateTime.getHours(),
+                                                parseInt(minute, 10)
+                                            );
                                             field.onChange(newDateTime);
                                         }}
                                     >

@@ -10,7 +10,7 @@ import { AlertTriangle, CreditCard, PlayCircle, CalendarClock } from 'lucide-rea
 import { Button } from '@/components/ui/button';
 import { format, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from 'recharts';
-import { ChartConfig, ChartContainer, ChartTooltipContent } from '@/components/ui/chart';
+import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 
 // TYPES
 type LiveClass = {

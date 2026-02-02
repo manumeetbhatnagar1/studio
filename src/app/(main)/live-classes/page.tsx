@@ -595,7 +595,7 @@ function TeacherView() {
     const classesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'classes'), orderBy('name')) : null, [firestore]);
     const subjectsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'subjects'), orderBy('name')) : null, [firestore]);
 
-    const { data: liveClasses, isLoading: areClassesLoading, error } = useCollection<LiveClass>(liveClassesQuery);
+    const { data: liveClasses, isLoading: areLiveClassesLoading, error } = useCollection<LiveClass>(liveClassesQuery);
     const { data: examTypes, isLoading: areExamTypesLoading } = useCollection<ExamType>(examTypesQuery);
     const { data: classes, isLoading: areClassesLoading } = useCollection<Class>(classesQuery);
     const { data: subjects, isLoading: areSubjectsLoading } = useCollection<Subject>(subjectsQuery);
@@ -618,7 +618,7 @@ function TeacherView() {
     const upcomingClasses = useMemo(() => liveClasses?.filter(c => c.startTime.toDate() >= new Date()) || [], [liveClasses]);
     const pastClasses = useMemo(() => liveClasses?.filter(c => c.startTime.toDate() < new Date()).reverse() || [], [liveClasses]);
   
-    const isLoading = areClassesLoading || areExamTypesLoading || areClassesLoading || areSubjectsLoading;
+    const isLoading = areLiveClassesLoading || areExamTypesLoading || areClassesLoading || areSubjectsLoading;
 
     return (
         <>
@@ -713,3 +713,5 @@ export default function LiveClassesPage() {
       </div>
     );
   }
+
+    

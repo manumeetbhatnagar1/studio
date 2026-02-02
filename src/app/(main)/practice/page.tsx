@@ -93,7 +93,7 @@ type PracticeQuestion = {
   numericalAnswer?: number;
   accessLevel: 'free' | 'paid';
 };
-type Class = { id: string; name: string; };
+type Class = { id: string; name: string; examTypeId: string; };
 type Subject = { id: string; name: string; classId: string; };
 type Topic = { id: string; name: string; subjectId: string; };
 type ExamType = { id: string; name: string; };
@@ -201,40 +201,56 @@ const EditQuestionForm: FC<{
     // Find the subject and class for the initial topic
     const initialTopic = topics.find(t => t.id === questionToEdit.topicId);
     const initialSubject = subjects.find(s => s.id === initialTopic?.subjectId);
-    const initialClassId = initialSubject?.classId || '';
+    const initialClass = classes.find(c => c.id === initialSubject?.classId);
+    const initialExamTypeId = initialClass?.examTypeId || '';
 
     const form = useForm<z.infer<typeof questionSchema>>({
         resolver: zodResolver(questionSchema),
-        defaultValues: { ...questionToEdit, classId: initialClassId },
+        defaultValues: { ...questionToEdit, examTypeId: initialExamTypeId },
     });
 
     const { fields } = useFieldArray({ control: form.control, name: "options" });
     
     const questionType = form.watch('questionType');
+    const selectedExamType = form.watch('examTypeId');
     const selectedClass = form.watch('classId');
     const selectedSubject = form.watch('subjectId');
 
     useEffect(() => {
         const newInitialTopic = topics.find(t => t.id === questionToEdit.topicId);
         const newInitialSubject = subjects.find(s => s.id === newInitialTopic?.subjectId);
-        const newInitialClassId = newInitialSubject?.classId || '';
-        form.reset({ ...questionToEdit, classId: newInitialClassId });
-    }, [questionToEdit, form, topics, subjects]);
+        const newInitialClass = classes.find(c => c.id === newInitialSubject?.classId);
+        const newInitialExamTypeId = newInitialClass?.examTypeId || '';
+        form.reset({ ...questionToEdit, examTypeId: newInitialExamTypeId, classId: newInitialClass?.id || '' });
+    }, [questionToEdit, form, topics, subjects, classes]);
 
     useEffect(() => {
-        if (form.getValues('classId') !== initialClassId) {
+        if (form.getValues('examTypeId') !== initialExamTypeId) {
+            form.setValue('classId', '');
             form.setValue('subjectId', '');
             form.setValue('topicId', '');
         }
-    }, [selectedClass, form, initialClassId]);
+    }, [selectedExamType, form, initialExamTypeId]);
 
     useEffect(() => {
-        if (form.getValues('subjectId') !== initialSubject?.id) {
+        if (form.getValues('classId') !== initialSubject?.classId) {
+            form.setValue('subjectId', '');
             form.setValue('topicId', '');
         }
-    }, [selectedSubject, form, initialSubject]);
+    }, [selectedClass, form, initialSubject]);
+    
+    useEffect(() => {
+        if (form.getValues('subjectId') !== initialTopic?.subjectId) {
+            form.setValue('topicId', '');
+        }
+    }, [selectedSubject, form, initialTopic]);
 
 
+    const filteredClasses = useMemo(() => {
+        if (!selectedExamType || !classes) return [];
+        return classes.filter(c => c.examTypeId === selectedExamType);
+    }, [selectedExamType, classes]);
+    
     const filteredSubjects = useMemo(() => {
         if (!selectedClass || !subjects) return [];
         return subjects.filter(subject => subject.classId === selectedClass);
@@ -306,8 +322,11 @@ const EditQuestionForm: FC<{
                 {questionType === 'Numerical' && (<FormField control={form.control} name="numericalAnswer" render={({ field }) => (<FormItem><FormLabel>Correct Numerical Answer</FormLabel><FormControl><Input type="number" placeholder="e.g., 42" {...field} onChange={event => field.onChange(+event.target.value)} /></FormControl><FormMessage /></FormItem>)} />)}
                 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                     <FormField control={form.control} name="examTypeId" render={({ field }) => (
+                        <FormItem><FormLabel>Exam Type</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an exam type" /></SelectTrigger></FormControl><SelectContent>{examTypes?.map(et => <SelectItem key={et.id} value={et.id}>{et.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+                    )} />
                     <FormField control={form.control} name="classId" render={({ field }) => (
-                        <FormItem><FormLabel>Class</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a class" /></SelectTrigger></FormControl><SelectContent>{classes?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+                        <FormItem><FormLabel>Class</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!selectedExamType}><FormControl><SelectTrigger><SelectValue placeholder="Select a class" /></SelectTrigger></FormControl><SelectContent>{filteredClasses?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
                     )} />
                     <FormField control={form.control} name="subjectId" render={({ field }) => (
                         <FormItem><FormLabel>Subject</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!selectedClass}><FormControl><SelectTrigger><SelectValue placeholder="Select a subject" /></SelectTrigger></FormControl><SelectContent>{filteredSubjects.map(subject => <SelectItem key={subject.id} value={subject.id}>{subject.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
@@ -317,9 +336,6 @@ const EditQuestionForm: FC<{
                     )} />
                     <FormField control={form.control} name="difficultyLevel" render={({ field }) => (
                         <FormItem><FormLabel>Difficulty</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select difficulty" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Easy">Easy</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Hard">Hard</SelectItem></SelectContent></Select><FormMessage /></FormItem>
-                    )} />
-                    <FormField control={form.control} name="examTypeId" render={({ field }) => (
-                        <FormItem><FormLabel>Exam Type</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an exam type" /></SelectTrigger></FormControl><SelectContent>{examTypes?.map(et => <SelectItem key={et.id} value={et.id}>{et.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
                     )} />
                 </div>
 
@@ -402,23 +418,32 @@ const StartPracticeForm: FC<{
                     <Card>
                         <CardContent className='p-4 max-h-96 overflow-y-auto'>
                             <Accordion type="multiple" className="w-full">
-                                {curriculumTree.map(c => (
-                                <AccordionItem value={c.id} key={c.id}>
-                                    <AccordionTrigger>{c.name}</AccordionTrigger>
+                                {curriculumTree.map(et => (
+                                <AccordionItem value={et.id} key={et.id}>
+                                    <AccordionTrigger>{et.name}</AccordionTrigger>
                                     <AccordionContent>
-                                    <Accordion type="multiple" className="w-full pl-4" defaultValue={c.subjects.map((s:any) => s.id)}>
-                                        {c.subjects.map((s:any) => (
-                                        <AccordionItem value={s.id} key={s.id}>
-                                            <AccordionTrigger>{s.name}</AccordionTrigger>
-                                            <AccordionContent className='pl-4'>
-                                                <div className="space-y-2">
-                                                    {s.topics.map((t:any) => (
-                                                        <div key={t.id} className="flex items-center space-x-2">
-                                                            <Checkbox id={`practice-${t.id}`} onCheckedChange={(checked) => handleTopicToggle(t.id, !!checked)} checked={selectedTopics.includes(t.id)}/>
-                                                            <label htmlFor={`practice-${t.id}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">{t.name}</label>
+                                    <Accordion type="multiple" className="w-full pl-4">
+                                        {et.classes.map((c:any) => (
+                                        <AccordionItem value={c.id} key={c.id}>
+                                            <AccordionTrigger>{c.name}</AccordionTrigger>
+                                            <AccordionContent>
+                                            <Accordion type="multiple" className="w-full pl-4" defaultValue={c.subjects.map((s:any) => s.id)}>
+                                                {c.subjects.map((s:any) => (
+                                                <AccordionItem value={s.id} key={s.id}>
+                                                    <AccordionTrigger>{s.name}</AccordionTrigger>
+                                                    <AccordionContent className='pl-4'>
+                                                        <div className="space-y-2">
+                                                            {s.topics.map((t:any) => (
+                                                                <div key={t.id} className="flex items-center space-x-2">
+                                                                    <Checkbox id={`practice-${t.id}`} onCheckedChange={(checked) => handleTopicToggle(t.id, !!checked)} checked={selectedTopics.includes(t.id)}/>
+                                                                    <label htmlFor={`practice-${t.id}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">{t.name}</label>
+                                                                </div>
+                                                            ))}
                                                         </div>
-                                                    ))}
-                                                </div>
+                                                    </AccordionContent>
+                                                </AccordionItem>
+                                                ))}
+                                            </Accordion>
                                             </AccordionContent>
                                         </AccordionItem>
                                         ))}
@@ -494,53 +519,60 @@ export default function PracticePage() {
   }, [examTypes]);
 
   const questionTree = useMemo(() => {
-    if (!classes || !subjects || !topics || !questions) return [];
-
-    const sortedClasses = [...classes].sort((a,b) => a.name.localeCompare(b.name));
+    if (!examTypes || !classes || !subjects || !topics || !questions) return [];
     
-    return sortedClasses.map(c => {
-        const classSubjects = [...subjects]
+    return examTypes.map(et => ({
+      ...et,
+      classes: classes
+        .filter(c => c.examTypeId === et.id)
+        .map(c => ({
+          ...c,
+          subjects: subjects
             .filter(s => s.classId === c.id)
-            .sort((a,b) => a.name.localeCompare(b.name));
-
-        const subjectsWithTopics = classSubjects.map(s => {
-            const subjectTopics = [...topics]
+            .map(s => ({
+              ...s,
+              topics: topics
                 .filter(t => t.subjectId === s.id)
                 .map(topic => ({
-                    ...topic,
-                    questions: questions.filter(q => q.topicId === topic.id)
+                  ...topic,
+                  questions: questions.filter(q => q.topicId === topic.id)
                 }))
                 .filter(t => t.questions.length > 0)
-                .sort((a,b) => a.name.localeCompare(b.name));
-            return { ...s, topics: subjectTopics };
-        }).filter(s => s.topics.length > 0);
-
-        return { ...c, subjects: subjectsWithTopics };
-    }).filter(c => c.subjects.length > 0);
-
-  }, [classes, subjects, topics, questions]);
+            }))
+            .filter(s => s.topics.length > 0)
+        }))
+        .filter(c => c.subjects.length > 0)
+    })).filter(et => et.classes.length > 0);
+  }, [examTypes, classes, subjects, topics, questions]);
   
   const curriculumTree = useMemo(() => {
-    if (!classes || !subjects || !topics) return [];
+    if (!examTypes || !classes || !subjects || !topics) return [];
 
-    const sortedClasses = [...classes].sort((a,b) => a.name.localeCompare(b.name));
+    const sortedExamTypes = [...examTypes].sort((a,b) => a.name.localeCompare(b.name));
     
-    return sortedClasses.map(c => {
-        const classSubjects = [...subjects]
-            .filter(s => s.classId === c.id)
+    return sortedExamTypes.map(et => {
+        const examClasses = [...classes]
+            .filter(c => c.examTypeId === et.id)
             .sort((a,b) => a.name.localeCompare(b.name));
 
-        const subjectsWithTopics = classSubjects.map(s => {
-            const subjectTopics = [...topics]
-                .filter(t => t.subjectId === s.id)
+        const classesWithSubjects = examClasses.map(c => {
+            const classSubjects = [...subjects]
+                .filter(s => s.classId === c.id)
                 .sort((a,b) => a.name.localeCompare(b.name));
-            return { ...s, topics: subjectTopics };
-        });
 
-        return { ...c, subjects: subjectsWithTopics };
+            const subjectsWithTopics = classSubjects.map(s => {
+                const subjectTopics = [...topics]
+                    .filter(t => t.subjectId === s.id)
+                    .sort((a,b) => a.name.localeCompare(b.name));
+                return { ...s, topics: subjectTopics };
+            });
+
+            return { ...c, subjects: subjectsWithTopics };
+        });
+        return { ...et, classes: classesWithSubjects };
     });
 
-  }, [classes, subjects, topics]);
+  }, [examTypes, classes, subjects, topics]);
 
   const isLoading = isTeacherLoading || areQuestionsLoading || areClassesLoading || areSubjectsLoading || areTopicsLoading || isSubscribedLoading || areExamTypesLoading;
   const canViewPaidContent = isTeacher || isSubscribed;
@@ -565,9 +597,16 @@ export default function PracticePage() {
   const { fields } = useFieldArray({ control: form.control, name: "options" });
   
   const questionType = form.watch('questionType');
+  const selectedExamType = form.watch('examTypeId');
   const selectedClass = form.watch('classId');
   const selectedSubject = form.watch('subjectId');
 
+  useEffect(() => {
+    form.setValue('classId', '');
+    form.setValue('subjectId', '');
+    form.setValue('topicId', '');
+  }, [selectedExamType, form]);
+  
   useEffect(() => {
     form.setValue('subjectId', '');
     form.setValue('topicId', '');
@@ -576,6 +615,11 @@ export default function PracticePage() {
   useEffect(() => {
       form.setValue('topicId', '');
   }, [selectedSubject, form]);
+  
+  const filteredClasses = useMemo(() => {
+    if (!selectedExamType || !classes) return [];
+    return classes.filter(c => c.examTypeId === selectedExamType);
+  }, [selectedExamType, classes]);
 
   const filteredSubjects = useMemo(() => {
     if (!selectedClass || !subjects) return [];
@@ -704,8 +748,11 @@ export default function PracticePage() {
                           {questionType === 'Numerical' && (<FormField control={form.control} name="numericalAnswer" render={({ field }) => (<FormItem><FormLabel>Correct Numerical Answer</FormLabel><FormControl><Input type="number" placeholder="e.g., 42" {...field} onChange={event => field.onChange(+event.target.value)} /></FormControl><FormMessage /></FormItem>)} />)}
                           
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <FormField control={form.control} name="examTypeId" render={({ field }) => (
+                              <FormItem><FormLabel>Exam Type</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an exam type" /></SelectTrigger></FormControl><SelectContent>{examTypes?.map(et => <SelectItem key={et.id} value={et.id}>{et.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+                            )} />
                             <FormField control={form.control} name="classId" render={({ field }) => (
-                              <FormItem><FormLabel>Class</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a class" /></SelectTrigger></FormControl><SelectContent>{classes?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+                              <FormItem><FormLabel>Class</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!selectedExamType}><FormControl><SelectTrigger><SelectValue placeholder="Select a class" /></SelectTrigger></FormControl><SelectContent>{filteredClasses?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
                             )} />
                             <FormField control={form.control} name="subjectId" render={({ field }) => (
                               <FormItem><FormLabel>Subject</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!selectedClass}><FormControl><SelectTrigger><SelectValue placeholder="Select a subject" /></SelectTrigger></FormControl><SelectContent>{filteredSubjects.map(subject => <SelectItem key={subject.id} value={subject.id}>{subject.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
@@ -715,9 +762,6 @@ export default function PracticePage() {
                             )} />
                             <FormField control={form.control} name="difficultyLevel" render={({ field }) => (
                               <FormItem><FormLabel>Difficulty</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select difficulty" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Easy">Easy</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Hard">Hard</SelectItem></SelectContent></Select><FormMessage /></FormItem>
-                            )} />
-                            <FormField control={form.control} name="examTypeId" render={({ field }) => (
-                              <FormItem><FormLabel>Exam Type</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an exam type" /></SelectTrigger></FormControl><SelectContent>{examTypes?.map(et => <SelectItem key={et.id} value={et.id}>{et.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
                             )} />
                           </div>
 
@@ -800,39 +844,50 @@ export default function PracticePage() {
                             </div>
                         ) : questionTree.length > 0 ? (
                             <Accordion type="multiple" className="w-full space-y-2">
-                                {questionTree.map(c => (
-                                    <AccordionItem value={c.id} key={c.id} className="border rounded-lg">
-                                        <AccordionTrigger className="text-xl font-semibold px-6">{c.name}</AccordionTrigger>
+                                {questionTree.map(et => (
+                                    <AccordionItem value={et.id} key={et.id} className="border rounded-lg">
+                                        <AccordionTrigger className="text-2xl font-semibold px-6">{et.name}</AccordionTrigger>
                                         <AccordionContent className="px-6 pb-2">
-                                            {c.subjects.length > 0 ? (
-                                                <Accordion type="multiple" className="w-full space-y-2" defaultValue={c.subjects.map(s => s.id)}>
-                                                    {c.subjects.map(s => (
-                                                        <AccordionItem value={s.id} key={s.id} className="border rounded-lg">
-                                                            <AccordionTrigger className="text-lg font-medium px-4">{s.name}</AccordionTrigger>
+                                            {et.classes.length > 0 ? (
+                                                <Accordion type="multiple" className="w-full space-y-2" defaultValue={et.classes.map(c => c.id)}>
+                                                    {et.classes.map(c => (
+                                                        <AccordionItem value={c.id} key={c.id} className="border rounded-lg">
+                                                            <AccordionTrigger className="text-xl font-medium px-4">{c.name}</AccordionTrigger>
                                                             <AccordionContent className="px-4 pb-2">
-                                                                {s.topics.length > 0 ? (
-                                                                    <Accordion type="multiple" className="w-full space-y-2">
-                                                                        {s.topics.map(t => (
-                                                                            <AccordionItem value={t.id} key={t.id} className="border-l-2 pl-4 border-muted">
-                                                                                <AccordionTrigger>{t.name} ({t.questions.length} questions)</AccordionTrigger>
+                                                                {c.subjects.length > 0 ? (
+                                                                    <Accordion type="multiple" className="w-full space-y-2" defaultValue={c.subjects.map(s => s.id)}>
+                                                                        {c.subjects.map(s => (
+                                                                            <AccordionItem value={s.id} key={s.id} className="border-l-2 pl-4 border-muted">
+                                                                                <AccordionTrigger className="text-lg font-medium">{s.name}</AccordionTrigger>
                                                                                 <AccordionContent className="pl-4 pt-2">
-                                                                                    <div className="flex justify-end">
-                                                                                        <Button asChild size="sm">
-                                                                                            <Link href={`/practice/session?topicId=${t.id}${!isSubscribed ? '&accessLevel=free' : ''}`}>
-                                                                                                <Rocket className="mr-2 h-4 w-4" /> Practice Topic
-                                                                                            </Link>
-                                                                                        </Button>
-                                                                                    </div>
+                                                                                    {s.topics.length > 0 ? (
+                                                                                        <Accordion type="multiple" className="w-full space-y-1">
+                                                                                            {s.topics.map(t => (
+                                                                                                <AccordionItem value={t.id} key={t.id} className="border-none">
+                                                                                                    <AccordionTrigger className="text-sm py-2">{t.name} ({t.questions.length} questions)</AccordionTrigger>
+                                                                                                    <AccordionContent className="pl-4">
+                                                                                                        <div className="flex justify-end">
+                                                                                                            <Button asChild size="sm">
+                                                                                                                <Link href={`/practice/session?topicId=${t.id}${!isSubscribed ? '&accessLevel=free' : ''}`}>
+                                                                                                                    <Rocket className="mr-2 h-4 w-4" /> Practice Topic
+                                                                                                                </Link>
+                                                                                                            </Button>
+                                                                                                        </div>
+                                                                                                    </AccordionContent>
+                                                                                                </AccordionItem>
+                                                                                            ))}
+                                                                                        </Accordion>
+                                                                                    ) : <p className="text-center text-muted-foreground py-4">No topics with questions found for this subject.</p>}
                                                                                 </AccordionContent>
                                                                             </AccordionItem>
                                                                         ))}
                                                                     </Accordion>
-                                                                ) : <p className="text-center text-muted-foreground py-4">No topics with questions found for this subject.</p>}
+                                                                ) : <p className="text-center text-muted-foreground py-4">No subjects with questions found for this class.</p>}
                                                             </AccordionContent>
                                                         </AccordionItem>
                                                     ))}
                                                 </Accordion>
-                                            ) : <p className="text-center text-muted-foreground py-4">No subjects with questions found for this class.</p>}
+                                            ) : <p className="text-center text-muted-foreground py-4">No classes with questions found for this exam type.</p>}
                                         </AccordionContent>
                                     </AccordionItem>
                                 ))}

@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { CalendarIcon, PlusCircle, Video, LoaderCircle, Trash2, User, Clock, Link as LinkIcon, AlertTriangle, CreditCard, PlayCircle, CalendarClock, BookOpen, Edit } from 'lucide-react';
-import { format, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase, addDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
 import { useIsTeacher } from '@/hooks/useIsTeacher';
@@ -43,8 +43,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import Link from 'next/link';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Badge } from '@/components/ui/badge';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 // ===== TYPE DEFINITIONS =====
 
@@ -86,7 +85,7 @@ type UserProfile = {
 };
 
 
-// ===== STUDENT VIEW: COMPONENTS =====
+// ===== SHARED & STUDENT COMPONENTS =====
 
 function FeePaymentReminder() {
     const { user } = useUser();
@@ -129,6 +128,189 @@ function FeePaymentReminder() {
     return null;
 }
 
+const LiveClassCard: FC<{ liveClass: LiveClass; currentUserId?: string, examTypeMap: Record<string, string>, classMap: Record<string, string>, subjectMap: Record<string, string> }> = ({ liveClass, currentUserId, examTypeMap, classMap, subjectMap }) => {
+    const firestore = useFirestore();
+    const { toast } = useToast();
+    const [isRecordingDialogOpen, setIsRecordingDialogOpen] = useState(false);
+
+    const handleDelete = async () => {
+        if (window.confirm('Are you sure you want to delete this class? This action cannot be undone.')) {
+            try {
+              const docRef = doc(firestore, 'live_classes', liveClass.id);
+              await deleteDocumentNonBlocking(docRef);
+              toast({ title: 'Class Deleted', description: `'${liveClass.title}' has been removed from the schedule.` });
+            } catch (error: any) {
+              toast({ variant: 'destructive', title: 'Error Deleting Class', description: error.message || 'Could not delete the class.' });
+            }
+        }
+    };
+    
+    const isOwner = liveClass.teacherId === currentUserId;
+    const classTime = liveClass.startTime.toDate();
+    const isUpcoming = classTime > new Date();
+
+    return (
+        <Card className="flex flex-col shadow-lg">
+            <CardHeader>
+                <div className="flex justify-between items-start gap-4">
+                    <CardTitle className="font-headline text-xl">{liveClass.title}</CardTitle>
+                    <div className="flex-shrink-0 flex gap-2">
+                      <Badge variant={liveClass.accessLevel === 'paid' ? 'destructive' : 'default'}>
+                        {liveClass.accessLevel === 'paid' ? 'Paid' : 'Free'}
+                      </Badge>
+                      <Badge variant="secondary">{examTypeMap[liveClass.examTypeId] || 'General'}</Badge>
+                    </div>
+                </div>
+                <CardDescription className="flex items-center gap-2 pt-2">
+                    <Avatar className="h-6 w-6">
+                        <AvatarImage src={liveClass.teacherPhotoUrl} />
+                        <AvatarFallback><User className="h-4 w-4" /></AvatarFallback>
+                    </Avatar>
+                    <span>{liveClass.teacherName}</span>
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="flex-grow space-y-4">
+                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <BookOpen className="h-4 w-4"/>
+                    <span>{classMap[liveClass.classId] || 'N/A'} / {subjectMap[liveClass.subjectId] || 'N/A'}</span>
+                </div>
+                 <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-2"><CalendarIcon className="h-4 w-4"/><span>{format(classTime, 'E, d MMM yyyy')}</span></div>
+                    <div className="flex items-center gap-2"><Clock className="h-4 w-4"/><span>{format(classTime, 'h:mm a')} ({liveClass.duration} min)</span></div>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                     <LinkIcon className="h-4 w-4 flex-shrink-0" />
+                     <Link href={liveClass.meetingUrl} target='_blank' className='truncate text-blue-600 hover:underline'>{liveClass.meetingUrl}</Link>
+                </div>
+            </CardContent>
+            <CardFooter className="bg-muted/50 px-6 py-4 flex justify-between items-center">
+                 <div>
+                    {isUpcoming ? (
+                        <Button asChild>
+                            <Link href={liveClass.meetingUrl} target="_blank">
+                                <Video className="mr-2" />
+                                Join Class
+                            </Link>
+                        </Button>
+                    ) : liveClass.recordingUrl ? (
+                        <Button asChild>
+                            <Link href={liveClass.recordingUrl} target="_blank">
+                                <PlayCircle className="mr-2" />
+                                Watch Recording
+                            </Link>
+                        </Button>
+                    ) : (
+                        <div className='text-sm text-muted-foreground'>Recording not available</div>
+                    )}
+                 </div>
+                 <div className="flex items-center gap-1">
+                    {isOwner && !isUpcoming && (
+                        <Dialog open={isRecordingDialogOpen} onOpenChange={setIsRecordingDialogOpen}>
+                            <DialogTrigger asChild>
+                                <Button variant="outline" size="sm">
+                                    {liveClass.recordingUrl ? <Edit className="mr-2 h-4 w-4"/> : <PlusCircle className="mr-2 h-4 w-4"/>}
+                                    Recording
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                                <DialogHeader>
+                                    <DialogTitle>Add/Edit Recording URL</DialogTitle>
+                                    <DialogDescription>Paste the video URL for the recording of "{liveClass.title}".</DialogDescription>
+                                </DialogHeader>
+                                <RecordingUrlForm liveClass={liveClass} onFinished={() => setIsRecordingDialogOpen(false)} />
+                            </DialogContent>
+                        </Dialog>
+                    )}
+                    {isOwner && (
+                        <Button variant="ghost" size="icon" onClick={handleDelete}>
+                            <Trash2 className="h-5 w-5 text-destructive" />
+                            <span className="sr-only">Delete Class</span>
+                        </Button>
+                    )}
+                </div>
+            </CardFooter>
+        </Card>
+    );
+};
+
+const PastClassesCurriculumView: FC<{
+    pastClasses: LiveClass[];
+    examTypes: ExamType[];
+    classes: Class[];
+    subjects: Subject[];
+    examTypeMap: Record<string, string>;
+    classMap: Record<string, string>;
+    subjectMap: Record<string, string>;
+    currentUserId?: string;
+}> = ({ pastClasses, examTypes, classes, subjects, examTypeMap, classMap, subjectMap, currentUserId }) => {
+
+    const curriculumTree = useMemo(() => {
+        if (!examTypes || !classes || !subjects || !pastClasses) return [];
+
+        return examTypes.map(et => ({
+            ...et,
+            classes: classes
+                .filter(c => c.examTypeId === et.id)
+                .map(c => ({
+                    ...c,
+                    subjects: subjects
+                        .filter(s => s.classId === c.id)
+                        .map(s => ({
+                            ...s,
+                            classes: pastClasses.filter(lc => lc.subjectId === s.id && lc.classId === c.id)
+                        }))
+                        .filter(s => s.classes.length > 0)
+                }))
+                .filter(c => c.subjects.length > 0)
+        })).filter(et => et.classes.length > 0);
+    }, [pastClasses, examTypes, classes, subjects]);
+
+    if (curriculumTree.length === 0) {
+        return <p className="text-muted-foreground text-center py-8">No past classes found in the curriculum view.</p>;
+    }
+
+    return (
+        <Accordion type="multiple" className="w-full space-y-2">
+            {curriculumTree.map(et => (
+                <AccordionItem value={et.id} key={et.id} className="border rounded-lg">
+                    <AccordionTrigger className="text-xl font-semibold px-6">{et.name}</AccordionTrigger>
+                    <AccordionContent className="px-6 pb-2">
+                        <Accordion type="multiple" className="w-full space-y-2" defaultValue={et.classes.map(c => c.id)}>
+                            {et.classes.map(c => (
+                                <AccordionItem value={c.id} key={c.id} className="border rounded-lg">
+                                    <AccordionTrigger className="text-lg font-medium px-4">{c.name}</AccordionTrigger>
+                                    <AccordionContent className="px-4 pb-2">
+                                        <Accordion type="multiple" className="w-full space-y-2" defaultValue={c.subjects.map(s => s.id)}>
+                                            {c.subjects.map(s => (
+                                                <AccordionItem value={s.id} key={s.id} className="border-l-2 pl-4 border-muted">
+                                                    <AccordionTrigger className="font-medium">{s.name}</AccordionTrigger>
+                                                    <AccordionContent className="pl-4 pt-2 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+                                                        {s.classes.map(cls => (
+                                                            <LiveClassCard
+                                                                key={cls.id}
+                                                                liveClass={cls}
+                                                                currentUserId={currentUserId}
+                                                                examTypeMap={examTypeMap}
+                                                                classMap={classMap}
+                                                                subjectMap={subjectMap}
+                                                            />
+                                                        ))}
+                                                    </AccordionContent>
+                                                </AccordionItem>
+                                            ))}
+                                        </Accordion>
+                                    </AccordionContent>
+                                </AccordionItem>
+                            ))}
+                        </Accordion>
+                    </AccordionContent>
+                </AccordionItem>
+            ))}
+        </Accordion>
+    );
+};
+
+
 function StudentView() {
     const firestore = useFirestore();
 
@@ -136,7 +318,17 @@ function StudentView() {
         () => firestore ? query(collection(firestore, 'live_classes'), orderBy('startTime', 'desc')) : null,
         [firestore]
     );
-    const { data: liveClasses, isLoading } = useCollection<LiveClass>(liveClassesQuery);
+    const { data: liveClasses, isLoading: areLiveClassesLoading } = useCollection<LiveClass>(liveClassesQuery);
+
+    const examTypesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'exam_types'), orderBy('name')) : null, [firestore]);
+    const classesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'classes'), orderBy('name')) : null, [firestore]);
+    const subjectsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'subjects'), orderBy('name')) : null, [firestore]);
+
+    const { data: examTypes, isLoading: areExamTypesLoading } = useCollection<ExamType>(examTypesQuery);
+    const { data: classes, isLoading: areClassesDataLoading } = useCollection<Class>(classesQuery);
+    const { data: subjects, isLoading: areSubjectsLoading } = useCollection<Subject>(subjectsQuery);
+
+    const isLoading = areLiveClassesLoading || areExamTypesLoading || areClassesDataLoading || areSubjectsLoading;
 
     const { upcomingClasses, pastClasses } = useMemo(() => {
         if (!liveClasses) return { upcomingClasses: [], pastClasses: [] };
@@ -146,12 +338,22 @@ function StudentView() {
         return { upcomingClasses: upcoming, pastClasses: past };
     }, [liveClasses]);
 
+     const examTypeMap = useMemo(() => {
+      if (!examTypes) return {};
+      return examTypes.reduce((acc, et) => ({ ...acc, [et.id]: et.name }), {} as Record<string, string>);
+    }, [examTypes]);
+    
+    const classMap = useMemo(() => classes ? classes.reduce((acc, c) => ({...acc, [c.id]: c.name}), {} as Record<string, string>) : {}, [classes]);
+    const subjectMap = useMemo(() => subjects ? subjects.reduce((acc, s) => ({...acc, [s.id]: s.name}), {} as Record<string, string>) : {}, [subjects]);
+
     return (
         <div className="space-y-6">
             <FeePaymentReminder />
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <Card>
-                    <CardHeader><CardTitle>Upcoming Classes</CardTitle></CardHeader>
+                    <CardHeader>
+                        <CardTitle>Upcoming Classes</CardTitle>
+                    </CardHeader>
                     <CardContent className="space-y-4">
                         {isLoading ? <><Skeleton className="h-12 w-full" /><Skeleton className="h-12 w-full" /></> :
                         upcomingClasses.length > 0 ? upcomingClasses.map(c => (
@@ -190,6 +392,25 @@ function StudentView() {
                     </CardContent>
                 </Card>
             </div>
+             <Card>
+                <CardHeader>
+                    <CardTitle>Past Class Recordings by Curriculum</CardTitle>
+                    <CardDescription>Browse all available class recordings.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {isLoading ? <Skeleton className="h-64 w-full" /> : 
+                        <PastClassesCurriculumView
+                            pastClasses={pastClasses}
+                            examTypes={examTypes || []}
+                            classes={classes || []}
+                            subjects={subjects || []}
+                            examTypeMap={examTypeMap}
+                            classMap={classMap}
+                            subjectMap={subjectMap}
+                        />
+                    }
+                </CardContent>
+            </Card>
         </div>
     );
 }
@@ -201,6 +422,7 @@ const LiveClassForm: FC<{ setOpen: (open: boolean) => void, examTypes: ExamType[
     const firestore = useFirestore();
     const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
     const form = useForm<z.infer<typeof liveClassSchema>>({
         resolver: zodResolver(liveClassSchema),
@@ -291,21 +513,24 @@ const LiveClassForm: FC<{ setOpen: (open: boolean) => void, examTypes: ExamType[
                     <FormItem><FormLabel>Class Title</FormLabel><FormControl><Input placeholder="e.g., Advanced Problem Solving in Algebra" {...field} /></FormControl><FormMessage /></FormItem>
                 )} />
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                     <FormField
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
                         control={form.control}
                         name="startTime"
                         render={({ field }) => (
                             <FormItem className="flex flex-col">
                                 <FormLabel>Start Date & Time</FormLabel>
                                 <FormControl>
-                                     <Input
+                                    <Input
                                         type="datetime-local"
                                         value={field.value instanceof Date ? format(field.value, "yyyy-MM-dd'T'HH:mm") : ''}
                                         onChange={(e) => {
                                             const value = e.target.value;
                                             if (value) {
-                                                field.onChange(parseISO(value));
+                                                const newDate = new Date(value);
+                                                if (!isNaN(newDate.getTime())) {
+                                                    field.onChange(newDate);
+                                                }
                                             } else {
                                                 field.onChange(undefined);
                                             }
@@ -414,111 +639,6 @@ const RecordingUrlForm: FC<{ liveClass: LiveClass; onFinished: () => void }> = (
     );
 }
 
-const LiveClassCard: FC<{ liveClass: LiveClass; currentUserId?: string, examTypeMap: Record<string, string>, classMap: Record<string, string>, subjectMap: Record<string, string> }> = ({ liveClass, currentUserId, examTypeMap, classMap, subjectMap }) => {
-    const firestore = useFirestore();
-    const { toast } = useToast();
-    const [isRecordingDialogOpen, setIsRecordingDialogOpen] = useState(false);
-
-    const handleDelete = async () => {
-        if (window.confirm('Are you sure you want to delete this class? This action cannot be undone.')) {
-            try {
-              const docRef = doc(firestore, 'live_classes', liveClass.id);
-              await deleteDocumentNonBlocking(docRef);
-              toast({ title: 'Class Deleted', description: `'${liveClass.title}' has been removed from the schedule.` });
-            } catch (error: any) {
-              toast({ variant: 'destructive', title: 'Error Deleting Class', description: error.message || 'Could not delete the class.' });
-            }
-        }
-    };
-    
-    const isOwner = liveClass.teacherId === currentUserId;
-    const classTime = liveClass.startTime.toDate();
-    const isUpcoming = classTime > new Date();
-
-    return (
-        <Card className="flex flex-col shadow-lg">
-            <CardHeader>
-                <div className="flex justify-between items-start gap-4">
-                    <CardTitle className="font-headline text-xl">{liveClass.title}</CardTitle>
-                    <div className="flex-shrink-0 flex gap-2">
-                      <Badge variant={liveClass.accessLevel === 'paid' ? 'destructive' : 'default'}>
-                        {liveClass.accessLevel === 'paid' ? 'Paid' : 'Free'}
-                      </Badge>
-                      <Badge variant="secondary">{examTypeMap[liveClass.examTypeId] || 'General'}</Badge>
-                    </div>
-                </div>
-                <CardDescription className="flex items-center gap-2 pt-2">
-                    <Avatar className="h-6 w-6">
-                        <AvatarImage src={liveClass.teacherPhotoUrl} />
-                        <AvatarFallback><User className="h-4 w-4" /></AvatarFallback>
-                    </Avatar>
-                    <span>{liveClass.teacherName}</span>
-                </CardDescription>
-            </CardHeader>
-            <CardContent className="flex-grow space-y-4">
-                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <BookOpen className="h-4 w-4"/>
-                    <span>{classMap[liveClass.classId] || 'N/A'} / {subjectMap[liveClass.subjectId] || 'N/A'}</span>
-                </div>
-                 <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-2"><CalendarIcon className="h-4 w-4"/><span>{format(classTime, 'E, d MMM yyyy')}</span></div>
-                    <div className="flex items-center gap-2"><Clock className="h-4 w-4"/><span>{format(classTime, 'h:mm a')} ({liveClass.duration} min)</span></div>
-                </div>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                     <LinkIcon className="h-4 w-4 flex-shrink-0" />
-                     <Link href={liveClass.meetingUrl} target='_blank' className='truncate text-blue-600 hover:underline'>{liveClass.meetingUrl}</Link>
-                </div>
-            </CardContent>
-            <CardFooter className="bg-muted/50 px-6 py-4 flex justify-between items-center">
-                 <div>
-                    {isUpcoming ? (
-                        <Button asChild>
-                            <Link href={liveClass.meetingUrl} target="_blank">
-                                <Video className="mr-2" />
-                                Join Class
-                            </Link>
-                        </Button>
-                    ) : liveClass.recordingUrl ? (
-                        <Button asChild>
-                            <Link href={liveClass.recordingUrl} target="_blank">
-                                <PlayCircle className="mr-2" />
-                                Watch Recording
-                            </Link>
-                        </Button>
-                    ) : (
-                        <div className='text-sm text-muted-foreground'>Recording not available</div>
-                    )}
-                 </div>
-                 <div className="flex items-center gap-1">
-                    {isOwner && !isUpcoming && (
-                        <Dialog open={isRecordingDialogOpen} onOpenChange={setIsRecordingDialogOpen}>
-                            <DialogTrigger asChild>
-                                <Button variant="outline" size="sm">
-                                    {liveClass.recordingUrl ? <Edit className="mr-2 h-4 w-4"/> : <PlusCircle className="mr-2 h-4 w-4"/>}
-                                    Recording
-                                </Button>
-                            </DialogTrigger>
-                            <DialogContent>
-                                <DialogHeader>
-                                    <DialogTitle>Add/Edit Recording URL</DialogTitle>
-                                    <DialogDescription>Paste the video URL for the recording of "{liveClass.title}".</DialogDescription>
-                                </DialogHeader>
-                                <RecordingUrlForm liveClass={liveClass} onFinished={() => setIsRecordingDialogOpen(false)} />
-                            </DialogContent>
-                        </Dialog>
-                    )}
-                    {isOwner && (
-                        <Button variant="ghost" size="icon" onClick={handleDelete}>
-                            <Trash2 className="h-5 w-5 text-destructive" />
-                            <span className="sr-only">Delete Class</span>
-                        </Button>
-                    )}
-                </div>
-            </CardFooter>
-        </Card>
-    );
-};
-
 function TeacherView() {
     const { user } = useUser();
     const firestore = useFirestore();
@@ -540,10 +660,7 @@ function TeacherView() {
   
     const examTypeMap = useMemo(() => {
       if (!examTypes) return {};
-      return examTypes.reduce((acc, et) => {
-        acc[et.id] = et.name;
-        return acc;
-      }, {} as Record<string, string>);
+      return examTypes.reduce((acc, et) => ({ ...acc, [et.id]: et.name }), {} as Record<string, string>);
     }, [examTypes]);
     
     const classMap = useMemo(() => classes ? classes.reduce((acc, c) => ({...acc, [c.id]: c.name}), {} as Record<string, string>) : {}, [classes]);
@@ -604,10 +721,17 @@ function TeacherView() {
                 </div>
                 <div>
                     <h3 className="font-headline text-xl font-semibold mb-4 border-b pb-2">Past Classes</h3>
-                    {pastClasses.length > 0 ? (
-                        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-                            {pastClasses.map(cls => <LiveClassCard key={cls.id} liveClass={cls} currentUserId={user?.uid} examTypeMap={examTypeMap} classMap={classMap} subjectMap={subjectMap} />)}
-                        </div>
+                     {pastClasses.length > 0 ? (
+                        <PastClassesCurriculumView
+                            pastClasses={pastClasses}
+                            examTypes={examTypes || []}
+                            classes={classes || []}
+                            subjects={subjects || []}
+                            examTypeMap={examTypeMap}
+                            classMap={classMap}
+                            subjectMap={subjectMap}
+                            currentUserId={user?.uid}
+                        />
                     ) : (
                         <p className="text-muted-foreground">No past classes found.</p>
                     )}

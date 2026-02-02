@@ -156,7 +156,7 @@ function QuestionItem({ question, topicMap, classMap, examTypeMap, isTeacher, ca
                 {question.imageUrls && question.imageUrls.length > 0 && (
                   <div className="my-4 space-y-2">
                       <p className="font-semibold text-sm text-muted-foreground">Question Image(s):</p>
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                      <div className="flex flex-col gap-2">
                           {question.imageUrls.map((url, index) => (
                               <div key={index} className="p-2 border rounded-md flex justify-center bg-muted/50">
                                   <Image
@@ -174,7 +174,7 @@ function QuestionItem({ question, topicMap, classMap, examTypeMap, isTeacher, ca
                 {question.explanationImageUrls && question.explanationImageUrls.length > 0 && (
                   <div className="my-4 space-y-2">
                     <p className="font-semibold text-sm text-muted-foreground">Explanation Image(s):</p>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                    <div className="flex flex-col gap-2">
                       {question.explanationImageUrls.map((url, index) => (
                           <div key={index} className="p-2 border rounded-md flex justify-center bg-muted/50">
                             <Image
@@ -313,7 +313,7 @@ const EditQuestionForm: FC<{
                 
                 <div className="space-y-2">
                     <FormLabel>Question Images (Optional)</FormLabel>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="flex flex-col gap-4">
                         {form.watch('imageUrls')?.map((url, index) => (
                             <div key={index} className="relative group">
                                 <Image src={url} alt={`Question image ${index + 1}`} width={200} height={150} className="rounded-md object-cover border" />
@@ -331,7 +331,7 @@ const EditQuestionForm: FC<{
 
                 <div className="space-y-2">
                     <FormLabel>Explanation Images (Optional)</FormLabel>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="flex flex-col gap-4">
                         {form.watch('explanationImageUrls')?.map((url, index) => (
                             <div key={index} className="relative group">
                                 <Image src={url} alt={`Explanation image ${index + 1}`} width={200} height={150} className="rounded-md object-cover border" />
@@ -864,7 +864,7 @@ export default function PracticePage() {
                           {form.watch('imageUrls') && form.watch('imageUrls').length > 0 && (
                             <div className="space-y-2">
                                 <FormLabel>Question Image Previews</FormLabel>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <div className="flex flex-col gap-4">
                                     {form.watch('imageUrls').map((url, index) => (
                                         <div key={index} className="relative group">
                                             <Image src={url} alt={`Question image ${index + 1}`} width={200} height={150} className="rounded-md object-cover border" />
@@ -889,7 +889,7 @@ export default function PracticePage() {
                            {form.watch('explanationImageUrls') && form.watch('explanationImageUrls').length > 0 && (
                             <div className="space-y-2">
                                 <FormLabel>Explanation Image Previews</FormLabel>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <div className="flex flex-col gap-4">
                                     {form.watch('explanationImageUrls').map((url, index) => (
                                         <div key={index} className="relative group">
                                             <Image src={url} alt={`Explanation image ${index + 1}`} width={200} height={150} className="rounded-md object-cover border" />

@@ -51,6 +51,7 @@ export default function PdfQuestionExtractor({
   const [pageNumber, setPageNumber] = useState(1);
   const [pageImgSrc, setPageImgSrc] = useState('');
   const imgRef = useRef<HTMLImageElement>(null);
+  const pdfContainerRef = useRef<HTMLDivElement>(null);
   const [crop, setCrop] = useState<Crop>();
   const [completedCrop, setCompletedCrop] = useState<Crop>();
   const [aspect] = useState<number | undefined>(undefined);
@@ -85,9 +86,11 @@ export default function PdfQuestionExtractor({
   }
 
   const onPageRenderSuccess = useCallback(() => {
-    const canvas = document.querySelector('.react-pdf__Page__canvas') as HTMLCanvasElement;
-    if (canvas) {
-        setPageImgSrc(canvas.toDataURL());
+    if (pdfContainerRef.current) {
+        const canvas = pdfContainerRef.current.querySelector('.react-pdf__Page__canvas') as HTMLCanvasElement;
+        if (canvas) {
+            setPageImgSrc(canvas.toDataURL());
+        }
     }
     setIsRendering(false);
   }, []);
@@ -161,7 +164,7 @@ export default function PdfQuestionExtractor({
         <Input type="file" accept="application/pdf" onChange={handleFileChange} />
 
         {file && (
-          <div className="border-2 border-dashed rounded-lg p-4">
+          <div ref={pdfContainerRef} className="border-2 border-dashed rounded-lg p-4">
               <Document
                 file={file}
                 onLoadSuccess={onDocumentLoadSuccess}

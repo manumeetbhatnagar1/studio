@@ -636,7 +636,7 @@ export default function PracticePage() {
             .filter(c => c.examTypeId === et.id)
             .sort((a,b) => a.name.localeCompare(b.name));
 
-        const classesWithSubjects = examClasses.map(c => {
+        const classesWithData = examClasses.map(c => {
             const classSubjects = [...subjects]
                 .filter(s => s.classId === c.id)
                 .sort((a,b) => a.name.localeCompare(b.name));
@@ -648,9 +648,9 @@ export default function PracticePage() {
                 return { ...s, topics: subjectTopics };
             });
 
-            return { ...c, subjects: classesWithSubjects };
+            return { ...c, subjects: subjectsWithTopics };
         });
-        return { ...et, classes: classesWithSubjects };
+        return { ...et, classes: classesWithData };
     });
 
   }, [examTypes, classes, subjects, topics]);
@@ -1048,5 +1048,7 @@ export default function PracticePage() {
     </div>
   );
 }
+
+    
 
     

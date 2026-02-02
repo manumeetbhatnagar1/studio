@@ -16,7 +16,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogDescription,
 } from '@/components/ui/dialog';
 import {
@@ -364,10 +363,6 @@ const LiveClassForm: FC<{ setOpen: (open: boolean) => void, examTypes: ExamType[
         return subjects.filter(subject => subject.classId === selectedClass);
     }, [selectedClass, subjects]);
 
-    useEffect(() => { form.setValue('classId', ''); form.setValue('subjectId', ''); }, [selectedExamType, form]);
-    useEffect(() => { form.setValue('subjectId', ''); }, [selectedClass, form]);
-
-
     async function onSubmit(values: z.infer<typeof liveClassSchema>) {
         if (!user) {
             toast({ variant: 'destructive', title: 'You must be logged in.' });
@@ -435,17 +430,12 @@ const LiveClassForm: FC<{ setOpen: (open: boolean) => void, examTypes: ExamType[
                                     selected={field.value}
                                     onSelect={(day) => {
                                         if (!day) return;
+                                        const hours = field.value ? field.value.getHours() : 9;
+                                        const minutes = field.value ? field.value.getMinutes() : 0;
                                         const newDate = new Date(day);
-                                        const oldDate = field.value ? new Date(field.value) : new Date();
-                                        
-                                        // If a date was already selected, keep its time. Otherwise, default to 9 AM.
-                                        if (field.value) {
-                                            newDate.setHours(oldDate.getHours(), oldDate.getMinutes(), oldDate.getSeconds());
-                                        } else {
-                                            newDate.setHours(9, 0, 0);
-                                        }
+                                        newDate.setHours(hours, minutes, 0, 0);
                                         field.onChange(newDate);
-                                      }}
+                                    }}
                                     disabled={(date) => date < new Date()}
                                     initialFocus
                                 />
@@ -498,13 +488,22 @@ const LiveClassForm: FC<{ setOpen: (open: boolean) => void, examTypes: ExamType[
                 )} />
                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <FormField control={form.control} name="examTypeId" render={({ field }) => (
-                        <FormItem><FormLabel>Exam Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an exam type" /></SelectTrigger></FormControl><SelectContent>{examTypes.map(et => <SelectItem key={et.id} value={et.id}>{et.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+                        <FormItem><FormLabel>Exam Type</FormLabel><Select onValueChange={(value) => { field.onChange(value); form.setValue('classId', ''); form.setValue('subjectId', ''); }} value={field.value}>
+                            <FormControl><SelectTrigger><SelectValue placeholder="Select an exam type" /></SelectTrigger></FormControl>
+                            <SelectContent>{examTypes.map(et => <SelectItem key={et.id} value={et.id}>{et.name}</SelectItem>)}</SelectContent>
+                        </Select><FormMessage /></FormItem>
                     )} />
                     <FormField control={form.control} name="classId" render={({ field }) => (
-                        <FormItem><FormLabel>Class</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!selectedExamType}><FormControl><SelectTrigger><SelectValue placeholder="Select a class" /></SelectTrigger></FormControl><SelectContent>{filteredClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+                        <FormItem><FormLabel>Class</FormLabel><Select onValueChange={(value) => { field.onChange(value); form.setValue('subjectId', ''); }} value={field.value} disabled={!selectedExamType}>
+                            <FormControl><SelectTrigger><SelectValue placeholder="Select a class" /></SelectTrigger></FormControl>
+                            <SelectContent>{filteredClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                        </Select><FormMessage /></FormItem>
                     )} />
                     <FormField control={form.control} name="subjectId" render={({ field }) => (
-                        <FormItem><FormLabel>Subject</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!selectedClass}><FormControl><SelectTrigger><SelectValue placeholder="Select a subject" /></SelectTrigger></FormControl><SelectContent>{filteredSubjects.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+                        <FormItem><FormLabel>Subject</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!selectedClass}>
+                            <FormControl><SelectTrigger><SelectValue placeholder="Select a subject" /></SelectTrigger></FormControl>
+                            <SelectContent>{filteredSubjects.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
+                        </Select><FormMessage /></FormItem>
                     )} />
                  </div>
                  <FormField control={form.control} name="meetingUrl" render={({ field }) => (
@@ -607,7 +606,7 @@ function TeacherView() {
 
     const { data: liveClasses, isLoading: areLiveClassesLoading, error } = useCollection<LiveClass>(liveClassesQuery);
     const { data: examTypes, isLoading: areExamTypesLoading } = useCollection<ExamType>(examTypesQuery);
-    const { data: classes, isLoading: areClassesLoading } = useCollection<Class>(classesQuery);
+    const { data: classes, isLoading: areClassesDataLoading } = useCollection<Class>(classesQuery);
     const { data: subjects, isLoading: areSubjectsLoading } = useCollection<Subject>(subjectsQuery);
   
     const examTypeMap = useMemo(() => {
@@ -628,7 +627,7 @@ function TeacherView() {
     const upcomingClasses = useMemo(() => liveClasses?.filter(c => c.startTime.toDate() >= new Date()) || [], [liveClasses]);
     const pastClasses = useMemo(() => liveClasses?.filter(c => c.startTime.toDate() < new Date()).reverse() || [], [liveClasses]);
   
-    const isLoading = areLiveClassesLoading || areExamTypesLoading || areClassesLoading || areSubjectsLoading;
+    const isLoading = areLiveClassesLoading || areExamTypesLoading || areClassesDataLoading || areSubjectsLoading;
 
     return (
         <>
@@ -723,5 +722,7 @@ export default function LiveClassesPage() {
       </div>
     );
   }
+
+    
 
     

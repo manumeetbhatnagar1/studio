@@ -35,8 +35,8 @@ type PracticeQuestion = {
   correctAnswer?: string;
   numericalAnswer?: number;
   subject: string; // Added from join
-  imageUrl?: string;
-  explanationImageUrl?: string;
+  imageUrls?: string[];
+  explanationImageUrls?: string[];
 };
 
 type Answer = {
@@ -72,18 +72,22 @@ const QuestionExplanation: React.FC<{ question: PracticeQuestion; userAnswer: An
                         Correct answer: <span className="font-bold text-green-600">{question.correctAnswer || question.numericalAnswer}</span>
                     </p>
                 )}
-                {question.explanationImageUrl && (
+                {question.explanationImageUrls && question.explanationImageUrls.length > 0 && (
                     <div>
                         <p className="text-sm font-semibold text-muted-foreground">Explanation:</p>
-                        <div className="mt-1 p-2 border rounded-md bg-muted/50">
-                            <Image src={question.explanationImageUrl} alt="Explanation image" width={2000} height={1500} className="rounded-md object-contain mx-auto" />
+                        <div className="mt-1 space-y-2">
+                            {question.explanationImageUrls.map((url, index) => (
+                                <div key={index} className="p-2 border rounded-md bg-muted/50">
+                                    <Image src={url} alt={`Explanation image ${index + 1}`} width={2000} height={1500} className="rounded-md object-contain mx-auto" />
+                                </div>
+                            ))}
                         </div>
                     </div>
                 )}
-                {isCorrect && !question.explanationImageUrl && (
+                {isCorrect && (!question.explanationImageUrls || question.explanationImageUrls.length === 0) && (
                     <p className="text-green-600 font-medium">Excellent! Your answer is correct.</p>
                 )}
-                 {!isCorrect && !question.explanationImageUrl && (
+                 {!isCorrect && (!question.explanationImageUrls || question.explanationImageUrls.length === 0) && (
                     <p className="text-red-600 font-medium">That's not quite right. Review the correct answer above.</p>
                 )}
             </CardContent>
@@ -329,8 +333,29 @@ function PracticeSession() {
                                         {isCorrect ? <Check className="h-5 w-5 text-green-500 mt-1" /> : <XIcon className="h-5 w-5 text-red-500 mt-1" />}
                                         <div className="flex-1">
                                             <p className="font-medium">Q{i+1}: {q.questionText}</p>
+                                            {q.imageUrls && q.imageUrls.length > 0 && (
+                                                <div className="my-2 space-y-2">
+                                                    {q.imageUrls.map((url, index) => (
+                                                        <div key={index} className="p-2 border rounded-md bg-muted/50">
+                                                            <Image src={url} alt={`Question ${i + 1} image ${index + 1}`} width={1000} height={750} className="rounded-md object-contain mx-auto" />
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
                                             <p className="text-sm">Your answer: <span className="font-semibold">{ans?.value || 'Not Answered'}</span></p>
                                             {!isCorrect && <p className="text-sm">Correct answer: <span className="font-semibold text-green-600">{q.correctAnswer || q.numericalAnswer}</span></p>}
+                                            {q.explanationImageUrls && q.explanationImageUrls.length > 0 && (
+                                                <div className="my-2">
+                                                    <p className="text-sm font-semibold text-muted-foreground">Explanation:</p>
+                                                    <div className="mt-1 space-y-2">
+                                                        {q.explanationImageUrls.map((url, index) => (
+                                                            <div key={index} className="p-2 border rounded-md bg-muted/50">
+                                                                <Image src={url} alt={`Explanation for question ${i + 1} image ${index + 1}`} width={1000} height={750} className="rounded-md object-contain mx-auto" />
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 )
@@ -357,9 +382,13 @@ function PracticeSession() {
                       <CardHeader className="flex flex-row justify-between items-center"><CardTitle>Question No. {currentQuestionIndex + 1}</CardTitle></CardHeader>
                       <CardContent className="prose max-w-none">
                           <p>{currentQuestion.questionText}</p>
-                          {currentQuestion.imageUrl && (
-                              <div className="my-4 p-2 border rounded-md bg-muted/50">
-                                  <Image src={currentQuestion.imageUrl} alt={`Question image`} width={2000} height={1500} className="rounded-md object-contain mx-auto" />
+                          {currentQuestion.imageUrls && currentQuestion.imageUrls.length > 0 && (
+                              <div className="my-4 space-y-2">
+                                  {currentQuestion.imageUrls.map((url, index) => (
+                                      <div key={index} className="p-2 border rounded-md bg-muted/50">
+                                          <Image src={url} alt={`Question image ${index + 1}`} width={2000} height={1500} className="rounded-md object-contain mx-auto" />
+                                      </div>
+                                  ))}
                               </div>
                           )}
                       </CardContent>

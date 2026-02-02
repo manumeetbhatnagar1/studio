@@ -4,7 +4,7 @@ import DashboardHeader from "@/components/dashboard-header";
 import QuickLinks from "@/components/quick-links";
 import { useIsTeacher } from "@/hooks/useIsTeacher";
 import { Skeleton } from "@/components/ui/skeleton";
-import StudentDashboardWidgets from "@/components/student-dashboard-widgets";
+import PersonalizedLearning from "@/components/personalized-learning";
 import TeacherDashboardWidgets from "@/components/teacher-dashboard-widgets";
 
 function RoleBasedDashboard() {
@@ -19,7 +19,7 @@ function RoleBasedDashboard() {
     );
   }
 
-  return isTeacher ? <TeacherDashboardWidgets /> : <StudentDashboardWidgets />;
+  return isTeacher ? <TeacherDashboardWidgets /> : <PersonalizedLearning />;
 }
 
 

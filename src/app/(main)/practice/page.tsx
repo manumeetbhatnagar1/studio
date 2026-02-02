@@ -334,7 +334,7 @@ const EditQuestionForm: FC<{
                 
                 <FormField control={form.control} name="imageUrl" render={({ field }) => (<FormItem><FormLabel>Image URL (Optional)</FormLabel><FormControl><Input placeholder="https://example.com/image.png" {...field} /></FormControl><FormMessage /></FormItem>)} />
                 {form.watch('imageUrl') && (<FormItem><FormLabel>Image Preview</FormLabel><FormControl><div className="p-4 border rounded-md flex justify-center bg-muted/50"><Image src={form.watch('imageUrl')!} alt="Question image preview" width={1000} height={750} className="rounded-md object-contain" /></div></FormControl></FormItem>)}
-                <FormField control={form.control} name="explanationImageUrl" render={({ field }) => (<FormItem><FormLabel>Explanation Image URL (Optional)</FormLabel><FormControl><Input placeholder="https://example.com/explanation_image.png" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="explanationImageUrl" render={({ field }) => (<FormItem><FormLabel>Explanation Image URL (Optional)</FormLabel><FormControl><Input placeholder="https://example.com/explanation-image.png" {...field} /></FormControl><FormMessage /></FormItem>)} />
                 {form.watch('explanationImageUrl') && (<FormItem><FormLabel>Explanation Image Preview</FormLabel><FormControl><div className="p-4 border rounded-md flex justify-center bg-muted/50"><Image src={form.watch('explanationImageUrl')!} alt="Explanation image preview" width={1000} height={750} className="rounded-md object-contain" /></div></FormControl></FormItem>)}
 
                 {questionType === 'MCQ' && (
@@ -562,6 +562,7 @@ export default function PracticePage() {
   const [editingQuestion, setEditingQuestion] = useState<PracticeQuestion | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [questionToDelete, setQuestionToDelete] = useState<string | null>(null);
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
 
   const questionsCollectionRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'practice_questions'), orderBy('topicId')) : null, [firestore]);
   const classesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'classes'), orderBy('name')) : null, [firestore]);
@@ -782,12 +783,16 @@ export default function PracticePage() {
   const TeacherView = () => (
       <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 grid gap-8">
         <div className='space-y-8'>
-            <PdfQuestionExtractor 
+            <PdfQuestionExtractor
+              file={pdfFile}
+              onFileChange={setPdfFile}
               onImageCropped={handleQuestionImageCropped} 
               title="Add Question Image from PDF"
               description="Upload a PDF, crop an image for the question, then fill in details below."
             />
             <PdfQuestionExtractor 
+              file={pdfFile}
+              onFileChange={setPdfFile}
               onImageCropped={handleExplanationImageCropped}
               title="Add Explanation Image from PDF"
               description="Upload a PDF and crop an image for the question's explanation."

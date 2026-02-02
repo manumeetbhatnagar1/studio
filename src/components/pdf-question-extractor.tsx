@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
 import 'react-pdf/dist/esm/Page/TextLayer.css';
@@ -20,6 +20,8 @@ interface PdfQuestionExtractorProps {
   onImageCropped: (data: { imageUrl: string }) => void;
   title: string;
   description: string;
+  file: File | null;
+  onFileChange: (file: File | null) => void;
 }
 
 function centerAspectCrop(mediaWidth: number, mediaHeight: number, aspect: number | undefined) {
@@ -38,8 +40,13 @@ function centerAspectCrop(mediaWidth: number, mediaHeight: number, aspect: numbe
     );
 }
 
-export default function PdfQuestionExtractor({ onImageCropped, title, description }: PdfQuestionExtractorProps) {
-  const [file, setFile] = useState<File | null>(null);
+export default function PdfQuestionExtractor({ 
+    onImageCropped, 
+    title, 
+    description,
+    file,
+    onFileChange
+}: PdfQuestionExtractorProps) {
   const [numPages, setNumPages] = useState<number | null>(null);
   const [pageNumber, setPageNumber] = useState(1);
   const [pageImgSrc, setPageImgSrc] = useState('');
@@ -51,17 +58,27 @@ export default function PdfQuestionExtractor({ onImageCropped, title, descriptio
   const [isRendering, setIsRendering] = useState(false);
   const { toast } = useToast();
 
-  function onFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const { files } = event.target;
-    if (files && files[0]) {
-      setFile(files[0]);
+    const newFile = files?.[0] || null;
+    onFileChange(newFile);
+    
+    setNumPages(null);
+    setPageNumber(1);
+    setPageImgSrc('');
+    setCrop(undefined);
+    setCompletedCrop(undefined);
+  };
+  
+  useEffect(() => {
+    if (!file) {
       setNumPages(null);
       setPageNumber(1);
       setPageImgSrc('');
       setCrop(undefined);
       setCompletedCrop(undefined);
     }
-  }
+  }, [file]);
 
   function onDocumentLoadSuccess({ numPages }: { numPages: number }) {
     setNumPages(numPages);
@@ -141,7 +158,7 @@ export default function PdfQuestionExtractor({ onImageCropped, title, descriptio
         <CardDescription>{description}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <Input type="file" accept="application/pdf" onChange={onFileChange} />
+        <Input type="file" accept="application/pdf" onChange={handleFileChange} />
 
         {file && (
           <div className="border-2 border-dashed rounded-lg p-4">
@@ -210,7 +227,3 @@ export default function PdfQuestionExtractor({ onImageCropped, title, descriptio
     </Card>
   );
 }
-
-    
-
-    

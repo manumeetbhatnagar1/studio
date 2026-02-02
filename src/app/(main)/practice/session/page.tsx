@@ -76,7 +76,7 @@ const QuestionExplanation: React.FC<{ question: PracticeQuestion; userAnswer: An
                     <div>
                         <p className="text-sm font-semibold text-muted-foreground">Explanation:</p>
                         <div className="mt-1 p-2 border rounded-md bg-muted/50">
-                            <Image src={question.explanationImageUrl} alt="Explanation image" width={400} height={300} className="rounded-md object-contain mx-auto" />
+                            <Image src={question.explanationImageUrl} alt="Explanation image" width={600} height={450} className="rounded-md object-contain mx-auto" />
                         </div>
                     </div>
                 )}
@@ -331,7 +331,7 @@ function PracticeSession() {
                                             <p className="font-medium">Q{i+1}: {q.questionText}</p>
                                             {q.imageUrl && (
                                                 <div className="my-2 p-2 border rounded-md bg-muted/50">
-                                                    <Image src={q.imageUrl} alt={`Question ${i + 1} image`} width={300} height={200} className="rounded-md object-contain mx-auto" />
+                                                    <Image src={q.imageUrl} alt={`Question ${i + 1} image`} width={450} height={300} className="rounded-md object-contain mx-auto" />
                                                 </div>
                                             )}
                                             <p className="text-sm">Your answer: <span className="font-semibold">{ans?.value || 'Not Answered'}</span></p>
@@ -340,7 +340,7 @@ function PracticeSession() {
                                                 <div className="my-2">
                                                     <p className="text-sm font-semibold text-muted-foreground">Explanation:</p>
                                                     <div className="mt-1 p-2 border rounded-md bg-muted/50">
-                                                        <Image src={q.explanationImageUrl} alt={`Explanation for question ${i + 1}`} width={300} height={200} className="rounded-md object-contain mx-auto" />
+                                                        <Image src={q.explanationImageUrl} alt={`Explanation for question ${i + 1}`} width={450} height={300} className="rounded-md object-contain mx-auto" />
                                                     </div>
                                                 </div>
                                             )}
@@ -372,7 +372,7 @@ function PracticeSession() {
                           <p>{currentQuestion.questionText}</p>
                           {currentQuestion.imageUrl && (
                               <div className="my-4 p-2 border rounded-md bg-muted/50">
-                                  <Image src={currentQuestion.imageUrl} alt={`Question image`} width={400} height={300} className="rounded-md object-contain mx-auto" />
+                                  <Image src={currentQuestion.imageUrl} alt={`Question image`} width={600} height={450} className="rounded-md object-contain mx-auto" />
                               </div>
                           )}
                       </CardContent>
@@ -430,7 +430,8 @@ function PracticeSession() {
                 <AlertDialog open={isSubmitDialogOpen} onOpenChange={setIsSubmitDialogOpen}>
                     <AlertDialogContent>
                         <AlertDialogHeader><AlertDialogTitle>Are you sure you want to submit?</AlertDialogTitle>
-                        <AlertDialogDescription>You will not be able to change your answers after submitting. Here is a summary:
+                        <AlertDialogDescription>
+                            You will not be able to change your answers after submitting. Here is a summary:
                             <div className="grid grid-cols-2 gap-2 mt-4 text-sm">
                                 <div><span className="font-semibold">Answered:</span> {summary.answered + summary.answeredAndMarked}</div>
                                 <div><span className="font-semibold">Not Answered:</span> {summary.notAnswered}</div>

@@ -119,6 +119,19 @@ function QuestionItem({ question, topicMap, classMap, examTypeMap, isTeacher, ca
         <AccordionTrigger className="flex-1" disabled={isLocked}>
           <div className="flex-1 text-left">
             <p className="font-medium">{question.questionText}</p>
+             {question.imageUrl && (
+              <div className="my-4 space-y-2">
+                  <div className="p-4 border rounded-md flex justify-center bg-muted/50">
+                      <Image
+                          src={question.imageUrl}
+                          alt="Question diagram"
+                          width={600}
+                          height={450}
+                          className="rounded-md object-contain"
+                      />
+                  </div>
+              </div>
+            )}
             <div className="flex items-center gap-2 mt-2 flex-wrap">
               <Badge variant="outline">{classMap[question.classId] || 'Unknown Class'}</Badge>
               <Badge variant="outline">{examTypeMap[question.examTypeId] || 'Unknown Exam'}</Badge>
@@ -151,20 +164,6 @@ function QuestionItem({ question, topicMap, classMap, examTypeMap, isTeacher, ca
             </div>
         ) : (
           <>
-            {question.imageUrl && (
-              <div className="my-4 space-y-2">
-                  <p className="font-semibold text-sm text-muted-foreground">Question Image:</p>
-                  <div className="p-4 border rounded-md flex justify-center bg-muted/50">
-                      <Image
-                          src={question.imageUrl}
-                          alt="Question diagram"
-                          width={400}
-                          height={300}
-                          className="rounded-md object-contain"
-                      />
-                  </div>
-              </div>
-            )}
             {isTeacher ? (
               <>
                 {question.explanationImageUrl && (
@@ -174,8 +173,8 @@ function QuestionItem({ question, topicMap, classMap, examTypeMap, isTeacher, ca
                       <Image
                         src={question.explanationImageUrl}
                         alt="Explanation diagram"
-                        width={400}
-                        height={300}
+                        width={600}
+                        height={450}
                         className="rounded-md object-contain"
                       />
                     </div>
@@ -333,9 +332,9 @@ const EditQuestionForm: FC<{
                 <FormField control={form.control} name="questionText" render={({ field }) => (<FormItem><FormLabel>Question Text</FormLabel><FormControl><Textarea placeholder="e.g., What is the formula for..." {...field} rows={4} /></FormControl><FormMessage /></FormItem>)} />
                 
                 <FormField control={form.control} name="imageUrl" render={({ field }) => (<FormItem><FormLabel>Image URL (Optional)</FormLabel><FormControl><Input placeholder="https://example.com/image.png" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                {form.watch('imageUrl') && (<FormItem><FormLabel>Image Preview</FormLabel><FormControl><div className="p-4 border rounded-md flex justify-center bg-muted/50"><Image src={form.watch('imageUrl')!} alt="Question image preview" width={400} height={300} className="rounded-md object-contain" /></div></FormControl></FormItem>)}
+                {form.watch('imageUrl') && (<FormItem><FormLabel>Image Preview</FormLabel><FormControl><div className="p-4 border rounded-md flex justify-center bg-muted/50"><Image src={form.watch('imageUrl')!} alt="Question image preview" width={600} height={450} className="rounded-md object-contain" /></div></FormControl></FormItem>)}
                 <FormField control={form.control} name="explanationImageUrl" render={({ field }) => (<FormItem><FormLabel>Explanation Image URL (Optional)</FormLabel><FormControl><Input placeholder="https://example.com/explanation_image.png" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                {form.watch('explanationImageUrl') && (<FormItem><FormLabel>Explanation Image Preview</FormLabel><FormControl><div className="p-4 border rounded-md flex justify-center bg-muted/50"><Image src={form.watch('explanationImageUrl')!} alt="Explanation image preview" width={400} height={300} className="rounded-md object-contain" /></div></FormControl></FormItem>)}
+                {form.watch('explanationImageUrl') && (<FormItem><FormLabel>Explanation Image Preview</FormLabel><FormControl><div className="p-4 border rounded-md flex justify-center bg-muted/50"><Image src={form.watch('explanationImageUrl')!} alt="Explanation image preview" width={600} height={450} className="rounded-md object-contain" /></div></FormControl></FormItem>)}
 
                 {questionType === 'MCQ' && (
                     <div className="space-y-4">
@@ -833,10 +832,10 @@ export default function PracticePage() {
                           <FormField control={form.control} name="questionText" render={({ field }) => (<FormItem><FormLabel>Question Text</FormLabel><FormControl><Textarea placeholder="e.g., What is the formula for..." {...field} rows={4} /></FormControl><FormMessage /></FormItem>)} />
                           
                           <FormField control={form.control} name="imageUrl" render={({ field }) => (<FormItem><FormLabel>Image URL (Optional)</FormLabel><FormControl><Input placeholder="https://example.com/image.png" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                          {form.watch('imageUrl') && (<FormItem><FormLabel>Question Image Preview</FormLabel><FormControl><div className="p-4 border rounded-md flex justify-center bg-muted/50"><Image src={form.watch('imageUrl')!} alt="Question image preview" width={400} height={300} className="rounded-md object-contain" /></div></FormControl></FormItem>)}
+                          {form.watch('imageUrl') && (<FormItem><FormLabel>Question Image Preview</FormLabel><FormControl><div className="p-4 border rounded-md flex justify-center bg-muted/50"><Image src={form.watch('imageUrl')!} alt="Question image preview" width={600} height={450} className="rounded-md object-contain" /></div></FormControl></FormItem>)}
                           
                           <FormField control={form.control} name="explanationImageUrl" render={({ field }) => (<FormItem><FormLabel>Explanation Image URL (Optional)</FormLabel><FormControl><Input placeholder="https://example.com/explanation-image.png" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                          {form.watch('explanationImageUrl') && (<FormItem><FormLabel>Explanation Image Preview</FormLabel><FormControl><div className="p-4 border rounded-md flex justify-center bg-muted/50"><Image src={form.watch('explanationImageUrl')!} alt="Explanation image preview" width={400} height={300} className="rounded-md object-contain" /></div></FormControl></FormItem>)}
+                          {form.watch('explanationImageUrl') && (<FormItem><FormLabel>Explanation Image Preview</FormLabel><FormControl><div className="p-4 border rounded-md flex justify-center bg-muted/50"><Image src={form.watch('explanationImageUrl')!} alt="Explanation image preview" width={600} height={450} className="rounded-md object-contain" /></div></FormControl></FormItem>)}
 
                           {questionType === 'MCQ' && (
                               <div className="space-y-4">

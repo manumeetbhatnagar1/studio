@@ -311,6 +311,19 @@
           "type": "string",
           "description": "Reference to the ExamType this live class is for."
         },
+        "classId": {
+            "type": "string",
+            "description": "Reference to the Class this live class is for."
+        },
+        "subjectId": {
+            "type": "string",
+            "description": "Reference to the Subject this live class is for."
+        },
+        "accessLevel": {
+            "type": "string",
+            "description": "Specifies if the class is free or requires a subscription.",
+            "enum": ["free", "paid"]
+        },
         "recordingUrl": {
           "type": "string",
           "description": "The URL for the class recording. Available after the class has ended.",
@@ -324,7 +337,10 @@
         "teacherId",
         "teacherName",
         "meetingUrl",
-        "examTypeId"
+        "examTypeId",
+        "classId",
+        "subjectId",
+        "accessLevel"
       ]
     },
     "PracticeQuestion": {

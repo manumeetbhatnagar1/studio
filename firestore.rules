@@ -293,11 +293,18 @@ service cloud.firestore {
                     && request.resource.data.duration is number && request.resource.data.duration > 0
                     && request.resource.data.meetingUrl is string && request.resource.data.meetingUrl.matches('https?://.+')
                     && exists(/databases/$(database)/documents/exam_types/$(request.resource.data.examTypeId))
+                    && exists(/databases/$(database)/documents/classes/$(request.resource.data.classId))
+                    && exists(/databases/$(database)/documents/subjects/$(request.resource.data.subjectId))
+                    && request.resource.data.accessLevel in ['free', 'paid']
                     && request.resource.data.startTime > request.time;
 
       allow update: if resource != null
                     && isOwner(resource.data.teacherId)
-                    && request.resource.data.teacherId == resource.data.teacherId; 
+                    && request.resource.data.teacherId == resource.data.teacherId
+                    && request.resource.data.examTypeId == resource.data.examTypeId
+                    && request.resource.data.classId == resource.data.classId
+                    && request.resource.data.subjectId == resource.data.subjectId
+                    && request.resource.data.accessLevel == resource.data.accessLevel;
 
       allow delete: if resource != null && isOwner(resource.data.teacherId);
     }

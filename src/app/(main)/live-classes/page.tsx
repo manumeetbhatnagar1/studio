@@ -4,10 +4,10 @@ import { useState, useMemo, type FC, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { CalendarIcon, PlusCircle, Video, LoaderCircle, Trash2, User, Clock, Link as LinkIcon, AlertTriangle, CreditCard, PlayCircle, CalendarClock, BookOpen } from 'lucide-react';
-import { format, startOfWeek, endOfWeek, eachDayOfInterval, formatISO, parseISO } from 'date-fns';
+import { CalendarIcon, PlusCircle, Video, LoaderCircle, Trash2, User, Clock, Link as LinkIcon, AlertTriangle, CreditCard, PlayCircle, CalendarClock, BookOpen, Edit } from 'lucide-react';
+import { format, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase, addDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
+import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase, addDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
 import { useIsTeacher } from '@/hooks/useIsTeacher';
 import { collection, query, orderBy, doc, serverTimestamp } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
@@ -41,8 +41,6 @@ import DashboardHeader from '@/components/dashboard-header';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import Link from 'next/link';
-import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from 'recharts';
-import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -131,164 +129,6 @@ function FeePaymentReminder() {
     return null;
 }
 
-function ClassActivityChart({ classes, isLoading }: { classes: LiveClass[], isLoading: boolean }) {
-    const chartData = useMemo(() => {
-        if (!classes) return [];
-        const now = new Date();
-        const start = startOfWeek(now, { weekStartsOn: 1 });
-        const end = endOfWeek(now, { weekStartsOn: 1 });
-        const days = eachDayOfInterval({ start, end });
-
-        const classesByDay: { [key: string]: number } = {};
-        classes
-            .filter(c => c.startTime.toDate() < now) // only completed classes
-            .forEach(c => {
-                const day = format(c.startTime.toDate(), 'yyyy-MM-dd');
-                classesByDay[day] = (classesByDay[day] || 0) + 1;
-            });
-        
-        return days.map(day => ({
-            date: format(day, 'MMM d'),
-            day: format(day, 'EEE'),
-            completed: classesByDay[format(day, 'yyyy-MM-dd')] || 0,
-        }));
-
-    }, [classes]);
-
-    const chartConfig = {
-        completed: {
-          label: 'Classes Completed',
-          color: 'hsl(var(--primary))',
-        },
-    } satisfies ChartConfig;
-
-    if (isLoading) {
-        return <Skeleton className="h-64 w-full" />;
-    }
-
-    return (
-        <Card>
-            <CardHeader>
-                <CardTitle>This Week's Activity</CardTitle>
-                <CardDescription>Number of classes you have completed this week.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                <ChartContainer config={chartConfig} className="min-h-[200px] w-full">
-                    <BarChart accessibilityLayer data={chartData}>
-                        <XAxis
-                          dataKey="day"
-                          tickLine={false}
-                          axisLine={false}
-                          tickMargin={8}
-                          tickFormatter={(value) => value.slice(0, 3)}
-                        />
-                        <YAxis tickLine={false} axisLine={false} tickMargin={8} allowDecimals={false} />
-                        <ChartTooltip content={<ChartTooltipContent />} />
-                        <Bar dataKey="completed" fill="var(--color-completed)" radius={4} />
-                    </BarChart>
-                </ChartContainer>
-            </CardContent>
-        </Card>
-    )
-}
-
-function UpcomingClassesList({ classes, isLoading }: { classes: LiveClass[], isLoading: boolean }) {
-    if (isLoading) {
-        return (
-            <Card>
-                <CardHeader>
-                    <CardTitle>Upcoming Classes</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <Skeleton className="h-12 w-full" />
-                    <Skeleton className="h-12 w-full" />
-                </CardContent>
-            </Card>
-        );
-    }
-    
-    if (classes.length === 0) {
-        return (
-            <Card>
-                <CardHeader><CardTitle>Upcoming Classes</CardTitle></CardHeader>
-                <CardContent><p className="text-muted-foreground">No upcoming classes scheduled.</p></CardContent>
-            </Card>
-        )
-    }
-
-    return (
-        <Card>
-            <CardHeader><CardTitle>Upcoming Classes</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-                {classes.map(c => (
-                    <div key={c.id} className="flex items-center justify-between p-2 rounded-md hover:bg-muted">
-                        <div>
-                            <p className="font-semibold">{c.title}</p>
-                            <p className="text-sm text-muted-foreground">{format(c.startTime.toDate(), "EEE, MMM d 'at' h:mm a")}</p>
-                        </div>
-                        <Button asChild size="sm">
-                            <Link href={c.meetingUrl} target="_blank">
-                                <Video className="mr-2 h-4 w-4" />
-                                Join
-                            </Link>
-                        </Button>
-                    </div>
-                ))}
-            </CardContent>
-        </Card>
-    );
-}
-
-function RecentRecordings({ classes, isLoading }: { classes: LiveClass[], isLoading: boolean }) {
-    const recordings = useMemo(() => {
-        return classes.filter(c => c.recordingUrl).slice(0, 5);
-    }, [classes]);
-
-     if (isLoading) {
-        return (
-            <Card>
-                <CardHeader>
-                    <CardTitle>Recent Recordings</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <Skeleton className="h-12 w-full" />
-                    <Skeleton className="h-12 w-full" />
-                </CardContent>
-            </Card>
-        );
-    }
-    
-    if (recordings.length === 0) {
-        return (
-            <Card>
-                <CardHeader><CardTitle>Recent Recordings</CardTitle></CardHeader>
-                <CardContent><p className="text-muted-foreground">No recordings available yet.</p></CardContent>
-            </Card>
-        );
-    }
-
-    return (
-        <Card>
-            <CardHeader><CardTitle>Recent Recordings</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-                {recordings.map(c => (
-                    <div key={c.id} className="flex items-center justify-between p-2 rounded-md hover:bg-muted">
-                        <div>
-                            <p className="font-semibold">{c.title}</p>
-                            <p className="text-sm text-muted-foreground">{format(c.startTime.toDate(), "MMM d, yyyy")} &middot; by {c.teacherName}</p>
-                        </div>
-                        {c.recordingUrl && (
-                            <Button asChild variant="ghost" size="sm">
-                                <Link href={c.recordingUrl} target="_blank"><PlayCircle className="h-4 w-4" /></Link>
-                            </Button>
-                        )}
-                    </div>
-                ))}
-            </CardContent>
-        </Card>
-    )
-}
-
 function StudentView() {
     const firestore = useFirestore();
 
@@ -306,29 +146,50 @@ function StudentView() {
         return { upcomingClasses: upcoming, pastClasses: past };
     }, [liveClasses]);
 
-    const totalCompleted = pastClasses.length;
-    const totalRemaining = liveClasses ? liveClasses.length - totalCompleted : 0;
-
     return (
         <div className="space-y-6">
             <FeePaymentReminder />
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <Card>
-                    <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Classes Completed</CardTitle></CardHeader>
-                    <CardContent><div className="text-2xl font-bold">{isLoading ? <Skeleton className="h-8 w-16" /> : totalCompleted}</div></CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Classes Remaining</CardTitle></CardHeader>
-                    <CardContent><div className="text-2xl font-bold">{isLoading ? <Skeleton className="h-8 w-16" /> : totalRemaining}</div></CardContent>
-                </Card>
-            </div>
-            
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <ClassActivityChart classes={pastClasses} isLoading={isLoading} />
-                <UpcomingClassesList classes={upcomingClasses} isLoading={isLoading} />
+                <Card>
+                    <CardHeader><CardTitle>Upcoming Classes</CardTitle></CardHeader>
+                    <CardContent className="space-y-4">
+                        {isLoading ? <><Skeleton className="h-12 w-full" /><Skeleton className="h-12 w-full" /></> :
+                        upcomingClasses.length > 0 ? upcomingClasses.map(c => (
+                            <div key={c.id} className="flex items-center justify-between p-2 rounded-md hover:bg-muted">
+                                <div>
+                                    <p className="font-semibold">{c.title}</p>
+                                    <p className="text-sm text-muted-foreground">{format(c.startTime.toDate(), "EEE, MMM d 'at' h:mm a")}</p>
+                                </div>
+                                <Button asChild size="sm">
+                                    <Link href={c.meetingUrl} target="_blank">
+                                        <Video className="mr-2 h-4 w-4" />
+                                        Join
+                                    </Link>
+                                </Button>
+                            </div>
+                        )) : <p className="text-muted-foreground">No upcoming classes scheduled.</p>
+                        }
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader><CardTitle>Recent Recordings</CardTitle></CardHeader>
+                    <CardContent className="space-y-4">
+                       {isLoading ? <><Skeleton className="h-12 w-full" /><Skeleton className="h-12 w-full" /></> :
+                       pastClasses.filter(c => c.recordingUrl).slice(0,5).length > 0 ? pastClasses.filter(c => c.recordingUrl).slice(0,5).map(c => (
+                            <div key={c.id} className="flex items-center justify-between p-2 rounded-md hover:bg-muted">
+                                <div>
+                                    <p className="font-semibold">{c.title}</p>
+                                    <p className="text-sm text-muted-foreground">{format(c.startTime.toDate(), "MMM d, yyyy")} &middot; by {c.teacherName}</p>
+                                </div>
+                                <Button asChild variant="ghost" size="sm">
+                                    <Link href={c.recordingUrl!} target="_blank"><PlayCircle className="h-4 w-4" /></Link>
+                                </Button>
+                            </div>
+                        )) : <p className="text-muted-foreground">No recordings available yet.</p>
+                       }
+                    </CardContent>
+                </Card>
             </div>
-
-            <RecentRecordings classes={pastClasses} isLoading={isLoading} />
         </div>
     );
 }
@@ -503,9 +364,60 @@ const LiveClassForm: FC<{ setOpen: (open: boolean) => void, examTypes: ExamType[
     );
 };
 
+const RecordingUrlForm: FC<{ liveClass: LiveClass; onFinished: () => void }> = ({ liveClass, onFinished }) => {
+    const firestore = useFirestore();
+    const { toast } = useToast();
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    
+    const form = useForm({
+        defaultValues: {
+            recordingUrl: liveClass.recordingUrl || ''
+        }
+    });
+    
+    async function onSubmit(values: { recordingUrl: string }) {
+        setIsSubmitting(true);
+        try {
+            const docRef = doc(firestore, 'live_classes', liveClass.id);
+            await updateDocumentNonBlocking(docRef, { recordingUrl: values.recordingUrl });
+            toast({ title: 'Recording URL Saved!' });
+            onFinished();
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Error', description: error.message });
+        } finally {
+            setIsSubmitting(false);
+        }
+    }
+    
+    return (
+        <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <FormField
+                    control={form.control}
+                    name="recordingUrl"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Recording URL</FormLabel>
+                            <FormControl>
+                                <Input placeholder="https://youtube.com/watch?v=..." {...field} />
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+                <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? <LoaderCircle className="animate-spin mr-2" /> : null}
+                    Save URL
+                </Button>
+            </form>
+        </Form>
+    );
+}
+
 const LiveClassCard: FC<{ liveClass: LiveClass; currentUserId?: string, examTypeMap: Record<string, string>, classMap: Record<string, string>, subjectMap: Record<string, string> }> = ({ liveClass, currentUserId, examTypeMap, classMap, subjectMap }) => {
     const firestore = useFirestore();
     const { toast } = useToast();
+    const [isRecordingDialogOpen, setIsRecordingDialogOpen] = useState(false);
 
     const handleDelete = async () => {
         if (window.confirm('Are you sure you want to delete this class? This action cannot be undone.')) {
@@ -558,18 +470,50 @@ const LiveClassCard: FC<{ liveClass: LiveClass; currentUserId?: string, examType
                 </div>
             </CardContent>
             <CardFooter className="bg-muted/50 px-6 py-4 flex justify-between items-center">
-                 <Button asChild disabled={!isUpcoming}>
-                    <Link href={liveClass.meetingUrl} target="_blank">
-                        <Video className="mr-2" />
-                        Join Class
-                    </Link>
-                </Button>
-                {isOwner && (
-                    <Button variant="ghost" size="icon" onClick={handleDelete}>
-                        <Trash2 className="h-5 w-5 text-destructive" />
-                        <span className="sr-only">Delete Class</span>
-                    </Button>
-                )}
+                 <div>
+                    {isUpcoming ? (
+                        <Button asChild>
+                            <Link href={liveClass.meetingUrl} target="_blank">
+                                <Video className="mr-2" />
+                                Join Class
+                            </Link>
+                        </Button>
+                    ) : liveClass.recordingUrl ? (
+                        <Button asChild>
+                            <Link href={liveClass.recordingUrl} target="_blank">
+                                <PlayCircle className="mr-2" />
+                                Watch Recording
+                            </Link>
+                        </Button>
+                    ) : (
+                        <div className='text-sm text-muted-foreground'>Recording not available</div>
+                    )}
+                 </div>
+                 <div className="flex items-center gap-1">
+                    {isOwner && !isUpcoming && (
+                        <Dialog open={isRecordingDialogOpen} onOpenChange={setIsRecordingDialogOpen}>
+                            <DialogTrigger asChild>
+                                <Button variant="outline" size="sm">
+                                    {liveClass.recordingUrl ? <Edit className="mr-2 h-4 w-4"/> : <PlusCircle className="mr-2 h-4 w-4"/>}
+                                    Recording
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                                <DialogHeader>
+                                    <DialogTitle>Add/Edit Recording URL</DialogTitle>
+                                    <DialogDescription>Paste the video URL for the recording of "{liveClass.title}".</DialogDescription>
+                                </DialogHeader>
+                                <RecordingUrlForm liveClass={liveClass} onFinished={() => setIsRecordingDialogOpen(false)} />
+                            </DialogContent>
+                        </Dialog>
+                    )}
+                    {isOwner && (
+                        <Button variant="ghost" size="icon" onClick={handleDelete}>
+                            <Trash2 className="h-5 w-5 text-destructive" />
+                            <span className="sr-only">Delete Class</span>
+                        </Button>
+                    )}
+                </div>
             </CardFooter>
         </Card>
     );
@@ -707,8 +651,3 @@ export default function LiveClassesPage() {
       </div>
     );
   }
-
-    
-
-    
-

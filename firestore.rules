@@ -303,8 +303,7 @@ service cloud.firestore {
                     && request.resource.data.teacherId == resource.data.teacherId
                     && request.resource.data.examTypeId == resource.data.examTypeId
                     && request.resource.data.classId == resource.data.classId
-                    && request.resource.data.subjectId == resource.data.subjectId
-                    && request.resource.data.accessLevel == resource.data.accessLevel;
+                    && request.resource.data.subjectId == resource.data.subjectId;
 
       allow delete: if resource != null && isOwner(resource.data.teacherId);
     }

@@ -12,6 +12,7 @@ import {
   Video,
   CreditCard,
   ListTree,
+  Users,
 } from 'lucide-react';
 import { Logo } from '@/components/icons';
 import type { NavItem } from '@/lib/types';
@@ -25,6 +26,7 @@ import {
 } from '@/components/ui/sidebar';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from './ui/badge';
+import { useIsTeacher } from '@/hooks/useIsTeacher';
 
 const navItems: NavItem[] = [
   { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -40,6 +42,7 @@ const navItems: NavItem[] = [
 
 export default function MainSidebar() {
   const pathname = usePathname();
+  const { isTeacher } = useIsTeacher();
 
   return (
     <>
@@ -69,6 +72,20 @@ export default function MainSidebar() {
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))}
+          {isTeacher && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                isActive={pathname.startsWith('/admin/students')}
+                tooltip={{ children: 'Students' }}
+              >
+                <Link href="/admin/students">
+                  <Users />
+                  <span>Students</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
         </SidebarMenu>
       </SidebarContent>
       <SidebarFooter>

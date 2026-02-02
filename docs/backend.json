@@ -805,6 +805,50 @@
         "averageScore",
         "topperScore"
       ]
+    },
+    "DashboardLink": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "DashboardLink",
+      "type": "object",
+      "description": "Represents a quick-access link on the main dashboard.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the DashboardLink."
+        },
+        "title": {
+          "type": "string",
+          "description": "The title of the link card."
+        },
+        "description": {
+          "type": "string",
+          "description": "The description text for the link card."
+        },
+        "href": {
+          "type": "string",
+          "description": "The URL path the link points to."
+        },
+        "icon": {
+          "type": "string",
+          "description": "The name of the lucide-react icon to display."
+        },
+        "imageUrl": {
+          "type": "string",
+          "description": "The URL for the card's background image.",
+          "format": "uri"
+        },
+        "order": {
+          "type": "number",
+          "description": "The display order of the link on the dashboard."
+        }
+      },
+      "required": [
+        "title",
+        "href",
+        "icon",
+        "imageUrl",
+        "order"
+      ]
     }
   },
   "auth": {
@@ -1127,6 +1171,22 @@
             {
               "name": "testId",
               "description": "The unique ID for the mock test."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/dashboard_links/{linkId}",
+        "definition": {
+          "entityName": "DashboardLink",
+          "schema": {
+            "$ref": "#/backend/entities/DashboardLink"
+          },
+          "description": "Stores the configuration for the quick access links on the dashboard. Manageable by teachers.",
+          "params": [
+            {
+              "name": "linkId",
+              "description": "The unique ID for the dashboard link."
             }
           ]
         }

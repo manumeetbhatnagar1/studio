@@ -214,7 +214,7 @@ service cloud.firestore {
      * @description Learning content like videos and articles. Readable by any signed-in user,
      *              but only manageable by teachers. UI logic restricts view for non-subscribers.
      * @path        /content/{contentId}
-     * @allow       (get, list) Any signed-in user.
+     * @allow       (get, list) if isSignedIn();
      * @deny        (create) A student trying to upload new content.
      * @principle   Role-restricted writes with public reads.
      */
@@ -408,6 +408,22 @@ service cloud.firestore {
     match /test_analytics/{testId} {
       allow read: if isSignedIn();
       allow write: if isSignedIn();
+    }
+
+    // --------------------------------------------------------------------
+    // Dashboard Configuration Rules
+    // --------------------------------------------------------------------
+    /**
+     * @description Stores the configuration for the quick access links on the dashboard.
+     *              Readable by all authenticated users, but only manageable by teachers.
+     * @path        /dashboard_links/{linkId}
+     * @allow       (read) Any signed-in user.
+     * @allow       (write) Only teachers can manage dashboard links.
+     * @principle   Role-restricted writes for site configuration with public reads.
+     */
+    match /dashboard_links/{linkId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isTeacher();
     }
   }
 }

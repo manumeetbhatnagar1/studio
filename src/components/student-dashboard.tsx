@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowRight, CheckCircle, ClipboardCheck, MessageSquare, Video } from 'lucide-react';
+import { ArrowRight, CheckCircle, ClipboardCheck, MessageSquare, Video, ClipboardList } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
 // Types
@@ -136,10 +136,22 @@ function ProgressOverview() {
     }, [user, firestore]);
     const { data: doubts, isLoading: areDoubtsLoading } = useCollection<Doubt>(doubtsQuery);
     
-    const isLoading = areLiveClassesLoading || areTestsLoading || areDoubtsLoading;
+    // Practice Questions Completed
+    const practiceResultsQuery = useMemoFirebase(() => {
+        if (!user) return null;
+        return query(collection(firestore, 'users', user.uid, 'practice_results'));
+    }, [user, firestore]);
+    const { data: practiceResults, isLoading: arePracticeResultsLoading } = useCollection<{totalQuestions: number}>(practiceResultsQuery);
+
+    const practiceQuestionsCompleted = useMemo(() => {
+        if (!practiceResults) return 0;
+        return practiceResults.reduce((sum, result) => sum + (result.totalQuestions || 0), 0);
+    }, [practiceResults]);
+
+    const isLoading = areLiveClassesLoading || areTestsLoading || areDoubtsLoading || arePracticeResultsLoading;
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Live Classes Attended</CardTitle>
@@ -156,6 +168,15 @@ function ProgressOverview() {
                 </CardHeader>
                 <CardContent>
                     {isLoading ? <Skeleton className="h-8 w-12" /> : <div className="text-2xl font-bold">{testResults?.length || 0}</div>}
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Practice Questions</CardTitle>
+                    <ClipboardList className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                    {isLoading ? <Skeleton className="h-8 w-12" /> : <div className="text-2xl font-bold">{practiceQuestionsCompleted}</div>}
                 </CardContent>
             </Card>
             <Card>

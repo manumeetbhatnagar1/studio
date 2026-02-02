@@ -627,6 +627,47 @@
       },
       "required": ["testId", "score", "timeTaken", "submittedAt"]
     },
+    "PracticeResult": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "PracticeResult",
+      "type": "object",
+      "description": "Stores the results of a student's attempt at a practice session.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the practice result."
+        },
+        "topics": {
+          "type": "array",
+          "description": "An array of topic IDs covered in the session.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "questionsAttempted": {
+          "type": "number",
+          "description": "The number of questions the user provided an answer for."
+        },
+        "questionsCorrect": {
+          "type": "number",
+          "description": "The number of questions the user answered correctly."
+        },
+        "totalQuestions": {
+          "type": "number",
+          "description": "The total number of questions in the session."
+        },
+        "submittedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of when the practice session was submitted."
+        }
+      },
+      "required": [
+        "topics",
+        "totalQuestions",
+        "submittedAt"
+      ]
+    },
     "CustomMockTest": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "CustomMockTest",
@@ -821,6 +862,20 @@
           "params": [
             { "name": "userId", "description": "The user's unique ID." },
             { "name": "resultId", "description": "The unique ID for the test result." }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/practice_results/{resultId}",
+        "definition": {
+          "entityName": "PracticeResult",
+          "schema": {
+            "$ref": "#/backend/entities/PracticeResult"
+          },
+          "description": "Stores results for practice sessions taken by the user. Path-based ownership.",
+          "params": [
+            { "name": "userId", "description": "The user's unique ID." },
+            { "name": "resultId", "description": "The unique ID for the practice result." }
           ]
         }
       },

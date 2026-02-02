@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { useUser, useFirestore } from '@/firebase';
-import { collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { useUser, useFirestore, addDocumentNonBlocking } from '@/firebase';
+import { collection, query, where, getDocs, limit, serverTimestamp } from 'firebase/firestore';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,6 +27,7 @@ enum QuestionStatus {
 type PracticeQuestion = {
   id: string;
   subjectId: string;
+  topicId: string;
   questionText: string;
   questionType: 'MCQ' | 'Numerical';
   options?: string[];
@@ -189,6 +190,18 @@ function PracticeSession() {
         });
         setScore(correctAnswers);
         setIsFinished(true);
+
+        if (user && firestore) {
+            const practiceResultsRef = collection(firestore, 'users', user.uid, 'practice_results');
+            const topicIds = Array.from(new Set(questions.map(q => q.topicId)));
+            addDocumentNonBlocking(practiceResultsRef, {
+                topics: topicIds,
+                questionsAttempted: answers.size,
+                questionsCorrect: correctAnswers,
+                totalQuestions: questions.length,
+                submittedAt: serverTimestamp(),
+            });
+        }
     };
 
     const getStatusClasses = (status: QuestionStatus) => {

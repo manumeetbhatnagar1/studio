@@ -122,6 +122,18 @@ service cloud.firestore {
       }
 
       /**
+       * @description Stores results for practice sessions taken by the user.
+       * @path        /users/{userId}/practice_results/{resultId}
+       * @allow       (create, get, list) The owner of the user document.
+       * @deny        (update, delete) Client-side updates/deletes are forbidden.
+       * @principle   Enforces data ownership for practice session results.
+       */
+      match /practice_results/{resultId} {
+        allow get, list, create: if isOwner(userId);
+        allow update, delete: if false;
+      }
+
+      /**
        * @description Stores custom mock tests created by the user.
        * @path        /users/{userId}/custom_tests/{testId}
        * @allow       (create, get, list, update, delete) The owner of the user document.
@@ -399,5 +411,3 @@ service cloud.firestore {
     }
   }
 }
-
-    

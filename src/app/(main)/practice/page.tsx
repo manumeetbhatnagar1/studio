@@ -562,7 +562,8 @@ export default function PracticePage() {
   const [editingQuestion, setEditingQuestion] = useState<PracticeQuestion | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [questionToDelete, setQuestionToDelete] = useState<string | null>(null);
-  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [questionPdfFile, setQuestionPdfFile] = useState<File | null>(null);
+  const [explanationPdfFile, setExplanationPdfFile] = useState<File | null>(null);
 
   const questionsCollectionRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'practice_questions'), orderBy('topicId')) : null, [firestore]);
   const classesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'classes'), orderBy('name')) : null, [firestore]);
@@ -783,15 +784,15 @@ export default function PracticePage() {
       <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 grid gap-8">
         <div className='space-y-8'>
             <PdfQuestionExtractor
-              file={pdfFile}
-              onFileChange={setPdfFile}
+              file={questionPdfFile}
+              onFileChange={setQuestionPdfFile}
               onImageCropped={handleQuestionImageCropped} 
               title="Add Question Image from PDF"
               description="Upload a PDF, crop an image for the question, then fill in details below."
             />
             <PdfQuestionExtractor 
-              file={pdfFile}
-              onFileChange={setPdfFile}
+              file={explanationPdfFile}
+              onFileChange={setExplanationPdfFile}
               onImageCropped={handleExplanationImageCropped}
               title="Add Explanation Image from PDF"
               description="Upload a PDF and crop an image for the question's explanation."

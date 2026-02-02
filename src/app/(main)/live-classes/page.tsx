@@ -35,8 +35,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import DashboardHeader from '@/components/dashboard-header';
@@ -52,7 +50,7 @@ import { Badge } from '@/components/ui/badge';
 
 const liveClassSchema = z.object({
   title: z.string().min(5, 'Title must be at least 5 characters long.'),
-  startTime: z.date().refine((date) => date > new Date(), {
+  startTime: z.coerce.date().refine((date) => date > new Date(), {
     message: 'Start time must be in the future.',
   }),
   duration: z.coerce.number().int().min(15, 'Duration must be at least 15 minutes.'),
@@ -368,11 +366,11 @@ const LiveClassForm: FC<{ setOpen: (open: boolean) => void, examTypes: ExamType[
     useEffect(() => {
       setValue('classId', '');
       setValue('subjectId', '');
-    }, [selectedExamType]);
+    }, [selectedExamType, setValue]);
   
     useEffect(() => {
       setValue('subjectId', '');
-    }, [selectedClass]);
+    }, [selectedClass, setValue]);
 
     async function onSubmit(values: z.infer<typeof liveClassSchema>) {
         if (!user) {
@@ -433,84 +431,16 @@ const LiveClassForm: FC<{ setOpen: (open: boolean) => void, examTypes: ExamType[
                         name="startTime"
                         render={({ field }) => (
                             <FormItem className="flex flex-col">
-                            <FormLabel>Start Time</FormLabel>
-                            <Popover>
-                                <PopoverTrigger asChild>
+                                <FormLabel>Start Time</FormLabel>
                                 <FormControl>
-                                    <Button
-                                    variant={"outline"}
-                                    className={cn(
-                                        "pl-3 text-left font-normal",
-                                        !field.value && "text-muted-foreground"
-                                    )}
-                                    >
-                                    {field.value ? (
-                                        format(field.value, "PPP HH:mm")
-                                    ) : (
-                                        <span>Pick a date and time</span>
-                                    )}
-                                    <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                    </Button>
+                                    <Input
+                                        type="datetime-local"
+                                        value={field.value instanceof Date && !isNaN(field.value.getTime()) ? format(field.value, "yyyy-MM-dd'T'HH:mm") : field.value || ''}
+                                        onChange={field.onChange}
+                                        min={format(new Date(), "yyyy-MM-dd'T'HH:mm")}
+                                    />
                                 </FormControl>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0" align="start">
-                                <Calendar
-                                    mode="single"
-                                    selected={field.value}
-                                    onSelect={(date) => {
-                                        if (!date) return;
-                                        
-                                        const hours = field.value ? new Date(field.value).getHours() : 9;
-                                        const minutes = field.value ? new Date(field.value).getMinutes() : 0;
-
-                                        const newDateTime = new Date(date);
-                                        newDateTime.setHours(hours, minutes, 0, 0);
-
-                                        field.onChange(newDateTime);
-                                    }}
-                                    disabled={(date) => date < new Date()}
-                                    initialFocus
-                                />
-                                <div className="p-3 border-t border-border flex items-center justify-center gap-2">
-                                    <Select
-                                        onValueChange={(hour) => {
-                                            if (!field.value) return;
-                                            const newDate = new Date(field.value);
-                                            newDate.setHours(parseInt(hour, 10));
-                                            field.onChange(newDate);
-                                        }}
-                                        value={field.value ? String(new Date(field.value).getHours()).padStart(2, '0') : ""}
-                                        disabled={!field.value}
-                                        >
-                                        <SelectTrigger className="w-[70px]">
-                                            <SelectValue placeholder="HH" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}
-                                        </SelectContent>
-                                    </Select>
-                                    :
-                                    <Select
-                                        onValueChange={(minute) => {
-                                            if (!field.value) return;
-                                            const newDate = new Date(field.value);
-                                            newDate.setMinutes(parseInt(minute, 10));
-                                            field.onChange(newDate);
-                                        }}
-                                        value={field.value ? String(new Date(field.value).getMinutes()).padStart(2, '0') : ""}
-                                        disabled={!field.value}
-                                        >
-                                        <SelectTrigger className="w-[70px]">
-                                            <SelectValue placeholder="MM" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {['00', '15', '30', '45'].map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                </PopoverContent>
-                            </Popover>
-                            <FormMessage />
+                                <FormMessage />
                             </FormItem>
                         )}
                         />

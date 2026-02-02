@@ -3,12 +3,12 @@
 import { useMemo, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
-import { doc, collection, query, orderBy, limit, getDoc } from 'firebase/firestore';
+import { doc, collection, query, orderBy, limit, getDoc, where } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowRight, CheckCircle } from 'lucide-react';
+import { ArrowRight, CheckCircle, ClipboardCheck, MessageSquareCheck, Video } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
 // Types
@@ -23,16 +23,24 @@ type SubscriptionPlan = {
 
 type TestResult = {
     id: string;
-    testId: string; // This would need to be joined with a test title
+    testId: string;
     score: number;
     submittedAt: { toDate: () => Date };
 };
+
+type LiveClass = {
+  startTime: { toDate: () => Date };
+};
+
+type Doubt = {
+    studentId: string;
+}
 
 type MockTest = {
     title: string;
 };
 
-
+// 1. Subscription Status Component
 function SubscriptionStatus() {
     const { user } = useUser();
     const firestore = useFirestore();
@@ -102,7 +110,69 @@ function SubscriptionStatus() {
     );
 }
 
-function CourseProgress() {
+// 2. Progress Overview Component
+function ProgressOverview() {
+    const { user } = useUser();
+    const firestore = useFirestore();
+
+    // Live Classes Attended
+    const liveClassesQuery = useMemoFirebase(() => {
+        if (!firestore) return null;
+        return query(collection(firestore, 'live_classes'), where('startTime', '<', new Date()));
+    }, [firestore]);
+    const { data: pastLiveClasses, isLoading: areLiveClassesLoading } = useCollection<LiveClass>(liveClassesQuery);
+
+    // Mock Tests Completed
+    const testsQuery = useMemoFirebase(() => {
+        if (!user) return null;
+        return query(collection(firestore, 'users', user.uid, 'test_results'));
+    }, [user, firestore]);
+    const { data: testResults, isLoading: areTestsLoading } = useCollection(testsQuery);
+
+    // Doubts Asked
+    const doubtsQuery = useMemoFirebase(() => {
+        if (!user) return null;
+        return query(collection(firestore, 'doubts'), where('studentId', '==', user.uid));
+    }, [user, firestore]);
+    const { data: doubts, isLoading: areDoubtsLoading } = useCollection<Doubt>(doubtsQuery);
+    
+    const isLoading = areLiveClassesLoading || areTestsLoading || areDoubtsLoading;
+
+    return (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Live Classes Attended</CardTitle>
+                    <Video className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                    {isLoading ? <Skeleton className="h-8 w-12" /> : <div className="text-2xl font-bold">{pastLiveClasses?.length || 0}</div>}
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Mock Tests Completed</CardTitle>
+                    <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                    {isLoading ? <Skeleton className="h-8 w-12" /> : <div className="text-2xl font-bold">{testResults?.length || 0}</div>}
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Doubts Asked</CardTitle>
+                    <MessageSquareCheck className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                    {isLoading ? <Skeleton className="h-8 w-12" /> : <div className="text-2xl font-bold">{doubts?.length || 0}</div>}
+                </CardContent>
+            </Card>
+        </div>
+    );
+}
+
+// 3. Recent Activity Component
+function RecentActivity() {
     const { user } = useUser();
     const firestore = useFirestore();
 
@@ -154,29 +224,19 @@ function CourseProgress() {
     
     const isLoading = areResultsLoading || areTitlesLoading;
 
-    if (isLoading) {
-        return (
-             <Card>
-                <CardHeader>
-                    <Skeleton className="h-6 w-3/4" />
-                    <Skeleton className="h-4 w-1/2" />
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <Skeleton className="h-12 w-full" />
-                    <Skeleton className="h-12 w-full" />
-                </CardContent>
-            </Card>
-        )
-    }
-
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Course Progress</CardTitle>
-                <CardDescription>Your most recent test results.</CardDescription>
+                <CardTitle>Recent Test Results</CardTitle>
+                <CardDescription>Your performance in the last few tests you've taken.</CardDescription>
             </CardHeader>
             <CardContent>
-                {results && results.length > 0 ? (
+                {isLoading ? (
+                    <div className="space-y-4">
+                        <Skeleton className="h-12 w-full" />
+                        <Skeleton className="h-12 w-full" />
+                    </div>
+                ) : results && results.length > 0 ? (
                     <div className="space-y-4">
                         {results.map(result => (
                             <div key={result.id} className="flex items-center justify-between p-2 rounded-md hover:bg-muted">
@@ -209,11 +269,15 @@ function CourseProgress() {
     );
 }
 
+// Main Student Dashboard Component
 export default function StudentDashboard() {
   return (
-    <div className="grid md:grid-cols-2 gap-8">
-      <SubscriptionStatus />
-      <CourseProgress />
+    <div className="space-y-6">
+        <ProgressOverview />
+        <div className="grid md:grid-cols-2 gap-6">
+          <SubscriptionStatus />
+          <RecentActivity />
+        </div>
     </div>
   );
 }

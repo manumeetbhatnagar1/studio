@@ -140,11 +140,9 @@ const LiveClassForm: FC<{ setOpen: (open: boolean) => void, examTypes: ExamType[
                                             field.onChange(undefined);
                                             return;
                                         }
+                                        const newDateTime = new Date(date);
                                         const currentTime = field.value || new Date();
-                                        const newDateTime = new Date(
-                                            date.getFullYear(),
-                                            date.getMonth(),
-                                            date.getDate(),
+                                        newDateTime.setHours(
                                             currentTime.getHours(),
                                             currentTime.getMinutes()
                                         );
@@ -157,8 +155,9 @@ const LiveClassForm: FC<{ setOpen: (open: boolean) => void, examTypes: ExamType[
                                     <Select
                                         value={field.value ? String(field.value.getHours()).padStart(2, '0') : '09'}
                                         onValueChange={(hour) => {
-                                            const currentDate = field.value || new Date();
-                                            field.onChange(new Date(currentDate.setHours(parseInt(hour, 10))));
+                                            const newDateTime = new Date(field.value || new Date());
+                                            newDateTime.setHours(parseInt(hour, 10));
+                                            field.onChange(newDateTime);
                                         }}
                                     >
                                         <SelectTrigger className="w-[60px]"><SelectValue /></SelectTrigger>
@@ -168,8 +167,9 @@ const LiveClassForm: FC<{ setOpen: (open: boolean) => void, examTypes: ExamType[
                                     <Select
                                         value={field.value ? String(field.value.getMinutes()).padStart(2, '0') : '00'}
                                          onValueChange={(minute) => {
-                                            const currentDate = field.value || new Date();
-                                            field.onChange(new Date(currentDate.setMinutes(parseInt(minute, 10))));
+                                            const newDateTime = new Date(field.value || new Date());
+                                            newDateTime.setMinutes(parseInt(minute, 10));
+                                            field.onChange(newDateTime);
                                         }}
                                     >
                                         <SelectTrigger className="w-[60px]"><SelectValue /></SelectTrigger>

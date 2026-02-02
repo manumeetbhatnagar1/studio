@@ -11,12 +11,10 @@ import DashboardHeader from '@/components/dashboard-header';
 import { useFirestore, useCollection, useMemoFirebase, useDoc, updateDocumentNonBlocking } from '@/firebase';
 import { collection, query, orderBy, doc, documentId, where } from 'firebase/firestore';
 import { useState, useMemo, useEffect } from 'react';
-import { LoaderCircle, CalendarIcon } from 'lucide-react';
+import { LoaderCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useRouter, useParams } from 'next/navigation';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -173,58 +171,33 @@ export default function EditOfficialMockTestPage() {
                     />
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                      <FormField control={form.control} name="startTime" render={({ field }) => (
-                          <FormItem className="flex flex-col"><FormLabel className="text-lg font-semibold">Start Time</FormLabel>
-                              <Popover><PopoverTrigger asChild>
-                                  <FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
-                                      {field.value ? format(field.value, "PPP HH:mm") : <span>Pick a date and time</span>}
-                                      <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                  </Button></FormControl>
-                              </PopoverTrigger><PopoverContent className="w-auto p-0" align="start">
-                                  <Calendar
-                                      mode="single"
-                                      selected={field.value}
-                                      onSelect={(selectedDate) => {
-                                        if (!selectedDate) {
-                                          field.onChange(undefined);
-                                          return;
-                                        }
-                                        const currentDateTime = field.value || new Date();
-                                        const newDateTime = new Date(selectedDate);
-                                        newDateTime.setHours(currentDateTime.getHours());
-                                        newDateTime.setMinutes(currentDateTime.getMinutes());
-                                        field.onChange(newDateTime);
-                                      }}
-                                      initialFocus
-                                  />
-                                  <div className="p-3 border-t border-border flex items-center justify-center gap-2">
-                                    <Select
-                                        value={field.value ? String(field.value.getHours()).padStart(2, '0') : '09'}
-                                        onValueChange={(hour) => {
-                                            const newDateTime = new Date(field.value || new Date());
-                                            newDateTime.setHours(parseInt(hour, 10));
-                                            field.onChange(newDateTime);
-                                        }}
-                                    >
-                                        <SelectTrigger className="w-[60px]"><SelectValue /></SelectTrigger>
-                                        <SelectContent>{Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}</SelectContent>
-                                    </Select>
-                                    <span className="font-bold">:</span>
-                                    <Select
-                                        value={field.value ? String(field.value.getMinutes()).padStart(2, '0') : '00'}
-                                         onValueChange={(minute) => {
-                                            const newDateTime = new Date(field.value || new Date());
-                                            newDateTime.setMinutes(parseInt(minute, 10));
-                                            field.onChange(newDateTime);
-                                        }}
-                                    >
-                                        <SelectTrigger className="w-[60px]"><SelectValue /></SelectTrigger>
-                                        <SelectContent>{['00', '15', '30', '45'].map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
-                                    </Select>
-                                  </div>
-                              </PopoverContent></Popover>
-                          <FormMessage /></FormItem>
-                      )} />
+                      <FormField
+                          control={form.control}
+                          name="startTime"
+                          render={({ field }) => (
+                              <FormItem className="flex flex-col">
+                                  <FormLabel className="text-lg font-semibold">Start Time</FormLabel>
+                                  <FormControl>
+                                      <Input
+                                          type="datetime-local"
+                                          value={field.value instanceof Date ? format(field.value, "yyyy-MM-dd'T'HH:mm") : ''}
+                                          onChange={(e) => {
+                                              const value = e.target.value;
+                                              if (value) {
+                                                  const newDate = new Date(value);
+                                                  if (!isNaN(newDate.getTime())) {
+                                                      field.onChange(newDate);
+                                                  }
+                                              } else {
+                                                  field.onChange(undefined);
+                                              }
+                                          }}
+                                      />
+                                  </FormControl>
+                                  <FormMessage />
+                              </FormItem>
+                          )}
+                      />
                        <FormField control={form.control} name="examTypeId" render={({ field }) => (
                             <FormItem><FormLabel className="text-lg font-semibold">Exam Type</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an exam type" /></SelectTrigger></FormControl><SelectContent>{(examTypes || []).map(et => <SelectItem key={et.id} value={et.id}>{et.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
                         )} />

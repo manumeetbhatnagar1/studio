@@ -312,7 +312,17 @@ function PracticeSession() {
             <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-4 p-4">
                 {/* Left Panel: Question Area */}
                 <div className="flex flex-col gap-4">
-                    <Card><CardHeader className="flex flex-row justify-between items-center"><CardTitle>Question No. {currentQuestionIndex + 1}</CardTitle></CardHeader><CardContent className="prose max-w-none"><p>{currentQuestion.questionText}</p></CardContent></Card>
+                    <Card>
+                      <CardHeader className="flex flex-row justify-between items-center"><CardTitle>Question No. {currentQuestionIndex + 1}</CardTitle></CardHeader>
+                      <CardContent className="prose max-w-none">
+                          <p>{currentQuestion.questionText}</p>
+                          {currentQuestion.imageUrl && (
+                              <div className="my-4 p-2 border rounded-md bg-muted/50">
+                                  <Image src={currentQuestion.imageUrl} alt={`Question image`} width={400} height={300} className="rounded-md object-contain mx-auto" />
+                              </div>
+                          )}
+                      </CardContent>
+                    </Card>
                     <Card className="flex-grow">
                         <CardContent className="p-6">
                             {currentQuestion.questionType === 'MCQ' ? (

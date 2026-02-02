@@ -727,7 +727,6 @@ export default function PracticePage() {
       title: 'Question Added!',
       description: 'The new practice question has been saved.',
     });
-    form.reset();
     setIsSubmitting(false);
   };
 

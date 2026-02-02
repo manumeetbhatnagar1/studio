@@ -190,13 +190,9 @@ export default function CreateOfficialMockTestPage() {
                                           return;
                                         }
                                         const currentDateTime = field.value || new Date();
-                                        const newDateTime = new Date(
-                                          selectedDate.getFullYear(),
-                                          selectedDate.getMonth(),
-                                          selectedDate.getDate(),
-                                          currentDateTime.getHours(),
-                                          currentDateTime.getMinutes()
-                                        );
+                                        const newDateTime = new Date(selectedDate);
+                                        newDateTime.setHours(currentDateTime.getHours());
+                                        newDateTime.setMinutes(currentDateTime.getMinutes());
                                         field.onChange(newDateTime);
                                       }}
                                       disabled={(date) => date < new Date()}
@@ -206,14 +202,8 @@ export default function CreateOfficialMockTestPage() {
                                     <Select
                                         value={field.value ? String(field.value.getHours()).padStart(2, '0') : '09'}
                                         onValueChange={(hour) => {
-                                            const currentDateTime = field.value || new Date();
-                                            const newDateTime = new Date(
-                                                currentDateTime.getFullYear(),
-                                                currentDateTime.getMonth(),
-                                                currentDateTime.getDate(),
-                                                parseInt(hour, 10),
-                                                currentDateTime.getMinutes()
-                                            );
+                                            const newDateTime = new Date(field.value || new Date());
+                                            newDateTime.setHours(parseInt(hour, 10));
                                             field.onChange(newDateTime);
                                         }}
                                     >
@@ -224,14 +214,8 @@ export default function CreateOfficialMockTestPage() {
                                     <Select
                                         value={field.value ? String(field.value.getMinutes()).padStart(2, '0') : '00'}
                                          onValueChange={(minute) => {
-                                            const currentDateTime = field.value || new Date();
-                                            const newDateTime = new Date(
-                                                currentDateTime.getFullYear(),
-                                                currentDateTime.getMonth(),
-                                                currentDateTime.getDate(),
-                                                currentDateTime.getHours(),
-                                                parseInt(minute, 10)
-                                            );
+                                            const newDateTime = new Date(field.value || new Date());
+                                            newDateTime.setMinutes(parseInt(minute, 10));
                                             field.onChange(newDateTime);
                                         }}
                                     >

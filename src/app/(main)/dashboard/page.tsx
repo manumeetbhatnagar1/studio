@@ -4,7 +4,7 @@ import DashboardHeader from "@/components/dashboard-header";
 import QuickLinks from "@/components/quick-links";
 import { useIsTeacher } from "@/hooks/useIsTeacher";
 import { Skeleton } from "@/components/ui/skeleton";
-import PersonalizedLearning from "@/components/personalized-learning";
+import StudentDashboard from "@/components/student-dashboard";
 import TeacherDashboardWidgets from "@/components/teacher-dashboard-widgets";
 
 function RoleBasedDashboard() {
@@ -13,13 +13,15 @@ function RoleBasedDashboard() {
   if (isLoading) {
     return (
       <div className="space-y-4">
-        <Skeleton className="h-24 w-full" />
-        <Skeleton className="h-24 w-full" />
+        <div className="grid md:grid-cols-2 gap-8">
+            <Skeleton className="h-48 w-full" />
+            <Skeleton className="h-48 w-full" />
+        </div>
       </div>
     );
   }
 
-  return isTeacher ? <TeacherDashboardWidgets /> : <PersonalizedLearning />;
+  return isTeacher ? <TeacherDashboardWidgets /> : <StudentDashboard />;
 }
 
 

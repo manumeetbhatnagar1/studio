@@ -436,8 +436,14 @@ const LiveClassForm: FC<{ setOpen: (open: boolean) => void, examTypes: ExamType[
                                     onSelect={(day) => {
                                         if (!day) return;
                                         const newDate = new Date(day);
-                                        const oldTime = field.value ? new Date(field.value) : new Date();
-                                        newDate.setHours(oldTime.getHours(), oldTime.getMinutes(), oldTime.getSeconds(), oldTime.getMilliseconds());
+                                        const oldDate = field.value ? new Date(field.value) : new Date();
+                                        
+                                        // If a date was already selected, keep its time. Otherwise, default to 9 AM.
+                                        if (field.value) {
+                                            newDate.setHours(oldDate.getHours(), oldDate.getMinutes(), oldDate.getSeconds());
+                                        } else {
+                                            newDate.setHours(9, 0, 0);
+                                        }
                                         field.onChange(newDate);
                                       }}
                                     disabled={(date) => date < new Date()}
@@ -445,9 +451,11 @@ const LiveClassForm: FC<{ setOpen: (open: boolean) => void, examTypes: ExamType[
                                 />
                                 <div className="p-3 border-t border-border flex items-center justify-center gap-2">
                                     <Select
-                                        value={field.value ? String(field.value.getHours()).padStart(2, '0') : '09'}
+                                        disabled={!field.value}
+                                        value={field.value ? String(field.value.getHours()).padStart(2, '0') : ''}
                                         onValueChange={(hour) => {
-                                            const newDate = new Date(field.value || new Date());
+                                            if (!field.value) return;
+                                            const newDate = new Date(field.value);
                                             newDate.setHours(parseInt(hour, 10));
                                             field.onChange(newDate);
                                         }}
@@ -457,9 +465,11 @@ const LiveClassForm: FC<{ setOpen: (open: boolean) => void, examTypes: ExamType[
                                     </Select>
                                     <span className="font-bold">:</span>
                                     <Select
-                                        value={field.value ? String(field.value.getMinutes()).padStart(2, '0') : '00'}
-                                         onValueChange={(minute) => {
-                                            const newDate = new Date(field.value || new Date());
+                                        disabled={!field.value}
+                                        value={field.value ? String(field.value.getMinutes()).padStart(2, '0') : ''}
+                                            onValueChange={(minute) => {
+                                            if (!field.value) return;
+                                            const newDate = new Date(field.value);
                                             newDate.setMinutes(parseInt(minute, 10));
                                             field.onChange(newDate);
                                         }}

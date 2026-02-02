@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowRight, CheckCircle, ClipboardCheck, MessageSquareCheck, Video } from 'lucide-react';
+import { ArrowRight, CheckCircle, ClipboardCheck, MessageSquare, Video } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
 // Types
@@ -161,7 +161,7 @@ function ProgressOverview() {
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Doubts Asked</CardTitle>
-                    <MessageSquareCheck className="h-4 w-4 text-muted-foreground" />
+                    <MessageSquare className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
                     {isLoading ? <Skeleton className="h-8 w-12" /> : <div className="text-2xl font-bold">{doubts?.length || 0}</div>}

@@ -16,6 +16,7 @@ import { useAuth, useUser } from "@/firebase";
 import { Skeleton } from "./ui/skeleton";
 import { signOut } from "firebase/auth";
 import Link from "next/link";
+import { ThemeToggle } from "./theme-toggle";
 
 type DashboardHeaderProps = {
   title: string;
@@ -43,6 +44,7 @@ export default function DashboardHeader({ title }: DashboardHeaderProps) {
           <Bell className="h-5 w-5" />
           <span className="sr-only">Toggle notifications</span>
         </Button>
+        <ThemeToggle />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="relative h-10 w-10 rounded-full">
@@ -100,5 +102,3 @@ export default function DashboardHeader({ title }: DashboardHeaderProps) {
     </header>
   );
 }
-
-    

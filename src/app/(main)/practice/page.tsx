@@ -36,6 +36,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 const baseSchema = z.object({
     questionText: z.string().min(10, 'Question must be at least 10 characters.'),
     imageUrl: z.string().optional(),
+    explanationImageUrl: z.string().optional(),
     classId: z.string().min(1, 'Class is required.'),
     subjectId: z.string().min(1, 'Subject is required.'),
     topicId: z.string().min(1, 'Topic is required.'),
@@ -90,6 +91,7 @@ type PracticeQuestion = {
   subjectId: string;
   topicId: string;
   imageUrl?: string;
+  explanationImageUrl?: string;
   questionType: 'MCQ' | 'Numerical';
   options?: string[];
   correctAnswer?: string;
@@ -150,14 +152,31 @@ function QuestionItem({ question, topicMap, classMap, examTypeMap, isTeacher, ca
         ) : isTeacher ? (
             <>
                 {question.imageUrl && (
-                    <div className="my-4 p-4 border rounded-md flex justify-center bg-muted/50">
-                        <Image
-                            src={question.imageUrl}
-                            alt="Question diagram"
-                            width={400}
-                            height={300}
-                            className="rounded-md object-contain"
-                        />
+                  <div className="my-4 space-y-2">
+                      <p className="font-semibold text-sm text-muted-foreground">Question Image:</p>
+                      <div className="p-4 border rounded-md flex justify-center bg-muted/50">
+                          <Image
+                              src={question.imageUrl}
+                              alt="Question diagram"
+                              width={400}
+                              height={300}
+                              className="rounded-md object-contain"
+                          />
+                      </div>
+                  </div>
+                )}
+                {question.explanationImageUrl && (
+                    <div className="my-4 space-y-2">
+                        <p className="font-semibold text-sm text-muted-foreground">Explanation Image:</p>
+                        <div className="p-4 border rounded-md flex justify-center bg-muted/50">
+                            <Image
+                                src={question.explanationImageUrl}
+                                alt="Explanation diagram"
+                                width={400}
+                                height={300}
+                                className="rounded-md object-contain"
+                            />
+                        </div>
                     </div>
                 )}
                 {question.questionType === 'MCQ' && question.options ? (
@@ -308,7 +327,11 @@ const EditQuestionForm: FC<{
                     )} />
                 </div>
                 <FormField control={form.control} name="questionText" render={({ field }) => (<FormItem><FormLabel>Question Text</FormLabel><FormControl><Textarea placeholder="e.g., What is the formula for..." {...field} rows={4} /></FormControl><FormMessage /></FormItem>)} />
+                
                 <FormField control={form.control} name="imageUrl" render={({ field }) => (<FormItem><FormLabel>Image URL (Optional)</FormLabel><FormControl><Input placeholder="https://example.com/image.png" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                {form.watch('imageUrl') && (<FormItem><FormLabel>Image Preview</FormLabel><FormControl><div className="p-4 border rounded-md flex justify-center bg-muted/50"><Image src={form.watch('imageUrl')!} alt="Question image preview" width={400} height={300} className="rounded-md object-contain" /></div></FormControl></FormItem>)}
+                <FormField control={form.control} name="explanationImageUrl" render={({ field }) => (<FormItem><FormLabel>Explanation Image URL (Optional)</FormLabel><FormControl><Input placeholder="https://example.com/explanation_image.png" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                {form.watch('explanationImageUrl') && (<FormItem><FormLabel>Explanation Image Preview</FormLabel><FormControl><div className="p-4 border rounded-md flex justify-center bg-muted/50"><Image src={form.watch('explanationImageUrl')!} alt="Explanation image preview" width={400} height={300} className="rounded-md object-contain" /></div></FormControl></FormItem>)}
 
                 {questionType === 'MCQ' && (
                     <div className="space-y-4">
@@ -644,6 +667,7 @@ export default function PracticePage() {
         difficultyLevel: 'Easy', 
         examTypeId: '',
         imageUrl: '',
+        explanationImageUrl: '',
         accessLevel: 'free',
     },
   });
@@ -719,14 +743,22 @@ export default function PracticePage() {
     setIsDeleteDialogOpen(false);
   };
   
-  const handleImageCropped = (data: { imageUrl: string }) => {
+  const handleQuestionImageCropped = (data: { imageUrl: string }) => {
     form.setValue('imageUrl', data.imageUrl);
     form.setValue('questionText', '');
     form.setValue('options', ['', '', '', '']);
     form.setValue('correctAnswer', '');
     toast({
-      title: 'Image Added',
+      title: 'Question Image Added',
       description: 'The image is ready. Please fill in the question details manually.',
+    });
+  };
+
+  const handleExplanationImageCropped = (data: { imageUrl: string }) => {
+    form.setValue('explanationImageUrl', data.imageUrl);
+    toast({
+      title: 'Explanation Image Added',
+      description: 'The explanation image is ready.',
     });
   };
   
@@ -746,7 +778,16 @@ export default function PracticePage() {
   const TeacherView = () => (
       <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 grid gap-8">
         <div className='space-y-8'>
-            <PdfQuestionExtractor onImageCropped={handleImageCropped} />
+            <PdfQuestionExtractor 
+              onImageCropped={handleQuestionImageCropped} 
+              title="Add Question Image from PDF"
+              description="Upload a PDF, crop an image for the question, then fill in details below."
+            />
+            <PdfQuestionExtractor 
+              onImageCropped={handleExplanationImageCropped}
+              title="Add Explanation Image from PDF"
+              description="Upload a PDF and crop an image for the question's explanation."
+            />
             <Card className="shadow-lg">
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2 font-headline text-2xl">
@@ -786,7 +827,13 @@ export default function PracticePage() {
                             )} />
                         </div>
                           <FormField control={form.control} name="questionText" render={({ field }) => (<FormItem><FormLabel>Question Text</FormLabel><FormControl><Textarea placeholder="e.g., What is the formula for..." {...field} rows={4} /></FormControl><FormMessage /></FormItem>)} />
-                          {form.watch('imageUrl') && (<FormItem><FormLabel>Image Preview</FormLabel><FormControl><div className="p-4 border rounded-md flex justify-center bg-muted/50"><Image src={form.watch('imageUrl')!} alt="Extracted image preview" width={400} height={300} className="rounded-md object-contain" /></div></FormControl></FormItem>)}
+                          
+                          <FormField control={form.control} name="imageUrl" render={({ field }) => (<FormItem><FormLabel>Image URL (Optional)</FormLabel><FormControl><Input placeholder="https://example.com/image.png" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                          {form.watch('imageUrl') && (<FormItem><FormLabel>Question Image Preview</FormLabel><FormControl><div className="p-4 border rounded-md flex justify-center bg-muted/50"><Image src={form.watch('imageUrl')!} alt="Question image preview" width={400} height={300} className="rounded-md object-contain" /></div></FormControl></FormItem>)}
+                          
+                          <FormField control={form.control} name="explanationImageUrl" render={({ field }) => (<FormItem><FormLabel>Explanation Image URL (Optional)</FormLabel><FormControl><Input placeholder="https://example.com/explanation-image.png" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                          {form.watch('explanationImageUrl') && (<FormItem><FormLabel>Explanation Image Preview</FormLabel><FormControl><div className="p-4 border rounded-md flex justify-center bg-muted/50"><Image src={form.watch('explanationImageUrl')!} alt="Explanation image preview" width={400} height={300} className="rounded-md object-contain" /></div></FormControl></FormItem>)}
+
                           {questionType === 'MCQ' && (
                               <div className="space-y-4">
                                   <FormLabel>Options & Correct Answer</FormLabel>
@@ -997,3 +1044,5 @@ export default function PracticePage() {
     </div>
   );
 }
+
+    

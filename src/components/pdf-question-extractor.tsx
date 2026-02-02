@@ -18,6 +18,8 @@ pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/b
 
 interface PdfQuestionExtractorProps {
   onImageCropped: (data: { imageUrl: string }) => void;
+  title: string;
+  description: string;
 }
 
 function centerAspectCrop(mediaWidth: number, mediaHeight: number, aspect: number | undefined) {
@@ -36,7 +38,7 @@ function centerAspectCrop(mediaWidth: number, mediaHeight: number, aspect: numbe
     );
 }
 
-export default function PdfQuestionExtractor({ onImageCropped }: PdfQuestionExtractorProps) {
+export default function PdfQuestionExtractor({ onImageCropped, title, description }: PdfQuestionExtractorProps) {
   const [file, setFile] = useState<File | null>(null);
   const [numPages, setNumPages] = useState<number | null>(null);
   const [pageNumber, setPageNumber] = useState(1);
@@ -134,9 +136,9 @@ export default function PdfQuestionExtractor({ onImageCropped }: PdfQuestionExtr
     <Card className="shadow-lg">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 font-headline text-2xl">
-          <FileUp className="w-6 h-6" /> Add Question Image from PDF
+          <FileUp className="w-6 h-6" /> {title}
         </CardTitle>
-        <CardDescription>Upload a PDF, crop an image for your question, and then manually fill in the details below.</CardDescription>
+        <CardDescription>{description}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <Input type="file" accept="application/pdf" onChange={onFileChange} />
@@ -208,5 +210,7 @@ export default function PdfQuestionExtractor({ onImageCropped }: PdfQuestionExtr
     </Card>
   );
 }
+
+    
 
     

@@ -153,18 +153,28 @@ const LiveClassForm: FC<{ setOpen: (open: boolean) => void, examTypes: ExamType[
                                     disabled={(date) => date < new Date()}
                                     initialFocus
                                 />
-                                <div className="p-3 border-t border-border">
-                                    <Input
-                                        type="time"
-                                        value={field.value ? format(field.value, 'HH:mm') : ''}
-                                        onChange={(e) => {
-                                            if (!e.target.value) return;
-                                            const [hours, minutes] = e.target.value.split(':').map(Number);
+                                <div className="p-3 border-t border-border flex items-center justify-center gap-2">
+                                    <Select
+                                        value={field.value ? String(field.value.getHours()).padStart(2, '0') : '09'}
+                                        onValueChange={(hour) => {
                                             const currentDate = field.value || new Date();
-                                            currentDate.setHours(hours, minutes);
-                                            field.onChange(new Date(currentDate));
+                                            field.onChange(new Date(currentDate.setHours(parseInt(hour, 10))));
                                         }}
-                                    />
+                                    >
+                                        <SelectTrigger className="w-[60px]"><SelectValue /></SelectTrigger>
+                                        <SelectContent>{Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}</SelectContent>
+                                    </Select>
+                                    <span className="font-bold">:</span>
+                                    <Select
+                                        value={field.value ? String(field.value.getMinutes()).padStart(2, '0') : '00'}
+                                         onValueChange={(minute) => {
+                                            const currentDate = field.value || new Date();
+                                            field.onChange(new Date(currentDate.setMinutes(parseInt(minute, 10))));
+                                        }}
+                                    >
+                                        <SelectTrigger className="w-[60px]"><SelectValue /></SelectTrigger>
+                                        <SelectContent>{['00', '15', '30', '45'].map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+                                    </Select>
                                 </div>
                             </PopoverContent></Popover>
                         <FormMessage /></FormItem>

@@ -349,10 +349,10 @@ function PracticeSession() {
                         <AlertDialogHeader><AlertDialogTitle>Are you sure you want to submit?</AlertDialogTitle>
                         <AlertDialogDescription>You will not be able to change your answers after submitting. Here is a summary:
                             <div className="grid grid-cols-2 gap-2 mt-4 text-sm">
-                                <p><span className="font-semibold">Answered:</span> {summary.answered + summary.answeredAndMarked}</p>
-                                <p><span className="font-semibold">Not Answered:</span> {summary.notAnswered}</p>
-                                <p><span className="font-semibold">Marked for Review:</span> {summary.markedForReview + summary.answeredAndMarked}</p>
-                                <p><span className="font-semibold">Not Visited:</span> {summary.notVisited}</p>
+                                <div><span className="font-semibold">Answered:</span> {summary.answered + summary.answeredAndMarked}</div>
+                                <div><span className="font-semibold">Not Answered:</span> {summary.notAnswered}</div>
+                                <div><span className="font-semibold">Marked for Review:</span> {summary.markedForReview + summary.answeredAndMarked}</div>
+                                <div><span className="font-semibold">Not Visited:</span> {summary.notVisited}</div>
                             </div>
                         </AlertDialogDescription></AlertDialogHeader>
                         <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleSubmitTest}>Submit</AlertDialogAction></AlertDialogFooter>

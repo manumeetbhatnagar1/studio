@@ -30,7 +30,7 @@ type Notification = {
   title: string;
   message: string;
   href: string;
-  createdAt: { toDate: () => Date };
+  createdAt: { toDate: () => Date } | null;
 };
 
 function NotificationsDropdown() {
@@ -69,7 +69,9 @@ function NotificationsDropdown() {
                             <Link href={n.href} className="flex flex-col items-start gap-1 p-2">
                                 <p className="font-semibold">{n.title}</p>
                                 <p className="text-sm text-muted-foreground">{n.message}</p>
-                                <p className="text-xs text-muted-foreground">{formatDistanceToNow(n.createdAt.toDate(), { addSuffix: true })}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {n.createdAt ? formatDistanceToNow(n.createdAt.toDate(), { addSuffix: true }) : 'Just now'}
+                                </p>
                             </Link>
                         </DropdownMenuItem>
                     ))}

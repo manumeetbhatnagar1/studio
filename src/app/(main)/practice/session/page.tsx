@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { useUser, useFirestore, addDocumentNonBlocking } from '@/firebase';
 import { collection, query, where, getDocs, limit, serverTimestamp } from 'firebase/firestore';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -34,6 +35,8 @@ type PracticeQuestion = {
   correctAnswer?: string;
   numericalAnswer?: number;
   subject: string; // Added from join
+  imageUrl?: string;
+  explanationImageUrl?: string;
 };
 
 type Answer = {
@@ -272,8 +275,21 @@ function PracticeSession() {
                                         {isCorrect ? <Check className="h-5 w-5 text-green-500 mt-1" /> : <XIcon className="h-5 w-5 text-red-500 mt-1" />}
                                         <div className="flex-1">
                                             <p className="font-medium">Q{i+1}: {q.questionText}</p>
+                                            {q.imageUrl && (
+                                                <div className="my-2 p-2 border rounded-md bg-muted/50">
+                                                    <Image src={q.imageUrl} alt={`Question ${i + 1} image`} width={300} height={200} className="rounded-md object-contain mx-auto" />
+                                                </div>
+                                            )}
                                             <p className="text-sm">Your answer: <span className="font-semibold">{ans?.value || 'Not Answered'}</span></p>
                                             {!isCorrect && <p className="text-sm">Correct answer: <span className="font-semibold text-green-600">{q.correctAnswer || q.numericalAnswer}</span></p>}
+                                            {q.explanationImageUrl && (
+                                                <div className="my-2">
+                                                    <p className="text-sm font-semibold text-muted-foreground">Explanation:</p>
+                                                    <div className="mt-1 p-2 border rounded-md bg-muted/50">
+                                                        <Image src={q.explanationImageUrl} alt={`Explanation for question ${i + 1}`} width={300} height={200} className="rounded-md object-contain mx-auto" />
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 )

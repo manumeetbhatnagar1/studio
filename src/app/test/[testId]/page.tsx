@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { doc, getDoc, collection, query, where, getDocs, writeBatch, documentId, serverTimestamp, runTransaction } from 'firebase/firestore';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -36,6 +37,8 @@ type MockQuestion = {
   correctAnswer?: string;
   numericalAnswer?: number;
   subject: SubjectName;
+  imageUrl?: string;
+  explanationImageUrl?: string;
 };
 
 type Answer = {
@@ -495,8 +498,21 @@ export default function MockTestPage() {
                                             {attempted ? (isCorrect ? <Check className="h-5 w-5 text-green-500 mt-1 flex-shrink-0" /> : <XIcon className="h-5 w-5 text-red-500 mt-1 flex-shrink-0" />) : <div className="w-5 h-5 mt-1 flex-shrink-0" />}
                                             <div className="flex-1">
                                                 <p className="font-medium">Q{i+1}: {q.questionText}</p>
+                                                 {q.imageUrl && (
+                                                    <div className="my-2 p-2 border rounded-md bg-muted/50">
+                                                        <Image src={q.imageUrl} alt={`Question ${i + 1} image`} width={300} height={200} className="rounded-md object-contain mx-auto" />
+                                                    </div>
+                                                )}
                                                 <p className="text-sm">Your answer: <span className="font-semibold">{attempted ? ans.value : 'Not Answered'}</span></p>
                                                 {!isCorrect && attempted && <p className="text-sm">Correct answer: <span className="font-semibold text-green-600">{q.correctAnswer || q.numericalAnswer}</span></p>}
+                                                {q.explanationImageUrl && (
+                                                    <div className="my-2">
+                                                        <p className="text-sm font-semibold text-muted-foreground">Explanation:</p>
+                                                        <div className="mt-1 p-2 border rounded-md bg-muted/50">
+                                                            <Image src={q.explanationImageUrl} alt={`Explanation for question ${i + 1}`} width={300} height={200} className="rounded-md object-contain mx-auto" />
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     )
@@ -525,7 +541,14 @@ export default function MockTestPage() {
                             <CardTitle>Question No. {currentQuestionIndex + 1}</CardTitle>
                             <div className='flex gap-4 text-sm'><Badge variant="secondary">Marks: +4</Badge><Badge variant="destructive">Negative Marks: -1</Badge></div>
                         </CardHeader>
-                        <CardContent className="prose max-w-none"><p>{currentQuestion.questionText}</p></CardContent>
+                        <CardContent className="prose max-w-none">
+                            <p>{currentQuestion.questionText}</p>
+                            {currentQuestion.imageUrl && (
+                                <div className="my-4 p-2 border rounded-md bg-muted/50">
+                                    <Image src={currentQuestion.imageUrl} alt={`Question image`} width={400} height={300} className="rounded-md object-contain mx-auto" />
+                                </div>
+                            )}
+                        </CardContent>
                     </Card>
                     <Card className="flex-grow">
                         <CardContent className="p-6">

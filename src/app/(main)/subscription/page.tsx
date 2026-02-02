@@ -11,7 +11,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -180,7 +180,7 @@ const TeacherView: FC<{ plans: SubscriptionPlan[], examTypes: ExamType[] }> = ({
             )) : <p className="text-muted-foreground text-center py-8">No subscription plans found. Add one to get started.</p>}
 
              <Dialog open={!!planToEdit} onOpenChange={(open) => !open && setPlanToEdit(null)}>
-                <DialogContent><DialogHeader><DialogTitle>Edit Subscription Plan</DialogTitle></DialogHeader>{planToEdit && <PlanForm examTypes={examTypes} planToEdit={planToEdit} onFinished={() => setPlanToEdit(null)} />}</DialogContent>
+                <DialogContent><DialogHeader><DialogTitle>Edit Subscription Plan</DialogTitle></DialogHeader>{planToEdit && <PlanForm examTypes={examTypes} planToEdit={planToEdit} onFinished={() => setPlanToEdit(null)} /></DialogContent>
             </Dialog>
 
             <AlertDialog open={!!planToDelete} onOpenChange={(open) => !open && setPlanToDelete(null)}>
@@ -283,5 +283,3 @@ export default function SubscriptionPage() {
     </div>
   );
 }
-
-    

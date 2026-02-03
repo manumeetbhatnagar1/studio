@@ -22,6 +22,7 @@ import { collection, query, orderBy, doc } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import Link from 'next/link';
 
 // Zod Schema & Types
 const planSchema = z.object({
@@ -391,7 +392,11 @@ const StudentView: FC<{
                                     {plan.features.map((feature, index) => (<li key={index} className="flex items-start"><Check className="h-5 w-5 text-green-500 mr-2 flex-shrink-0" /><span>{feature}</span></li>))}
                                 </ul>
                             </CardContent>
-                             <CardFooter><Button className="w-full" variant={plan.isPopular ? 'default' : 'outline'}>Choose Plan</Button></CardFooter>
+                             <CardFooter>
+                                <Button asChild className="w-full" variant={plan.isPopular ? 'default' : 'outline'}>
+                                    <Link href={`/checkout/${plan.id}`}>Choose Plan</Link>
+                                </Button>
+                             </CardFooter>
                         </Card>
                     ))}
                 </div>
@@ -461,5 +466,3 @@ export default function SubscriptionPage() {
     </div>
   );
 }
-
-    

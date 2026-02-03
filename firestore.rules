@@ -93,7 +93,7 @@ service cloud.firestore {
      */
     match /users/{userId} {
       allow get: if isOwner(userId) || isTeacher();
-      allow list: if isTeacher(); // Only teachers can list users.
+      allow list: if false; 
       allow create: if isOwner(userId) && request.resource.data.id == userId;
       // User can update their profile, teacher can update subscription.
       allow update: if (isOwner(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['firstName', 'lastName', 'photoURL'])) ||

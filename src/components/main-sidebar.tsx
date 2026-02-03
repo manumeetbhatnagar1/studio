@@ -72,20 +72,7 @@ export default function MainSidebar() {
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))}
-          {isTeacher && (
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                asChild
-                isActive={pathname.startsWith('/admin/students')}
-                tooltip={{ children: 'Students' }}
-              >
-                <Link href="/admin/students">
-                  <Users />
-                  <span>Students</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          )}
+          
         </SidebarMenu>
       </SidebarContent>
       <SidebarFooter>

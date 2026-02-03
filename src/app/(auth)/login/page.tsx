@@ -67,7 +67,7 @@ export default function LoginPage() {
             <Link href="/dashboard" className="flex items-center gap-2 justify-center mb-4">
                 <Logo className="w-8 h-8 text-primary" />
                 <span className="font-headline text-2xl font-semibold text-primary">
-                    DCAM Classes
+                    JEE Prep Ace
                 </span>
             </Link>
             <CardTitle className="text-2xl">Log In</CardTitle>

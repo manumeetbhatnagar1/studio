@@ -9,6 +9,7 @@ import { useUser } from "@/firebase";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { LoaderCircle } from "lucide-react";
+import BottomNav from "@/components/bottom-nav";
 
 export default function MainLayout({
   children,
@@ -37,7 +38,8 @@ export default function MainLayout({
     return null; 
   }
   
-  if (pathname.startsWith('/chat/direct/')) {
+  // These pages have their own fullscreen layouts and should not be nested in the main sidebar/nav layout.
+  if (pathname.startsWith('/chat/direct/') || pathname.startsWith('/practice/session')) {
     return <>{children}</>;
   }
 
@@ -46,7 +48,12 @@ export default function MainLayout({
       <Sidebar>
         <MainSidebar />
       </Sidebar>
-      <SidebarInset>{children}</SidebarInset>
+      <SidebarInset>
+        <div className="pb-16 md:pb-0 h-full">
+            {children}
+        </div>
+        <BottomNav />
+      </SidebarInset>
     </SidebarProvider>
   );
 }

@@ -2,20 +2,7 @@
 'use client';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import {
-  BookOpen,
-  ClipboardList,
-  LayoutDashboard,
-  MessageSquare,
-  MessagesSquare,
-  Target,
-  Video,
-  CreditCard,
-  ListTree,
-  Users,
-} from 'lucide-react';
 import { Logo } from '@/components/icons';
-import type { NavItem } from '@/lib/types';
 import {
   SidebarHeader,
   SidebarContent,
@@ -26,23 +13,10 @@ import {
 } from '@/components/ui/sidebar';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from './ui/badge';
-import { useIsTeacher } from '@/hooks/useIsTeacher';
-
-const navItems: NavItem[] = [
-  { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { title: 'Curriculum', href: '/curriculum', icon: ListTree },
-  { title: 'Content', href: '/content', icon: BookOpen },
-  { title: 'Live Classes', href: '/live-classes', icon: Video },
-  { title: 'Practice', href: '/practice', icon: ClipboardList },
-  { title: 'Mock Tests', href: '/mock-tests', icon: Target },
-  { title: 'Chat', href: '/chat', icon: MessagesSquare },
-  { title: 'Doubts', href: '/doubts', icon: MessageSquare },
-  { title: 'Subscription', href: '/subscription', icon: CreditCard },
-];
+import { navItems } from '@/lib/nav-config';
 
 export default function MainSidebar() {
   const pathname = usePathname();
-  const { isTeacher } = useIsTeacher();
 
   return (
     <>

@@ -117,7 +117,6 @@ const fetchPracticeQuestions = async (firestore: any, params: URLSearchParams): 
     
     const difficultyLevel = params.get('difficultyLevel');
     const accessLevel = params.get('accessLevel');
-    const examTypeId = params.get('examTypeId');
     
     let topicsConfig: {topicId: string, count: number}[] = [];
 
@@ -151,9 +150,6 @@ const fetchPracticeQuestions = async (firestore: any, params: URLSearchParams): 
 
         if (difficultyLevel && difficultyLevel !== 'All') {
             topicQuestions = topicQuestions.filter(question => question.difficultyLevel === difficultyLevel);
-        }
-        if (examTypeId && examTypeId !== 'All') {
-            topicQuestions = topicQuestions.filter(question => question.examTypeId === examTypeId);
         }
 
         const shuffled = [...topicQuestions].sort(() => 0.5 - Math.random());

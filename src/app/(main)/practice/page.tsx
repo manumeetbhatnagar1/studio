@@ -78,7 +78,6 @@ const practiceQuizSchema = z.object({
         count: z.coerce.number().min(1, "Must be > 0"),
     })).min(1, 'Please select at least one topic.'),
     difficultyLevel: z.string().optional(),
-    examTypeId: z.string().optional(),
     accessLevel: z.enum(['free', 'paid']),
 });
 
@@ -418,15 +417,13 @@ const EditQuestionForm: FC<{
 const StartPracticeForm: FC<{
   curriculumTree: any[],
   isSubscribed: boolean,
-  examTypes: ExamType[],
-}> = ({ curriculumTree, isSubscribed, examTypes }) => {
+}> = ({ curriculumTree, isSubscribed }) => {
     const router = useRouter();
     const form = useForm<z.infer<typeof practiceQuizSchema>>({
         resolver: zodResolver(practiceQuizSchema),
         defaultValues: {
             topicsConfig: [],
             difficultyLevel: 'All',
-            examTypeId: '',
             accessLevel: 'free',
         }
     });
@@ -443,9 +440,6 @@ const StartPracticeForm: FC<{
         
         if (values.difficultyLevel) {
             params.append('difficultyLevel', values.difficultyLevel);
-        }
-        if (values.examTypeId) {
-            params.append('examTypeId', values.examTypeId);
         }
         params.append('accessLevel', values.accessLevel);
 
@@ -466,12 +460,9 @@ const StartPracticeForm: FC<{
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                 <div className="space-y-4 rounded-lg border p-4">
                   <h3 className="text-base font-semibold">Filters</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <FormField control={form.control} name="difficultyLevel" render={({ field }) => (
                           <FormItem><FormLabel>Difficulty</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select difficulty" /></SelectTrigger></FormControl><SelectContent><SelectItem value="All">All Difficulties</SelectItem><SelectItem value="Easy">Easy</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Hard">Hard</SelectItem></SelectContent></Select></FormItem>
-                      )} />
-                       <FormField control={form.control} name="examTypeId" render={({ field }) => (
-                          <FormItem><FormLabel>Exam Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an exam type" /></SelectTrigger></FormControl><SelectContent>{examTypes.map(et => <SelectItem key={et.id} value={et.id}>{et.name}</SelectItem>)}</SelectContent></Select></FormItem>
                       )} />
                       <FormField control={form.control} name="accessLevel" render={({ field }) => (
                           <FormItem><FormLabel>Access Level</FormLabel><FormControl>
@@ -1071,7 +1062,6 @@ export default function PracticePage() {
                             <StartPracticeForm 
                                 curriculumTree={curriculumTree}
                                 isSubscribed={!!isSubscribed}
-                                examTypes={examTypes || []}
                             />
                         )}
                     </CardContent>

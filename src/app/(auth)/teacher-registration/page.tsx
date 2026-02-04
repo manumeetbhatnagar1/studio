@@ -95,7 +95,7 @@ export default function TeacherRegistrationPage() {
             <Link href="/dashboard" className="flex items-center gap-2 justify-center mb-4">
               <Logo className="w-8 h-8 text-primary" />
               <span className="font-headline text-2xl font-semibold text-primary">
-                JEE Prep Ace
+                DCAM Classes
               </span>
             </Link>
             <CardTitle className="text-2xl">Teacher Registration</CardTitle>

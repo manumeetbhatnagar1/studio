@@ -5,7 +5,7 @@ import { FirebaseClientProvider } from "@/firebase/client-provider";
 import { ThemeProvider } from "@/components/theme-provider";
 
 export const metadata: Metadata = {
-  title: "JEE Prep Ace",
+  title: "DCAM Classes",
   description: "Your partner in acing your exams.",
   manifest: "/manifest.json",
 };
@@ -18,7 +18,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <meta name="theme-color" content="#4a6cf7" />
+        <meta name="theme-color" content="#4338ca" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link

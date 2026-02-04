@@ -994,10 +994,52 @@ export default function PracticePage() {
                         <Skeleton className="h-20 w-full" />
                         <Skeleton className="h-20 w-full" />
                     </div>
-                ) : questions && questions.length > 0 ? (
-                    <Accordion type="single" collapsible className="w-full space-y-2">
-                        {questions.map(q => (
-                            <QuestionItem key={q.id} question={q} topicMap={topicMap} classMap={classMap} examTypeMap={examTypeMap} isTeacher={!!isTeacher} canViewPaidContent={canViewPaidContent} onEdit={setEditingQuestion} onDelete={handleDeleteRequest} />
+                ) : questionTree && questionTree.length > 0 ? (
+                    <Accordion type="multiple" className="w-full space-y-2">
+                        {questionTree.map(et => (
+                            <AccordionItem value={et.id} key={et.id} className="border rounded-lg">
+                                <AccordionTrigger className="text-2xl font-semibold px-6">{et.name}</AccordionTrigger>
+                                <AccordionContent className="px-6 pb-2">
+                                    {et.classes.length > 0 ? (
+                                        <Accordion type="multiple" className="w-full space-y-2" defaultValue={et.classes.map(c => c.id)}>
+                                            {et.classes.map(c => (
+                                                <AccordionItem value={c.id} key={c.id} className="border rounded-lg">
+                                                    <AccordionTrigger className="text-xl font-medium px-4">{c.name}</AccordionTrigger>
+                                                    <AccordionContent className="px-4 pb-2">
+                                                        {c.subjects.length > 0 ? (
+                                                            <Accordion type="multiple" className="w-full space-y-2" defaultValue={c.subjects.map(s => s.id)}>
+                                                                {c.subjects.map(s => (
+                                                                    <AccordionItem value={s.id} key={s.id} className="border-l-2 pl-4 border-muted">
+                                                                        <AccordionTrigger className="text-lg font-medium">{s.name}</AccordionTrigger>
+                                                                        <AccordionContent className="pl-4 pt-2">
+                                                                            {s.topics.length > 0 ? (
+                                                                                <Accordion type="multiple" className="w-full space-y-1">
+                                                                                    {s.topics.map(t => (
+                                                                                        <AccordionItem value={t.id} key={t.id} className="border-none">
+                                                                                            <AccordionTrigger className="text-sm py-2">{t.name} ({t.questions.length} questions)</AccordionTrigger>
+                                                                                            <AccordionContent className="pl-4">
+                                                                                                <Accordion type="single" collapsible className="w-full space-y-2">
+                                                                                                    {t.questions.map(q => (
+                                                                                                        <QuestionItem key={q.id} question={q} topicMap={topicMap} classMap={classMap} examTypeMap={examTypeMap} isTeacher={!!isTeacher} canViewPaidContent={canViewPaidContent} onEdit={setEditingQuestion} onDelete={handleDeleteRequest} />
+                                                                                                    ))}
+                                                                                                </Accordion>
+                                                                                            </AccordionContent>
+                                                                                        </AccordionItem>
+                                                                                    ))}
+                                                                                </Accordion>
+                                                                            ) : <p className="text-center text-muted-foreground py-4">No topics with questions found for this subject.</p>}
+                                                                        </AccordionContent>
+                                                                    </AccordionItem>
+                                                                ))}
+                                                            </Accordion>
+                                                        ) : <p className="text-center text-muted-foreground py-4">No subjects with questions found for this class.</p>}
+                                                    </AccordionContent>
+                                                </AccordionItem>
+                                            ))}
+                                        </Accordion>
+                                    ) : <p className="text-center text-muted-foreground py-4">No classes with questions found for this exam type.</p>}
+                                </AccordionContent>
+                            </AccordionItem>
                         ))}
                     </Accordion>
                 ) : (

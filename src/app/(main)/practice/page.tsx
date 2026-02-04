@@ -236,19 +236,22 @@ const EditQuestionForm: FC<{
     });
 
     useEffect(() => {
+      if (!questionToEdit || !topics || !subjects || !classes) return;
       const initialTopic = topics.find(t => t.id === questionToEdit.topicId);
       const initialSubject = subjects.find(s => s.id === initialTopic?.subjectId);
       const initialClass = classes.find(c => c.id === initialSubject?.classId);
       const initialExamTypeId = initialClass?.examTypeId || '';
       form.reset({ ...questionToEdit, examTypeId: initialExamTypeId, classId: initialClass?.id || '' });
-    }, [questionToEdit, form, topics, subjects, classes]);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [questionToEdit]);
 
     const { fields } = useFieldArray({ control: form.control, name: "options" });
     
-    const questionType = form.watch('questionType');
-    const selectedExamType = form.watch('examTypeId');
-    const selectedClass = form.watch('classId');
-    const selectedSubject = form.watch('subjectId');
+    const { watch, setValue } = form;
+    const questionType = watch('questionType');
+    const selectedExamType = watch('examTypeId');
+    const selectedClass = watch('classId');
+    const selectedSubject = watch('subjectId');
 
     const filteredClasses = useMemo(() => {
         if (!selectedExamType || !classes) return [];
@@ -264,6 +267,21 @@ const EditQuestionForm: FC<{
         if (!selectedSubject || !topics) return [];
         return topics.filter(topic => topic.subjectId === selectedSubject);
     }, [selectedSubject, topics]);
+
+    useEffect(() => {
+      setValue('classId', '');
+      setValue('subjectId', '');
+      setValue('topicId', '');
+    }, [selectedExamType, setValue]);
+
+    useEffect(() => {
+        setValue('subjectId', '');
+        setValue('topicId', '');
+    }, [selectedClass, setValue]);
+    
+    useEffect(() => {
+        setValue('topicId', '');
+    }, [selectedSubject, setValue]);
 
     const onSubmit = (values: z.infer<typeof questionSchema>) => {
         setIsSubmitting(true);
@@ -713,10 +731,11 @@ export default function PracticePage() {
 
   const { fields } = useFieldArray({ control: form.control, name: "options" });
   
-  const questionType = form.watch('questionType');
-  const selectedExamType = form.watch('examTypeId');
-  const selectedClass = form.watch('classId');
-  const selectedSubject = form.watch('subjectId');
+  const { watch, setValue } = form;
+  const questionType = watch('questionType');
+  const selectedExamType = watch('examTypeId');
+  const selectedClass = watch('classId');
+  const selectedSubject = watch('subjectId');
   
   const filteredClasses = useMemo(() => {
     if (!selectedExamType || !classes) return [];
@@ -732,6 +751,22 @@ export default function PracticePage() {
     if (!selectedSubject || !topics) return [];
     return topics.filter(topic => topic.subjectId === selectedSubject);
   }, [selectedSubject, topics]);
+  
+  useEffect(() => {
+    setValue('classId', '');
+    setValue('subjectId', '');
+    setValue('topicId', '');
+  }, [selectedExamType, setValue]);
+
+  useEffect(() => {
+    setValue('subjectId', '');
+    setValue('topicId', '');
+  }, [selectedClass, setValue]);
+
+  useEffect(() => {
+    setValue('topicId', '');
+  }, [selectedSubject, setValue]);
+
 
   const onSubmit = (values: z.infer<typeof questionSchema>) => {
     if (!isTeacher) {
@@ -927,9 +962,6 @@ export default function PracticePage() {
                               <FormItem><FormLabel>Exam Type</FormLabel>
                                 <Select onValueChange={(value) => {
                                   field.onChange(value);
-                                  form.setValue('classId', '');
-                                  form.setValue('subjectId', '');
-                                  form.setValue('topicId', '');
                                 }} value={field.value}>
                                   <FormControl><SelectTrigger><SelectValue placeholder="Select an exam type" /></SelectTrigger></FormControl>
                                   <SelectContent>{examTypes?.map(et => <SelectItem key={et.id} value={et.id}>{et.name}</SelectItem>)}</SelectContent>
@@ -941,8 +973,6 @@ export default function PracticePage() {
                               <FormItem><FormLabel>Class</FormLabel>
                                 <Select onValueChange={(value) => {
                                   field.onChange(value);
-                                  form.setValue('subjectId', '');
-                                  form.setValue('topicId', '');
                                 }} value={field.value} disabled={!selectedExamType}>
                                   <FormControl><SelectTrigger><SelectValue placeholder="Select a class" /></SelectTrigger></FormControl>
                                   <SelectContent>{filteredClasses?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
@@ -954,7 +984,6 @@ export default function PracticePage() {
                               <FormItem><FormLabel>Subject</FormLabel>
                                 <Select onValueChange={(value) => {
                                   field.onChange(value);
-                                  form.setValue('topicId', '');
                                 }} value={field.value} disabled={!selectedClass}>
                                   <FormControl><SelectTrigger><SelectValue placeholder="Select a subject" /></SelectTrigger></FormControl>
                                   <SelectContent>{filteredSubjects.map(subject => <SelectItem key={subject.id} value={subject.id}>{subject.name}</SelectItem>)}</SelectContent>

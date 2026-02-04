@@ -595,6 +595,8 @@ export default function PracticePage() {
   const [questionToDelete, setQuestionToDelete] = useState<string | null>(null);
   const [questionPdfFile, setQuestionPdfFile] = useState<File | null>(null);
   const [explanationPdfFile, setExplanationPdfFile] = useState<File | null>(null);
+  const [questionPdfPage, setQuestionPdfPage] = useState(1);
+  const [explanationPdfPage, setExplanationPdfPage] = useState(1);
 
   const questionsCollectionRef = useMemoFirebase(() => firestore ? query(collection(firestore, 'practice_questions'), orderBy('topicId')) : null, [firestore]);
   const classesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'classes'), orderBy('name')) : null, [firestore]);
@@ -804,6 +806,8 @@ export default function PracticePage() {
               onImageCropped={handleQuestionImageCropped} 
               title="Add Question Image from PDF"
               description="Upload a PDF, crop an image for the question, then fill in details below."
+              pageNumber={questionPdfPage}
+              onPageNumberChange={setQuestionPdfPage}
             />
             <PdfQuestionExtractor 
               file={explanationPdfFile}
@@ -811,6 +815,8 @@ export default function PracticePage() {
               onImageCropped={handleExplanationImageCropped}
               title="Add Explanation Image from PDF"
               description="Upload a PDF and crop an image for the question's explanation."
+              pageNumber={explanationPdfPage}
+              onPageNumberChange={setExplanationPdfPage}
             />
             <Card className="shadow-lg">
                 <CardHeader>

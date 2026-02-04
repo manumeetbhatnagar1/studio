@@ -22,6 +22,8 @@ interface PdfQuestionExtractorProps {
   description: string;
   file: File | null;
   onFileChange: (file: File | null) => void;
+  pageNumber: number;
+  onPageNumberChange: (page: number) => void;
 }
 
 function centerAspectCrop(mediaWidth: number, mediaHeight: number, aspect: number | undefined) {
@@ -45,10 +47,11 @@ export default function PdfQuestionExtractor({
     title, 
     description,
     file,
-    onFileChange
+    onFileChange,
+    pageNumber,
+    onPageNumberChange
 }: PdfQuestionExtractorProps) {
   const [numPages, setNumPages] = useState<number | null>(null);
-  const [pageNumber, setPageNumber] = useState(1);
   const [pageImgSrc, setPageImgSrc] = useState('');
   const imgRef = useRef<HTMLImageElement>(null);
   const pdfContainerRef = useRef<HTMLDivElement>(null);
@@ -65,7 +68,7 @@ export default function PdfQuestionExtractor({
     onFileChange(newFile);
     
     setNumPages(null);
-    setPageNumber(1);
+    onPageNumberChange(1);
     setPageImgSrc('');
     setCrop(undefined);
     setCompletedCrop(undefined);
@@ -74,12 +77,12 @@ export default function PdfQuestionExtractor({
   useEffect(() => {
     if (!file) {
       setNumPages(null);
-      setPageNumber(1);
+      onPageNumberChange(1);
       setPageImgSrc('');
       setCrop(undefined);
       setCompletedCrop(undefined);
     }
-  }, [file]);
+  }, [file, onPageNumberChange]);
 
   function onDocumentLoadSuccess({ numPages }: { numPages: number }) {
     setNumPages(numPages);
@@ -149,8 +152,8 @@ export default function PdfQuestionExtractor({
     });
   }
 
-  const goToPrevPage = () => setPageNumber(prev => Math.max(1, prev - 1));
-  const goToNextPage = () => setPageNumber(prev => Math.min(numPages!, prev + 1));
+  const goToPrevPage = () => onPageNumberChange(Math.max(1, pageNumber - 1));
+  const goToNextPage = () => onPageNumberChange(Math.min(numPages!, pageNumber + 1));
 
   return (
     <Card className="shadow-lg">

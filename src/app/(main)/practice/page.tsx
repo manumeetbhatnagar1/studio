@@ -425,7 +425,7 @@ const StartPracticeForm: FC<{
         resolver: zodResolver(practiceQuizSchema),
         defaultValues: {
             topicsConfig: [],
-            difficultyLevel: 'Medium',
+            difficultyLevel: 'All',
             examTypeId: '',
             accessLevel: 'free',
         }
@@ -468,7 +468,7 @@ const StartPracticeForm: FC<{
                   <h3 className="text-base font-semibold">Filters</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
                       <FormField control={form.control} name="difficultyLevel" render={({ field }) => (
-                          <FormItem><FormLabel>Difficulty</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select difficulty" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Easy">Easy</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Hard">Hard</SelectItem></SelectContent></Select></FormItem>
+                          <FormItem><FormLabel>Difficulty</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select difficulty" /></SelectTrigger></FormControl><SelectContent><SelectItem value="All">All Difficulties</SelectItem><SelectItem value="Easy">Easy</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Hard">Hard</SelectItem></SelectContent></Select></FormItem>
                       )} />
                        <FormField control={form.control} name="examTypeId" render={({ field }) => (
                           <FormItem><FormLabel>Exam Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an exam type" /></SelectTrigger></FormControl><SelectContent>{examTypes.map(et => <SelectItem key={et.id} value={et.id}>{et.name}</SelectItem>)}</SelectContent></Select></FormItem>

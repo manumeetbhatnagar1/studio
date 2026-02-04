@@ -39,6 +39,8 @@ type PracticeQuestion = {
   imageUrls?: string[];
   explanationImageUrl?: string;
   explanationImageUrls?: string[];
+  difficultyLevel: 'Easy' | 'Medium' | 'Hard';
+  examTypeId: string;
 };
 
 type Answer = {
@@ -110,10 +112,9 @@ const QuestionExplanation: React.FC<{ question: PracticeQuestion; userAnswer: An
 const fetchPracticeQuestions = async (firestore: any, params: URLSearchParams): Promise<PracticeQuestion[]> => {
     const allFetchedQuestions: (Omit<PracticeQuestion, 'subject'>)[] = [];
 
-    const topicsParam = params.get('topics'); // e.g., 'topicId1:5,topicId2:10'
+    const topicsParam = params.get('topics');
     const topicIdParam = params.get('topicId');
     
-    // Other filters
     const difficultyLevel = params.get('difficultyLevel');
     const accessLevel = params.get('accessLevel');
     const examTypeId = params.get('examTypeId');
@@ -126,7 +127,7 @@ const fetchPracticeQuestions = async (firestore: any, params: URLSearchParams): 
             return { topicId, count: parseInt(countStr, 10) };
         });
     } else if (topicIdParam) {
-        const count = params.get('count') ? parseInt(params.get('count')!, 10) : 10; // Default to 10 for single topic practice
+        const count = params.get('count') ? parseInt(params.get('count')!, 10) : 10;
         topicsConfig = [{ topicId: topicIdParam, count }];
     } else {
         return [];
@@ -139,12 +140,21 @@ const fetchPracticeQuestions = async (firestore: any, params: URLSearchParams): 
             collection(firestore, 'practice_questions'), 
             where('topicId', '==', config.topicId)
         );
-        if (difficultyLevel) q = query(q, where('difficultyLevel', '==', difficultyLevel));
-        if (accessLevel) q = query(q, where('accessLevel', '==', accessLevel));
-        if (examTypeId) q = query(q, where('examTypeId', '==', examTypeId));
+
+        if (accessLevel) {
+            q = query(q, where('accessLevel', '==', accessLevel));
+        }
         
         const querySnapshot = await getDocs(q);
-        const topicQuestions = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Omit<PracticeQuestion, 'subject'>));
+        
+        let topicQuestions = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Omit<PracticeQuestion, 'subject'>));
+
+        if (difficultyLevel && difficultyLevel !== 'All') {
+            topicQuestions = topicQuestions.filter(question => question.difficultyLevel === difficultyLevel);
+        }
+        if (examTypeId && examTypeId !== 'All') {
+            topicQuestions = topicQuestions.filter(question => question.examTypeId === examTypeId);
+        }
 
         const shuffled = [...topicQuestions].sort(() => 0.5 - Math.random());
         const selected = shuffled.slice(0, config.count);
@@ -184,9 +194,15 @@ function PracticeSession() {
         const loadTest = async () => {
             if (!firestore || !user) return;
             setIsLoading(true);
-            const fetchedQuestions = await fetchPracticeQuestions(firestore, searchParams);
-            setQuestions(fetchedQuestions);
-            setIsLoading(false);
+            try {
+                const fetchedQuestions = await fetchPracticeQuestions(firestore, searchParams);
+                setQuestions(fetchedQuestions);
+            } catch (error) {
+                console.error("Failed to load practice questions:", error);
+                setQuestions([]);
+            } finally {
+                setIsLoading(false);
+            }
         };
         loadTest();
     }, [searchParams, user, firestore]);
@@ -218,10 +234,12 @@ function PracticeSession() {
 
     const handleSelectQuestion = (index: number) => {
         if (isFinished) return;
-        const cq = questions[currentQuestionIndex];
-        const currentStatus = getQuestionStatus(cq.id);
-        if (currentStatus === QuestionStatus.NotVisited) {
-            setAnswers(prev => new Map(prev).set(cq.id, { value: '', status: QuestionStatus.NotAnswered }));
+        if (currentQuestionIndex < questions.length) {
+            const cq = questions[currentQuestionIndex];
+            const currentStatus = getQuestionStatus(cq.id);
+            if (currentStatus === QuestionStatus.NotVisited) {
+                setAnswers(prev => new Map(prev).set(cq.id, { value: '', status: QuestionStatus.NotAnswered }));
+            }
         }
         setCurrentQuestionIndex(index);
     };

@@ -79,6 +79,12 @@ const practiceQuizSchema = z.object({
     })).min(1, 'Please select at least one topic.'),
     difficultyLevel: z.string().optional(),
     accessLevel: z.enum(['free', 'paid']),
+    timeLimitPerQuestion: z.coerce.number().int().positive({ message: "Time limit must be a positive number." }).optional().or(z.literal('')),
+});
+
+const TopicPracticeFormSchema = z.object({
+    count: z.coerce.number().min(1, "Must be at least 1").max(50, "Max 50 questions"),
+    timeLimit: z.coerce.number().int().positive().optional().or(z.literal('')),
 });
 
 type PracticeQuestion = {
@@ -432,6 +438,48 @@ const EditQuestionForm: FC<{
     );
 }
 
+const StartTopicPracticeForm: FC<{ topic: Topic, isSubscribed: boolean }> = ({ topic, isSubscribed }) => {
+    const router = useRouter();
+    const form = useForm<z.infer<typeof TopicPracticeFormSchema>>({
+      resolver: zodResolver(TopicPracticeFormSchema),
+      defaultValues: {
+        count: 10,
+        timeLimit: '',
+      }
+    });
+  
+    const onSubmit = (values: z.infer<typeof TopicPracticeFormSchema>) => {
+      const params = new URLSearchParams();
+      params.append('topicId', topic.id);
+      params.append('count', values.count.toString());
+      if (values.timeLimit) {
+        params.append('timeLimit', values.timeLimit.toString());
+      }
+      if (!isSubscribed) {
+        params.append('accessLevel', 'free');
+      }
+      router.push(`/practice/session?${params.toString()}`);
+    };
+  
+    return (
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 rounded-lg bg-muted/50 p-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField control={form.control} name="count" render={({ field }) => (
+                    <FormItem><FormLabel className="text-xs">No. of Questions</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="timeLimit" render={({ field }) => (
+                    <FormItem><FormLabel className="text-xs">Time/Question (s)</FormLabel><FormControl><Input type="number" placeholder="Optional" {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
+            </div>
+            <Button type="submit" size="sm" className="w-full">
+                <Rocket className="mr-2 h-4 w-4" /> Start Practice
+            </Button>
+        </form>
+      </Form>
+    );
+}
+
 const StartPracticeForm: FC<{
   curriculumTree: any[],
   isSubscribed: boolean,
@@ -443,6 +491,7 @@ const StartPracticeForm: FC<{
             topicsConfig: [],
             difficultyLevel: 'All',
             accessLevel: 'free',
+            timeLimitPerQuestion: '',
         }
     });
 
@@ -460,6 +509,9 @@ const StartPracticeForm: FC<{
             params.append('difficultyLevel', values.difficultyLevel);
         }
         params.append('accessLevel', values.accessLevel);
+        if (values.timeLimitPerQuestion) {
+            params.append('timeLimit', values.timeLimitPerQuestion.toString());
+        }
 
         router.push(`/practice/session?${params.toString()}`);
     }
@@ -478,7 +530,7 @@ const StartPracticeForm: FC<{
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                 <div className="space-y-4 rounded-lg border p-4">
                   <h3 className="text-base font-semibold">Filters</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <FormField control={form.control} name="difficultyLevel" render={({ field }) => (
                           <FormItem><FormLabel>Difficulty</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select difficulty" /></SelectTrigger></FormControl><SelectContent><SelectItem value="All">All Difficulties</SelectItem><SelectItem value="Easy">Easy</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Hard">Hard</SelectItem></SelectContent></Select></FormItem>
                       )} />
@@ -489,6 +541,9 @@ const StartPracticeForm: FC<{
                                   <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="paid" disabled={!isSubscribed} /></FormControl><FormLabel className={cn("font-normal", !isSubscribed && "text-muted-foreground")}>Paid {!isSubscribed && "(Pro)"}</FormLabel></FormItem>
                               </RadioGroup>
                           </FormControl></FormItem>
+                      )} />
+                      <FormField control={form.control} name="timeLimitPerQuestion" render={({ field }) => (
+                          <FormItem><FormLabel>Time/Question (s)</FormLabel><FormControl><Input type="number" placeholder="Optional" {...field} /></FormControl><FormMessage /></FormItem>
                       )} />
                   </div>
                 </div>
@@ -1141,13 +1196,7 @@ export default function PracticePage() {
                                                                                                 <AccordionItem value={t.id} key={t.id} className="border-none">
                                                                                                     <AccordionTrigger className="text-sm py-2">{t.name} ({t.questions.length} questions)</AccordionTrigger>
                                                                                                     <AccordionContent className="pl-4">
-                                                                                                        <div className="flex justify-end">
-                                                                                                            <Button asChild size="sm">
-                                                                                                                <Link href={`/practice/session?topicId=${t.id}${!isSubscribed ? '&accessLevel=free' : ''}`}>
-                                                                                                                    <Rocket className="mr-2 h-4 w-4" /> Practice Topic
-                                                                                                                </Link>
-                                                                                                            </Button>
-                                                                                                        </div>
+                                                                                                        <StartTopicPracticeForm topic={t} isSubscribed={!!isSubscribed} />
                                                                                                     </AccordionContent>
                                                                                                 </AccordionItem>
                                                                                             ))}

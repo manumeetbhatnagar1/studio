@@ -186,6 +186,9 @@ function PracticeSession() {
     const [answers, setAnswers] = useState<Map<string | number, Answer>>(new Map());
     const [isSubmitDialogOpen, setIsSubmitDialogOpen] = useState(false);
 
+    const [questionTimeLeft, setQuestionTimeLeft] = useState<number | null>(null);
+    const timeLimitParam = searchParams.get('timeLimit');
+
     useEffect(() => {
         const loadTest = async () => {
             if (!firestore || !user) return;
@@ -203,6 +206,57 @@ function PracticeSession() {
         loadTest();
     }, [searchParams, user, firestore]);
 
+    const getQuestionStatus = useCallback((questionId: string | number) => {
+        const answer = answers.get(questionId);
+        if (!answer) return QuestionStatus.NotVisited;
+        return answer.status;
+    }, [answers]);
+
+    const handleSelectQuestion = useCallback((index: number) => {
+        if (isFinished) return;
+        if (currentQuestionIndex < questions.length) {
+            const cq = questions[currentQuestionIndex];
+            const currentStatus = getQuestionStatus(cq.id);
+            if (currentStatus === QuestionStatus.NotVisited) {
+                setAnswers(prev => new Map(prev).set(cq.id, { value: '', status: QuestionStatus.NotAnswered }));
+            }
+        }
+        setCurrentQuestionIndex(index);
+    }, [isFinished, currentQuestionIndex, questions, getQuestionStatus]);
+
+    const handleSaveAndNext = useCallback(() => {
+        if (currentQuestionIndex < questions.length - 1) {
+            handleSelectQuestion(currentQuestionIndex + 1);
+        } else {
+            // Last question, so open submit dialog
+            setIsSubmitDialogOpen(true);
+        }
+    }, [currentQuestionIndex, questions.length, handleSelectQuestion]);
+
+    // Timer Effects
+    useEffect(() => {
+        if (timeLimitParam) {
+            setQuestionTimeLeft(parseInt(timeLimitParam, 10));
+        }
+    }, [timeLimitParam, currentQuestionIndex]);
+
+    useEffect(() => {
+        if (isFinished || questionTimeLeft === null || questionTimeLeft <= 0) return;
+
+        const timer = setInterval(() => {
+            setQuestionTimeLeft(prev => (prev !== null ? prev - 1 : null));
+        }, 1000);
+
+        return () => clearInterval(timer);
+    }, [questionTimeLeft, isFinished]);
+
+    useEffect(() => {
+        if (questionTimeLeft === 0) {
+            handleSaveAndNext();
+        }
+    }, [questionTimeLeft, handleSaveAndNext]);
+
+
     const sections = useMemo(() => {
         if (!questions.length) return [];
         const sectionMap: Record<string, PracticeQuestion[]> = {};
@@ -213,12 +267,6 @@ function PracticeSession() {
         return Object.entries(sectionMap).map(([name, questions]) => ({ name, questions }));
     }, [questions]);
 
-    const getQuestionStatus = useCallback((questionId: string | number) => {
-        const answer = answers.get(questionId);
-        if (!answer) return QuestionStatus.NotVisited;
-        return answer.status;
-    }, [answers]);
-
     const currentQuestion = questions[currentQuestionIndex];
     
     const isAnswered = useMemo(() => {
@@ -227,24 +275,6 @@ function PracticeSession() {
         // A question is considered answered if there is a non-empty value for it.
         return !!answer && answer.value !== '';
     }, [answers, currentQuestion]);
-
-    const handleSelectQuestion = (index: number) => {
-        if (isFinished) return;
-        if (currentQuestionIndex < questions.length) {
-            const cq = questions[currentQuestionIndex];
-            const currentStatus = getQuestionStatus(cq.id);
-            if (currentStatus === QuestionStatus.NotVisited) {
-                setAnswers(prev => new Map(prev).set(cq.id, { value: '', status: QuestionStatus.NotAnswered }));
-            }
-        }
-        setCurrentQuestionIndex(index);
-    };
-    
-    const handleSaveAndNext = () => {
-        if (currentQuestionIndex < questions.length - 1) {
-            handleSelectQuestion(currentQuestionIndex + 1);
-        }
-    };
     
     const handleMarkForReview = () => {
         const currentAnswer = answers.get(currentQuestion.id);
@@ -326,6 +356,12 @@ function PracticeSession() {
         return [];
     }, [currentQuestion]);
 
+    const formatTime = (seconds: number) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    };
+
     if (isLoading) {
         return (
             <div className="flex h-screen w-screen items-center justify-center">
@@ -395,7 +431,15 @@ function PracticeSession() {
                 {/* Left Panel: Question Area */}
                 <div className="flex flex-col gap-4">
                     <Card>
-                      <CardHeader className="flex flex-row justify-between items-center"><CardTitle>Question No. {currentQuestionIndex + 1}</CardTitle></CardHeader>
+                      <CardHeader className="flex flex-row justify-between items-center">
+                        <CardTitle>Question No. {currentQuestionIndex + 1}</CardTitle>
+                        {questionTimeLeft !== null && (
+                            <div className={cn("flex items-center gap-2 font-mono text-lg font-semibold", questionTimeLeft <= 10 && "text-destructive")}>
+                                <Timer className="h-5 w-5" />
+                                <span>{formatTime(questionTimeLeft)}</span>
+                            </div>
+                        )}
+                      </CardHeader>
                       <CardContent className="prose max-w-none">
                           <p>{currentQuestion.questionText}</p>
                           {questionImages.length > 0 && (

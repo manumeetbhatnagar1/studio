@@ -692,6 +692,10 @@
           "type": "number",
           "description": "The total number of questions in the session."
         },
+        "timeTaken": {
+          "type": "number",
+          "description": "Total time taken for the session in seconds."
+        },
         "submittedAt": {
           "type": "string",
           "format": "date-time",

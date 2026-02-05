@@ -46,6 +46,7 @@ type PracticeQuestion = {
 type Answer = {
   value: string | number;
   status: QuestionStatus;
+  timeTaken: number;
 };
 
 const QuestionExplanation: React.FC<{ question: PracticeQuestion; userAnswer: Answer | undefined }> = ({ question, userAnswer }) => {
@@ -185,6 +186,7 @@ function PracticeSession() {
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
     const [answers, setAnswers] = useState<Map<string | number, Answer>>(new Map());
     const [isSubmitDialogOpen, setIsSubmitDialogOpen] = useState(false);
+    const [questionStartTime, setQuestionStartTime] = useState(Date.now());
 
     const [questionTimeLeft, setQuestionTimeLeft] = useState<number | null>(null);
     const timeLimitParam = searchParams.get('timeLimit');
@@ -196,6 +198,7 @@ function PracticeSession() {
             try {
                 const fetchedQuestions = await fetchPracticeQuestions(firestore, searchParams);
                 setQuestions(fetchedQuestions);
+                setQuestionStartTime(Date.now());
             } catch (error) {
                 console.error("Failed to load practice questions:", error);
                 setQuestions([]);
@@ -214,21 +217,26 @@ function PracticeSession() {
 
     const handleSelectQuestion = useCallback((index: number) => {
         if (isFinished) return;
-        if (currentQuestionIndex < questions.length) {
-            const cq = questions[currentQuestionIndex];
-            const currentStatus = getQuestionStatus(cq.id);
-            if (currentStatus === QuestionStatus.NotVisited) {
-                setAnswers(prev => new Map(prev).set(cq.id, { value: '', status: QuestionStatus.NotAnswered }));
-            }
-        }
+        
+        const timeSpent = (Date.now() - questionStartTime) / 1000;
+        const cq = questions[currentQuestionIndex];
+        const currentAnswer = answers.get(cq.id) || { value: '', status: QuestionStatus.NotVisited, timeTaken: 0 };
+        const newStatus = currentAnswer.status === QuestionStatus.NotVisited ? QuestionStatus.NotAnswered : currentAnswer.status;
+        
+        setAnswers(prev => new Map(prev).set(cq.id, {
+            ...currentAnswer,
+            status: newStatus,
+            timeTaken: (currentAnswer.timeTaken || 0) + timeSpent,
+        }));
+        
         setCurrentQuestionIndex(index);
-    }, [isFinished, currentQuestionIndex, questions, getQuestionStatus]);
+        setQuestionStartTime(Date.now());
+    }, [isFinished, currentQuestionIndex, questions, answers, questionStartTime]);
 
     const handleSaveAndNext = useCallback(() => {
         if (currentQuestionIndex < questions.length - 1) {
             handleSelectQuestion(currentQuestionIndex + 1);
         } else {
-            // Last question, so open submit dialog
             setIsSubmitDialogOpen(true);
         }
     }, [currentQuestionIndex, questions.length, handleSelectQuestion]);
@@ -272,31 +280,61 @@ function PracticeSession() {
     const isAnswered = useMemo(() => {
         if (!currentQuestion) return false;
         const answer = answers.get(currentQuestion.id);
-        // A question is considered answered if there is a non-empty value for it.
         return !!answer && answer.value !== '';
     }, [answers, currentQuestion]);
     
     const handleMarkForReview = () => {
         const currentAnswer = answers.get(currentQuestion.id);
         const newStatus = currentAnswer?.value ? QuestionStatus.AnsweredAndMarkedForReview : QuestionStatus.MarkedForReview;
-        setAnswers(prev => new Map(prev).set(currentQuestion.id, { value: currentAnswer?.value || '', status: newStatus }));
+        setAnswers(prev => new Map(prev).set(currentQuestion.id, { 
+            value: currentAnswer?.value || '', 
+            status: newStatus,
+            timeTaken: currentAnswer?.timeTaken || 0,
+        }));
         handleSaveAndNext();
     };
     
-    const handleClearResponse = () => setAnswers(prev => new Map(prev).set(currentQuestion.id, { value: '', status: QuestionStatus.NotAnswered }));
+    const handleClearResponse = () => {
+        const currentAnswer = answers.get(currentQuestion.id);
+        setAnswers(prev => new Map(prev).set(currentQuestion.id, { 
+            value: '', 
+            status: QuestionStatus.NotAnswered,
+            timeTaken: currentAnswer?.timeTaken || 0,
+        }));
+    }
 
     const handleAnswerChange = (value: string | number) => {
-        const currentStatus = getQuestionStatus(currentQuestion.id);
+        const currentAnswer = answers.get(currentQuestion.id);
+        const currentStatus = currentAnswer?.status || QuestionStatus.NotVisited;
         const newStatus = currentStatus === QuestionStatus.MarkedForReview || currentStatus === QuestionStatus.AnsweredAndMarkedForReview
             ? QuestionStatus.AnsweredAndMarkedForReview
             : QuestionStatus.Answered;
-        setAnswers(prev => new Map(prev).set(currentQuestion.id, { value, status: newStatus }));
+        setAnswers(prev => new Map(prev).set(currentQuestion.id, { 
+            value, 
+            status: newStatus,
+            timeTaken: currentAnswer?.timeTaken || 0,
+        }));
     };
 
     const handleSubmitTest = () => {
         setIsSubmitDialogOpen(false);
+
+        const finalAnswers = new Map(answers);
+        const timeSpentOnLastQ = (Date.now() - questionStartTime) / 1000;
+        const lastQ = questions[currentQuestionIndex];
+        const lastAnswer = answers.get(lastQ.id) || { value: '', status: QuestionStatus.NotVisited, timeTaken: 0 };
+        const lastStatus = lastAnswer.status === QuestionStatus.NotVisited ? QuestionStatus.NotAnswered : lastAnswer.status;
+        
+        finalAnswers.set(lastQ.id, {
+            ...lastAnswer,
+            status: lastStatus,
+            timeTaken: (lastAnswer.timeTaken || 0) + timeSpentOnLastQ
+        });
+
         let correctAnswers = 0;
-        answers.forEach((answer, qId) => {
+        let totalTimeTaken = 0;
+        finalAnswers.forEach((answer, qId) => {
+            totalTimeTaken += answer.timeTaken || 0;
             const question = questions.find(q => q.id === qId);
             if (!question) return;
             if (question.questionType === 'MCQ' && question.correctAnswer === answer.value) {
@@ -306,6 +344,7 @@ function PracticeSession() {
             }
         });
         setScore(correctAnswers);
+        setAnswers(finalAnswers);
         setIsFinished(true);
 
         if (user && firestore) {
@@ -313,9 +352,10 @@ function PracticeSession() {
             const topicIds = Array.from(new Set(questions.map(q => q.topicId)));
             addDocumentNonBlocking(practiceResultsRef, {
                 topics: topicIds,
-                questionsAttempted: answers.size,
+                questionsAttempted: finalAnswers.size,
                 questionsCorrect: correctAnswers,
                 totalQuestions: questions.length,
+                timeTaken: totalTimeTaken,
                 submittedAt: serverTimestamp(),
             });
         }
@@ -361,6 +401,13 @@ function PracticeSession() {
         const secs = seconds % 60;
         return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
     };
+    
+    const formatSeconds = (seconds: number) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.round(seconds % 60);
+        if (mins > 0) return `${mins}m ${secs}s`;
+        return `${secs}s`;
+    };
 
     if (isLoading) {
         return (
@@ -383,6 +430,8 @@ function PracticeSession() {
             </div>
         );
     }
+    
+    const totalTimeTaken = Array.from(answers.values()).reduce((acc, ans) => acc + (ans.timeTaken || 0), 0);
 
     if(isFinished) {
         return (
@@ -393,7 +442,16 @@ function PracticeSession() {
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <p className="text-lg text-muted-foreground">Here's how you did:</p>
-                        <div className="text-6xl font-bold text-primary">{score} / {questions.length}</div>
+                        <div className="flex items-end justify-center gap-6">
+                            <div>
+                                <p className="text-sm text-muted-foreground">Score</p>
+                                <div className="text-6xl font-bold text-primary">{score} / {questions.length}</div>
+                            </div>
+                             <div>
+                                <p className="text-sm text-muted-foreground">Total Time</p>
+                                <div className="text-4xl font-bold">{formatSeconds(totalTimeTaken)}</div>
+                            </div>
+                        </div>
                         <p className="font-semibold text-2xl">
                             {questions.length > 0 ? ((score / questions.length) * 100).toFixed(2) : '0.00'}%
                         </p>
@@ -408,6 +466,7 @@ function PracticeSession() {
                                             <p className="font-medium">Q{i+1}: {q.questionText}</p>
                                             <p className="text-sm">Your answer: <span className="font-semibold">{ans?.value || 'Not Answered'}</span></p>
                                             {!isCorrect && <p className="text-sm">Correct answer: <span className="font-semibold text-green-600">{q.correctAnswer || q.numericalAnswer}</span></p>}
+                                            <p className="text-sm text-muted-foreground">Time taken: {formatSeconds(ans?.timeTaken || 0)}</p>
                                         </div>
                                     </div>
                                 )
@@ -541,3 +600,5 @@ export default function PracticeSessionPage() {
       </Suspense>
     );
   }
+
+    

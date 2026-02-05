@@ -7,7 +7,6 @@ import { ThemeProvider } from "@/components/theme-provider";
 export const metadata: Metadata = {
   title: "DCAM Classes",
   description: "Your partner in acing your exams.",
-  manifest: "/manifest.json",
 };
 
 export default function RootLayout({

@@ -83,7 +83,6 @@ const practiceQuizSchema = z.object({
 });
 
 const TopicPracticeFormSchema = z.object({
-    count: z.coerce.number().min(1, "Must be at least 1").max(50, "Max 50 questions"),
     timeLimit: z.coerce.number().int().positive().optional().or(z.literal('')),
 });
 
@@ -443,7 +442,6 @@ const StartTopicPracticeForm: FC<{ topic: Topic, isSubscribed: boolean }> = ({ t
     const form = useForm<z.infer<typeof TopicPracticeFormSchema>>({
       resolver: zodResolver(TopicPracticeFormSchema),
       defaultValues: {
-        count: 10,
         timeLimit: '',
       }
     });
@@ -451,7 +449,6 @@ const StartTopicPracticeForm: FC<{ topic: Topic, isSubscribed: boolean }> = ({ t
     const onSubmit = (values: z.infer<typeof TopicPracticeFormSchema>) => {
       const params = new URLSearchParams();
       params.append('topicId', topic.id);
-      params.append('count', values.count.toString());
       if (values.timeLimit) {
         params.append('timeLimit', values.timeLimit.toString());
       }
@@ -464,14 +461,9 @@ const StartTopicPracticeForm: FC<{ topic: Topic, isSubscribed: boolean }> = ({ t
     return (
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 rounded-lg bg-muted/50 p-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FormField control={form.control} name="count" render={({ field }) => (
-                    <FormItem><FormLabel className="text-xs">No. of Questions</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>
-                )} />
-                <FormField control={form.control} name="timeLimit" render={({ field }) => (
-                    <FormItem><FormLabel className="text-xs">Time/Question (s)</FormLabel><FormControl><Input type="number" placeholder="Optional" {...field} /></FormControl><FormMessage /></FormItem>
-                )} />
-            </div>
+            <FormField control={form.control} name="timeLimit" render={({ field }) => (
+                <FormItem><FormLabel className="text-xs">Time/Question (s)</FormLabel><FormControl><Input type="number" placeholder="Optional" {...field} /></FormControl><FormMessage /></FormItem>
+            )} />
             <Button type="submit" size="sm" className="w-full">
                 <Rocket className="mr-2 h-4 w-4" /> Start Practice
             </Button>

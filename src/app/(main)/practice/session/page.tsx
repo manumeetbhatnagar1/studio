@@ -127,14 +127,15 @@ const fetchPracticeQuestions = async (firestore: any, params: URLSearchParams): 
             return { topicId, count: parseInt(countStr, 10) };
         });
     } else if (topicIdParam) {
-        const count = params.get('count') ? parseInt(params.get('count')!, 10) : 10;
+        const count = parseInt(params.get('count')!, 10); // Will be NaN if 'count' is not in params
         topicsConfig = [{ topicId: topicIdParam, count }];
     } else {
         return [];
     }
 
     for (const config of topicsConfig) {
-        if (!config.topicId || isNaN(config.count) || config.count <= 0) continue;
+        if (!config.topicId) continue;
+        if (topicsParam && (isNaN(config.count) || config.count <= 0)) continue; // For multi-topic quiz, count is mandatory
 
         let q = query(
             collection(firestore, 'practice_questions'), 
@@ -154,7 +155,10 @@ const fetchPracticeQuestions = async (firestore: any, params: URLSearchParams): 
         }
 
         const shuffled = [...topicQuestions].sort(() => 0.5 - Math.random());
-        const selected = shuffled.slice(0, config.count);
+        // If count is not a positive number (i.e., from single-topic practice without count), select all questions.
+        const selected = !isNaN(config.count) && config.count > 0 
+            ? shuffled.slice(0, config.count) 
+            : shuffled;
         
         allFetchedQuestions.push(...selected);
     }

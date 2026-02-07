@@ -92,8 +92,8 @@ service cloud.firestore {
      * @principle   Enforces strict data ownership and privacy.
      */
     match /users/{userId} {
-      allow get: if isOwner(userId) || isTeacher();
-      allow list: if false; 
+      allow get: if isOwner(userId) || isTeacher() || resource.data.roleId == 'teacher';
+      allow list: if isSignedIn();
       allow create: if isOwner(userId) && request.resource.data.id == userId;
       // User can update their profile, teacher can update subscription.
       allow update: if (isOwner(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['firstName', 'lastName', 'photoURL'])) ||

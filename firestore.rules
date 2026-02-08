@@ -100,7 +100,7 @@ service cloud.firestore {
       allow create: if isOwner(userId) && request.resource.data.id == userId && !exists(/databases/$(database)/documents/blocked_emails/$(request.resource.data.email));
       // Admins can manage roles and subscriptions. Teachers can manage subscriptions. Users can update their own profile.
       // The special admin email can update their own role for bootstrapping.
-      allow update: if (isOwner(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['firstName', 'lastName', 'photoURL'])) ||
+      allow update: if (isOwner(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['firstName', 'lastName', 'photoURL', 'phoneNumber'])) ||
                        (isTeacher() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['subscriptionStatus', 'subscriptionPlanId'])) ||
                        (isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['roleId', 'subscriptionStatus', 'subscriptionPlanId', 'teacherStatus'])) ||
                        (isOwner(userId) && request.auth.token.email == 'dcamclassesiit@gmail.com' && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['roleId']));
@@ -270,7 +270,7 @@ service cloud.firestore {
     match /live_classes/{liveClassId} {
       allow get, list: if isSignedIn();
       allow create: if isTeacher() && request.resource.data.teacherId == request.auth.uid;
-      allow update: if resource != null && isOwner(resource.data.teacherId);
+      allow update: if resource != null && isOwner(resource.data.teacherId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['recordingUrl', 'title', 'startTime', 'duration', 'meetingUrl', 'accessLevel']);
       allow delete: if resource != null && isOwner(resource.data.teacherId);
     }
     

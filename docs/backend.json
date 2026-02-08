@@ -23,6 +23,10 @@
           "description": "The email address of the user.",
           "format": "email"
         },
+        "phoneNumber": {
+          "type": "string",
+          "description": "The user's phone number."
+        },
         "photoURL": {
           "type": "string",
           "description": "URL or data URI for the user's profile picture."
@@ -69,7 +73,8 @@
         "firstName",
         "lastName",
         "email",
-        "roleId"
+        "roleId",
+        "phoneNumber"
       ]
     },
     "Role": {

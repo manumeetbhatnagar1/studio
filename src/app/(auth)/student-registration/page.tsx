@@ -30,6 +30,7 @@ const formSchema = z.object({
   firstName: z.string().min(1, 'First name is required'),
   lastName: z.string().min(1, 'Last name is required'),
   email: z.string().email('Invalid email address'),
+  phoneNumber: z.string().min(10, 'A valid phone number is required'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
 });
 
@@ -46,6 +47,7 @@ export default function StudentRegistrationPage() {
       firstName: '',
       lastName: '',
       email: '',
+      phoneNumber: '',
       password: '',
     },
   });
@@ -66,6 +68,7 @@ export default function StudentRegistrationPage() {
         firstName: values.firstName,
         lastName: values.lastName,
         email: values.email,
+        phoneNumber: values.phoneNumber,
         roleId: 'student',
       };
       
@@ -138,6 +141,19 @@ export default function StudentRegistrationPage() {
                     <FormLabel>Email</FormLabel>
                     <FormControl>
                         <Input placeholder="student@example.com" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                    </FormItem>
+                )}
+                />
+                <FormField
+                control={form.control}
+                name="phoneNumber"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>Phone Number</FormLabel>
+                    <FormControl>
+                        <Input placeholder="e.g. 9876543210" {...field} />
                     </FormControl>
                     <FormMessage />
                     </FormItem>

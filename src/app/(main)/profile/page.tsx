@@ -28,6 +28,7 @@ const profileFormSchema = z.object({
   firstName: z.string().min(1, 'First name is required'),
   lastName: z.string().min(1, 'Last name is required'),
   email: z.string().email().optional(), // email is not editable
+  phoneNumber: z.string().min(10, 'A valid phone number is required'),
 });
 
 type UserProfile = {
@@ -35,6 +36,7 @@ type UserProfile = {
     firstName: string;
     lastName: string;
     email: string;
+    phoneNumber: string;
     roleId: 'student' | 'teacher';
     photoURL?: string;
 }
@@ -62,6 +64,7 @@ export default function ProfilePage() {
       firstName: '',
       lastName: '',
       email: '',
+      phoneNumber: '',
     },
   });
 
@@ -71,6 +74,7 @@ export default function ProfilePage() {
         firstName: userProfile.firstName,
         lastName: userProfile.lastName,
         email: userProfile.email,
+        phoneNumber: userProfile.phoneNumber,
       });
       if (userProfile.photoURL) {
         setImagePreview(userProfile.photoURL);
@@ -115,6 +119,7 @@ export default function ProfilePage() {
       const updatedData = {
         firstName: values.firstName,
         lastName: values.lastName,
+        phoneNumber: values.phoneNumber,
         photoURL: newPhotoURL || ''
       };
       await updateDocumentNonBlocking(userDocRef, updatedData);
@@ -239,6 +244,19 @@ export default function ProfilePage() {
                                     <FormLabel>Email</FormLabel>
                                     <FormControl>
                                         <Input placeholder="user@example.com" {...field} disabled />
+                                    </FormControl>
+                                    <FormMessage />
+                                    </FormItem>
+                                )}
+                                />
+                                <FormField
+                                control={form.control}
+                                name="phoneNumber"
+                                render={({ field }) => (
+                                    <FormItem>
+                                    <FormLabel>Phone Number</FormLabel>
+                                    <FormControl>
+                                        <Input placeholder="e.g. 9876543210" {...field} />
                                     </FormControl>
                                     <FormMessage />
                                     </FormItem>

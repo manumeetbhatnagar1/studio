@@ -17,6 +17,7 @@ import { Button, buttonVariants } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
+import * as XLSX from 'xlsx';
 
 type UserProfile = {
     id: string;
@@ -185,6 +186,29 @@ export default function UserManagementPage() {
         }
     };
 
+    const exportToExcel = (data: any[], fileName: string) => {
+        const worksheet = XLSX.utils.json_to_sheet(data);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Users');
+        XLSX.writeFile(workbook, `${fileName}.xlsx`);
+    };
+
+    const handleExportStudents = () => {
+        if (!users) return;
+        const studentData = users
+            .filter(user => user.roleId === 'student')
+            .map(({ id, firstName, lastName, email, roleId }) => ({ id, firstName, lastName, email, roleId }));
+        exportToExcel(studentData, 'students_export');
+    };
+
+    const handleExportTeachers = () => {
+        if (!users) return;
+        const teacherData = users
+            .filter(user => user.roleId === 'teacher' || user.roleId === 'admin')
+            .map(({ id, firstName, lastName, email, roleId, teacherStatus }) => ({ id, firstName, lastName, email, roleId, teacherStatus }));
+        exportToExcel(teacherData, 'teachers_export');
+    };
+
 
     if (isAdminLoading) {
         return <div className="p-8"><Skeleton className="h-48 w-full" /></div>
@@ -218,13 +242,17 @@ export default function UserManagementPage() {
                     <CardHeader>
                         <CardTitle>All Users</CardTitle>
                         <CardDescription>View and manage roles for all users in the system.</CardDescription>
-                        <div className="pt-4">
+                        <div className="flex justify-between items-center pt-4">
                             <Input
                                 placeholder="Search by email..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 className="max-w-sm"
                             />
+                             <div className="flex gap-2">
+                                <Button onClick={handleExportStudents} variant="outline" size="sm">Export Students</Button>
+                                <Button onClick={handleExportTeachers} variant="outline" size="sm">Export Teachers</Button>
+                            </div>
                         </div>
                     </CardHeader>
                     <CardContent>

@@ -24,6 +24,7 @@ type UserProfile = {
     firstName: string;
     lastName: string;
     email: string;
+    phoneNumber: string;
     roleId: 'student' | 'teacher' | 'admin';
     photoURL?: string;
     teacherStatus?: 'pending' | 'approved' | 'rejected';
@@ -197,7 +198,7 @@ export default function UserManagementPage() {
         if (!users) return;
         const studentData = users
             .filter(user => user.roleId === 'student')
-            .map(({ id, firstName, lastName, email, roleId }) => ({ id, firstName, lastName, email, roleId }));
+            .map(({ id, firstName, lastName, email, phoneNumber, roleId }) => ({ id, firstName, lastName, email, phoneNumber, roleId }));
         exportToExcel(studentData, 'students_export');
     };
 
@@ -205,7 +206,7 @@ export default function UserManagementPage() {
         if (!users) return;
         const teacherData = users
             .filter(user => user.roleId === 'teacher' || user.roleId === 'admin')
-            .map(({ id, firstName, lastName, email, roleId, teacherStatus }) => ({ id, firstName, lastName, email, roleId, teacherStatus }));
+            .map(({ id, firstName, lastName, email, phoneNumber, roleId, teacherStatus }) => ({ id, firstName, lastName, email, phoneNumber, roleId, teacherStatus }));
         exportToExcel(teacherData, 'teachers_export');
     };
 
@@ -261,6 +262,7 @@ export default function UserManagementPage() {
                                 <TableRow>
                                     <TableHead>User</TableHead>
                                     <TableHead>Email</TableHead>
+                                    <TableHead>Phone Number</TableHead>
                                     <TableHead>Role</TableHead>
                                     <TableHead>Status</TableHead>
                                     <TableHead className="text-right">Actions</TableHead>
@@ -272,6 +274,7 @@ export default function UserManagementPage() {
                                         <TableRow key={i}>
                                             <TableCell><Skeleton className="h-10 w-48" /></TableCell>
                                             <TableCell><Skeleton className="h-10 w-64" /></TableCell>
+                                            <TableCell><Skeleton className="h-10 w-32" /></TableCell>
                                             <TableCell><Skeleton className="h-10 w-24" /></TableCell>
                                             <TableCell><Skeleton className="h-10 w-24" /></TableCell>
                                             <TableCell className="text-right"><Skeleton className="h-10 w-32 ml-auto" /></TableCell>
@@ -294,6 +297,7 @@ export default function UserManagementPage() {
                                                     </div>
                                                 </TableCell>
                                                 <TableCell>{user.email}</TableCell>
+                                                <TableCell>{user.phoneNumber}</TableCell>
                                                 <TableCell>
                                                     <Badge variant={user.roleId === 'admin' ? 'destructive' : user.roleId === 'teacher' ? 'secondary' : 'outline'}>
                                                         {user.roleId}
@@ -327,7 +331,7 @@ export default function UserManagementPage() {
                                     })
                                 ) : (
                                     <TableRow>
-                                        <TableCell colSpan={5} className="text-center h-24">No users found.</TableCell>
+                                        <TableCell colSpan={6} className="text-center h-24">No users found.</TableCell>
                                     </TableRow>
                                 )}
                             </TableBody>

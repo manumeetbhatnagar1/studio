@@ -1,7 +1,6 @@
 'use client';
 
 import Link from "next/link";
-import Image from "next/image";
 import {
   BookOpen,
   ClipboardList,
@@ -102,7 +101,7 @@ export default function QuickLinks() {
       <div>
         <h2 className="font-headline text-2xl font-semibold mb-4">Quick Access</h2>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-[300px] w-full" />)}
+          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-[220px] w-full" />)}
         </div>
       </div>
     )
@@ -116,28 +115,15 @@ export default function QuickLinks() {
           const IconComponent = typeof link.icon === 'string' ? iconMap[link.icon] : link.icon;
           return (
             <Link href={link.href} key={link.id} className="group">
-              <Card className="h-full overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col">
-                <div className="relative h-40 w-full overflow-hidden">
-                    {link.imageUrl && (
-                        <Image
-                        src={link.imageUrl}
-                        alt={link.title}
-                        fill
-                        className="object-cover transition-transform duration-300 group-hover:scale-105"
-                        data-ai-hint={link.imageHint}
-                        />
-                    )}
-                </div>
+              <Card className="h-full overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col justify-between">
                 <CardHeader>
                   <CardTitle className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      {IconComponent && <IconComponent className="w-6 h-6 text-primary" />}
-                      <span className="font-headline">{link.title}</span>
-                    </div>
+                    <span className="font-headline">{link.title}</span>
                     <ArrowRight className="w-5 h-5 text-muted-foreground transition-transform duration-300 group-hover:translate-x-1" />
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="flex-grow">
+                <CardContent className="flex-grow flex flex-col items-center justify-center text-center p-6">
+                  {IconComponent && <IconComponent className="w-12 h-12 text-primary mb-4" />}
                   <CardDescription>{link.description}</CardDescription>
                 </CardContent>
               </Card>

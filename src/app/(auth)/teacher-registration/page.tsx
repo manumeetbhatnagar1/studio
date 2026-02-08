@@ -16,15 +16,13 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useAuth, useFirestore } from '@/firebase';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { doc } from 'firebase/firestore';
+import { doc, writeBatch } from 'firebase/firestore';
 import { useState } from 'react';
 import { LoaderCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Logo } from '@/components/icons';
-import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { Skeleton } from '@/components/ui/skeleton';
 
 const formSchema = z.object({
   firstName: z.string().min(1, 'First name is required'),
@@ -60,6 +58,8 @@ export default function TeacherRegistrationPage() {
         displayName: `${values.firstName} ${values.lastName}`
       });
 
+      const batch = writeBatch(firestore);
+
       const userRef = doc(firestore, 'users', user.uid);
       const userData = {
         id: user.uid,
@@ -68,10 +68,21 @@ export default function TeacherRegistrationPage() {
         email: values.email,
         roleId: 'teacher',
       };
-      await setDocumentNonBlocking(userRef, userData, { merge: false });
-
+      batch.set(userRef, userData);
+      
       const teacherRoleRef = doc(firestore, 'roles_teacher', user.uid);
-      await setDocumentNonBlocking(teacherRoleRef, { createdAt: new Date().toISOString() }, { merge: false });
+      batch.set(teacherRoleRef, { createdAt: new Date().toISOString() });
+
+      // Check if the registering user is the designated admin
+      if (values.email.toLowerCase() === 'dcamclassesiit@gmail.com') {
+          const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
+          batch.set(adminRoleRef, { createdAt: new Date().toISOString() });
+          
+          // Also update the user's roleId to 'admin'
+          batch.update(userRef, { roleId: 'admin' });
+      }
+
+      await batch.commit();
       
       toast({
         title: 'Registration Successful',

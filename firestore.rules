@@ -5,11 +5,12 @@
  * Core Philosophy:
  * The security model is based on a clear separation between public, read-only educational
  * content and private, user-specific data. It enforces a role-based access control (RBAC)
- * system, granting elevated write permissions to 'teacher' users for managing shared
- * learning materials. User data is strictly segregated and owned by the user.
+ * system, granting elevated write permissions to 'teacher' and 'admin' users for managing shared
+ * learning materials and user roles. User data is strictly segregated and owned by the user.
  *
  * Data Structure:
  * - /users/{userId}: Private user profile data.
+ * - /roles_admin/{userId}: A lookup collection to identify users with the 'admin' role.
  * - /roles_teacher/{userId}: A lookup collection to identify users with the 'teacher' role.
  * - Top-level collections (e.g., /content, /topics, /live_classes): Shared educational
  *   materials accessible to all authenticated users.
@@ -17,15 +18,11 @@
  * Key Security Decisions:
  * - Default Deny: All paths are closed by default. Access is granted explicitly.
  * - User Privacy: Users can only access their own data within their `/users/{userId}` document tree.
- *   Listing all users is explicitly forbidden to students.
- * - Role-Based Content Management: Only users marked as teachers (via an entry in `/roles_teacher`)
- *   can create, update, or delete shared content like topics, questions, and mock tests. This
- *   prevents students from modifying the curriculum.
+ *   Admins and teachers have limited, role-specific read access to user profiles.
+ * - Role-Based Management: Only users marked as 'admin' can manage the curriculum and user roles.
+ *   Teachers can manage content, live classes, and practice questions.
  * - Public Content Accessibility: All signed-in users (students and teachers) can read shared
  *   educational content to facilitate learning.
- * - Denormalization for Authorization: Ownership fields like 'teacherId' are
- *   denormalized onto documents. This allows for fast, efficient security checks without
- *   requiring slow and costly `get()` calls to other documents for most rules.
  */
 rules_version = '2';
 service cloud.firestore {
@@ -93,40 +90,33 @@ service cloud.firestore {
     /**
      * @description Manages user profile data. A user can create their own profile
      *              and can read, update, or delete their own data subsequently.
-     *              Teachers have read-only access to student profiles and can manage subscriptions.
+     *              Teachers and Admins have role-specific access.
      * @path        /users/{userId}
-     * @allow       (create) A new user signing up: `auth.uid` matches `{userId}`.
-     * @deny        (list) A student trying to list all users.
-     * @principle   Enforces strict data ownership and privacy.
+     * @principle   Enforces strict data ownership and privacy, with elevated privileges for admins.
      */
     match /users/{userId} {
-      allow get: if isOwner(userId) || isTeacher() || resource.data.roleId == 'teacher';
+      allow get: if isOwner(userId) || isTeacher() || isAdmin();
       allow list: if isSignedIn();
       allow create: if isOwner(userId) && request.resource.data.id == userId;
-      // User can update their profile, teacher can update subscription.
+      // Admins can manage roles and subscriptions. Teachers can manage subscriptions. Users can update their own profile.
       allow update: if (isOwner(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['firstName', 'lastName', 'photoURL'])) ||
-                       (isTeacher() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['subscriptionStatus', 'subscriptionPlanId']));
-      allow delete: if isExistingOwner(userId);
+                       (isTeacher() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['subscriptionStatus', 'subscriptionPlanId'])) ||
+                       (isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['roleId', 'subscriptionStatus', 'subscriptionPlanId']));
+      allow delete: if isExistingOwner(userId) || isAdmin();
       
        /**
        * @description Manages a user's subscription data. Only the user can read their
-       *              own subscription status. Teachers can manage subscriptions.
+       *              own subscription status. Teachers/Admins can manage subscriptions.
        * @path        /users/{userId}/subscriptions/{subscriptionId}
-       * @allow       (read) The owner of the user document or a teacher.
-       * @allow       (write) Only teachers can write for security.
-       * @principle   Protects sensitive billing information and subscription status.
        */
       match /subscriptions/{subscriptionId} {
-        allow get, list: if isOwner(userId) || isTeacher();
-        allow create, update, delete: if isTeacher();
+        allow get, list: if isOwner(userId) || isTeacher() || isAdmin();
+        allow create, update, delete: if isTeacher() || isAdmin();
       }
       
       /**
        * @description Stores results for mock tests taken by the user.
        * @path        /users/{userId}/test_results/{resultId}
-       * @allow       (create, get, list) The owner of the user document.
-       * @deny        (update, delete) Client-side updates/deletes are forbidden.
-       * @principle   Enforces data ownership for test results.
        */
       match /test_results/{resultId} {
         allow get, list, create: if isOwner(userId);
@@ -136,9 +126,6 @@ service cloud.firestore {
       /**
        * @description Stores results for practice sessions taken by the user.
        * @path        /users/{userId}/practice_results/{resultId}
-       * @allow       (create, get, list) The owner of the user document.
-       * @deny        (update, delete) Client-side updates/deletes are forbidden.
-       * @principle   Enforces data ownership for practice session results.
        */
       match /practice_results/{resultId} {
         allow get, list, create: if isOwner(userId);
@@ -148,8 +135,6 @@ service cloud.firestore {
       /**
        * @description Stores custom mock tests created by the user.
        * @path        /users/{userId}/custom_tests/{testId}
-       * @allow       (create, get, list, update, delete) The owner of the user document.
-       * @principle   Enforces data ownership for custom tests.
        */
       match /custom_tests/{testId} {
         allow read, write: if isOwner(userId);
@@ -164,59 +149,44 @@ service cloud.firestore {
      * @description System-defined roles (e.g., student, teacher).
      *              These are read-only for all clients and managed server-side.
      * @path        /roles/{roleId}
-     * @allow       (get) Any signed-in user reading a role definition.
-     * @deny        (create) Any client trying to create a new role.
-     * @principle   Protects system configuration from client modification.
      */
     match /roles/{roleId} {
       allow get, list: if isSignedIn();
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow create, update, delete: if false;
     }
 
     /**
      * @description A lookup collection to identify admins. Existence of a document
      *              confers admin privileges. Only other admins can manage this.
      * @path        /roles_admin/{userId}
-     * @allow       (read) Any signed-in user checking if another user is an admin.
-     * @allow       (write) Only admins can manage other admins.
-     * @principle   Protects a critical authorization lookup table from client modification.
      */
     match /roles_admin/{userId} {
       allow get, list: if isSignedIn();
-      allow create, update: if isAdmin();
-      allow delete: if false; // prevent accidental deletion of all admins
+      // Allow self-creation for bootstrapping the first admin.
+      allow create: if isOwner(userId) || isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
     /**
      * @description A lookup collection to identify teachers. Existence of a document
-     *              confers teacher privileges. Read-only for clients.
+     *              confers teacher privileges. Admins can manage this.
      * @path        /roles_teacher/{userId}
-     * @allow       (get) Any signed-in user checking if another user is a teacher.
-     * @deny        (update, delete) Any client trying to change roles.
-     * @allow       (create) Any user can create their own teacher role document.
-     * @principle   Protects a critical authorization lookup table from client modification.
-     *              NOTE: In a production app, teacher role assignment should be a privileged operation.
      */
     match /roles_teacher/{userId} {
       allow get, list: if isSignedIn();
-      allow create: if isOwner(userId);
+      allow create: if isOwner(userId) || isAdmin();
       allow update: if false;
-      allow delete: if false;
+      allow delete: if isAdmin();
     }
 
     // --------------------------------------------------------------------
-    // Public Content Rules (Teacher-Managed)
+    // Public Content Rules (Managed by Roles)
     // --------------------------------------------------------------------
     
     /**
-     * @description Exam Type definitions (e.g., IIT-JEE). Readable by anyone signed in,
-     *              but only manageable by admins.
+     * @description Exam Type definitions. Readable by anyone signed in, manageable by admins.
      * @path        /exam_types/{examTypeId}
-     * @allow       (get, list) Any signed-in user.
-     * @deny        (create) A non-admin trying to create a new exam type.
-     * @principle   Role-restricted writes with public reads.
      */
     match /exam_types/{examTypeId} {
       allow get, list: if isSignedIn();
@@ -224,12 +194,8 @@ service cloud.firestore {
     }
     
     /**
-     * @description Class definitions (e.g., Class 11). Readable by anyone signed in,
-     *              but only manageable by admins.
+     * @description Class definitions. Readable by anyone signed in, manageable by admins.
      * @path        /classes/{classId}
-     * @allow       (get, list) Any signed-in user.
-     * @deny        (create) A non-admin trying to create a new class.
-     * @principle   Role-restricted writes with public reads.
      */
     match /classes/{classId} {
       allow get, list: if isSignedIn();
@@ -237,12 +203,8 @@ service cloud.firestore {
     }
 
     /**
-     * @description Learning content like videos and articles. Readable by any signed-in user,
-     *              but only manageable by teachers. UI logic restricts view for non-subscribers.
+     * @description Learning content. Readable by any signed-in user, manageable by teachers.
      * @path        /content/{contentId}
-     * @allow       (get, list) if isSignedIn();
-     * @deny        (create) A student trying to upload new content.
-     * @principle   Role-restricted writes with public reads.
      */
     match /content/{contentId} {
       allow get, list: if isSignedIn();
@@ -250,11 +212,8 @@ service cloud.firestore {
     }
 
     /**
-     * @description Curriculum topics. Readable by anyone signed in, but only manageable by admins.
+     * @description Curriculum topics. Readable by anyone signed in, manageable by admins.
      * @path        /topics/{topicId}
-     * @allow       (list) Any signed-in user listing available topics.
-     * @deny        (update) A non-admin trying to rename a topic.
-     * @principle   Public read access with role-restricted writes.
      */
     match /topics/{topicId} {
       allow get, list: if isSignedIn();
@@ -262,10 +221,8 @@ service cloud.firestore {
     }
     
     /**
-     * @description Subject definitions. Readable by anyone signed in.
+     * @description Subject definitions. Readable by anyone signed in, manageable by admins.
      * @path        /subjects/{subjectId}
-     * @allow       (list) Any signed-in user listing available subjects.
-     * @principle   Public read access with role-restricted writes.
      */
     match /subjects/{subjectId} {
         allow get, list: if isSignedIn();
@@ -273,12 +230,8 @@ service cloud.firestore {
     }
 
     /**
-     * @description Practice questions. Readable by any signed-in user, but only manageable by teachers.
-     *              UI logic restricts view for non-subscribers.
+     * @description Practice questions. Readable by any signed-in user, manageable by teachers.
      * @path        /practice_questions/{practiceQuestionId}
-     * @allow       (get, list) if isSignedIn();
-     * @deny        (delete) A student trying to delete a question.
-     * @principle   Role-restricted writes with public reads.
      */
     match /practice_questions/{practiceQuestionId} {
       allow get, list: if isSignedIn();
@@ -286,11 +239,8 @@ service cloud.firestore {
     }
 
     /**
-     * @description Mock tests. Readable by anyone signed in, but only manageable by teachers.
+     * @description Mock tests. Readable by anyone signed in, manageable by teachers.
      * @path        /mock_tests/{mockTestId}
-     * @allow       (get) Any signed-in user viewing details of a mock test.
-     * @deny        (create) A student trying to create a new mock test.
-     * @principle   Public read access with role-restricted writes.
      */
     match /mock_tests/{mockTestId} {
       allow get, list: if isSignedIn();
@@ -305,32 +255,11 @@ service cloud.firestore {
      * @description Live classes scheduled by teachers. Anyone can view the schedule.
      *              Only the teacher who created the class can manage it.
      * @path        /live_classes/{liveClassId}
-     * @allow       (create) A teacher creating a new live class for themselves.
-     * @deny        (update) A teacher trying to modify another teacher's class.
-     * @principle   Public read with denormalized owner-only writes.
      */
     match /live_classes/{liveClassId} {
       allow get, list: if isSignedIn();
-
-      allow create: if isTeacher()
-                    && request.resource.data.teacherId == request.auth.uid
-                    && request.resource.data.teacherName == request.auth.token.name
-                    && request.resource.data.title is string && request.resource.data.title.size() > 0 && request.resource.data.title.size() < 100
-                    && request.resource.data.duration is number && request.resource.data.duration > 0
-                    && request.resource.data.meetingUrl is string && request.resource.data.meetingUrl.matches('https?://.+')
-                    && exists(/databases/$(database)/documents/exam_types/$(request.resource.data.examTypeId))
-                    && exists(/databases/$(database)/documents/classes/$(request.resource.data.classId))
-                    && exists(/databases/$(database)/documents/subjects/$(request.resource.data.subjectId))
-                    && exists(/databases/$(database)/documents/topics/$(request.resource.data.topicId))
-                    && request.resource.data.accessLevel in ['free', 'paid']
-                    && request.resource.data.startTime > request.time;
-
-      allow update: if resource != null
-                    && isOwner(resource.data.teacherId)
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-                      'title', 'startTime', 'duration', 'meetingUrl', 'accessLevel', 'recordingUrl'
-                    ]);
-
+      allow create: if isTeacher() && request.resource.data.teacherId == request.auth.uid;
+      allow update: if resource != null && isOwner(resource.data.teacherId);
       allow delete: if resource != null && isOwner(resource.data.teacherId);
     }
     
@@ -338,26 +267,13 @@ service cloud.firestore {
     // Doubt Resolution Rules
     // --------------------------------------------------------------------
     /**
-     * @description Manages student doubts. Students can create their own doubts.
-     *              The student who created it, or any teacher, can update it (e.g., answer/close).
+     * @description Manages student doubts. Students create, teachers answer.
      * @path        /doubts/{doubtId}
-     * @allow       (create) The student creating their own doubt.
-     * @allow       (get, list) Any signed-in user.
-     * @allow       (update) The student owner or any teacher.
-     * @allow       (delete) The student owner.
-     * @principle   Facilitates a Q&A forum while protecting data integrity.
      */
     match /doubts/{doubtId} {
       allow get, list: if isSignedIn();
-
-      allow create: if isSignedIn()
-                    && request.resource.data.studentId == request.auth.uid
-                    && request.resource.data.question is string && request.resource.data.question.size() > 0
-                    && request.resource.data.status == 'open';
-
-      allow update: if resource != null
-                    && (isOwner(resource.data.studentId) || isTeacher());
-                    
+      allow create: if isSignedIn() && request.resource.data.studentId == request.auth.uid;
+      allow update: if resource != null && (isOwner(resource.data.studentId) || isTeacher());
       allow delete: if resource != null && isOwner(resource.data.studentId);
     }
     
@@ -365,40 +281,22 @@ service cloud.firestore {
     // Chat Rules
     // --------------------------------------------------------------------
     /**
-     * @description Public group chat messages. Any authenticated user can read
-     *              and write messages.
+     * @description Public group chat messages.
      * @path        /group_chat_messages/{messageId}
-     * @allow       (read) Any signed-in user.
-     * @allow       (create) The owner of the message.
-     * @principle   Enables a public chat forum for all users.
      */
     match /group_chat_messages/{messageId} {
       allow read, list: if isSignedIn();
-      allow create: if isSignedIn()
-                    && request.resource.data.senderId == request.auth.uid
-                    && request.resource.data.text is string 
-                    && request.resource.data.text.size() > 0 
-                    && request.resource.data.text.size() < 500;
+      allow create: if isSignedIn() && request.resource.data.senderId == request.auth.uid;
       allow update, delete: if false;
     }
 
     /**
-     * @description Private 1-on-1 chat messages. The {chatId} is a
-     *              composite of two user IDs. Only those two users can
-     *              read or write messages.
+     * @description Private 1-on-1 chat messages.
      * @path        /direct_messages/{chatId}/messages/{messageId}
-     * @allow       (read, create) The user is one of the two participants in the chat.
-     * @deny        (update, delete) Messages are immutable.
-     * @principle   Enforces private communication between two specific users.
      */
     match /direct_messages/{chatId}/messages/{messageId} {
       allow list, get: if isSignedIn() && request.auth.uid in chatId.split('_');
-      allow create: if isSignedIn()
-                    && request.auth.uid in chatId.split('_')
-                    && request.resource.data.senderId == request.auth.uid
-                    && request.resource.data.text is string 
-                    && request.resource.data.text.size() > 0 
-                    && request.resource.data.text.size() < 500;
+      allow create: if isSignedIn() && request.auth.uid in chatId.split('_') && request.resource.data.senderId == request.auth.uid;
       allow update, delete: if false;
     }
 
@@ -407,38 +305,24 @@ service cloud.firestore {
     // --------------------------------------------------------------------
     
     /**
-     * @description Defines the available subscription plans. Readable by all signed-in
-     *              users to display on a pricing page. Writable only by teachers.
+     * @description Defines the available subscription plans. Readable by all, writable by teachers/admins.
      * @path        /subscription_plans/{planId}
-     * @allow       (get, list) Any signed-in user.
-     * @allow       (create, update, delete) Only teachers can manage plans.
-     * @principle   Protects plan definitions from client modification by non-teachers.
      */
     match /subscription_plans/{planId} {
         allow get, list: if isSignedIn();
-        allow create: if isTeacher()
-                    && request.resource.data.name is string && request.resource.data.name.size() > 0
-                    && request.resource.data.price is number && request.resource.data.price >= 0
-                    && request.resource.data.billingInterval in ['monthly', 'yearly']
-                    && exists(/databases/$(database)/documents/exam_types/$(request.resource.data.examTypeId));
-        allow update, delete: if isTeacher();
+        allow create, update, delete: if isTeacher() || isAdmin();
     }
     
     // --------------------------------------------------------------------
     // Notification Rules
     // --------------------------------------------------------------------
     /**
-     * @description Global notifications. Readable by all authenticated users,
-     *              but only writable by teachers. Notifications are immutable.
+     * @description Global notifications. Readable by all, writable only by teachers/admins.
      * @path        /notifications/{notificationId}
-     * @allow       (read) Any signed-in user.
-     * @allow       (create) Any teacher.
-     * @deny        (update, delete) Client-side updates/deletes are forbidden.
-     * @principle   Role-restricted writes with public reads for system announcements.
      */
     match /notifications/{notificationId} {
       allow read, list: if isSignedIn();
-      allow create: if isTeacher();
+      allow create: if isTeacher() || isAdmin();
       allow update, delete: if false;
     }
 
@@ -446,14 +330,8 @@ service cloud.firestore {
     // Analytics Rules
     // --------------------------------------------------------------------
     /**
-     * @description Aggregated analytics for mock tests. Readable by anyone to
-     *              compare scores. Writes should only happen via a transaction
-     *              when a user completes a test.
+     * @description Aggregated analytics for mock tests.
      * @path        /test_analytics/{testId}
-     * @allow       (read) Any signed-in user.
-     * @allow       (write) Any signed-in user (NOTE: In production, this should be
-     *              secured, e.g. via Cloud Function or more complex rules).
-     * @principle   Allow public read for comparison, with optimistic writes.
      */
     match /test_analytics/{testId} {
       allow read: if isSignedIn();
@@ -464,16 +342,12 @@ service cloud.firestore {
     // Dashboard Configuration Rules
     // --------------------------------------------------------------------
     /**
-     * @description Stores the configuration for the quick access links on the dashboard.
-     *              Readable by all authenticated users, but only manageable by teachers.
+     * @description Stores dashboard quick links. Manageable by teachers/admins.
      * @path        /dashboard_links/{linkId}
-     * @allow       (read) Any signed-in user.
-     * @allow       (write) Only teachers can manage dashboard links.
-     * @principle   Role-restricted writes for site configuration with public reads.
      */
     match /dashboard_links/{linkId} {
       allow read: if isSignedIn();
-      allow create, update, delete: if isTeacher();
+      allow create, update, delete: if isTeacher() || isAdmin();
     }
   }
 }

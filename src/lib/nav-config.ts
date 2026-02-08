@@ -10,12 +10,14 @@ import {
   Video,
   CreditCard,
   ListTree,
+  Users,
 } from 'lucide-react';
 import type { NavItem } from '@/lib/types';
 
 export const navItems: NavItem[] = [
   { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { title: 'Curriculum', href: '/curriculum', icon: ListTree },
+  { title: 'User Management', href: '/admin/students', icon: Users },
   { title: 'Content', href: '/content', icon: BookOpen },
   { title: 'Live Classes', href: '/live-classes', icon: Video },
   { title: 'Practice', href: '/practice', icon: ClipboardList },

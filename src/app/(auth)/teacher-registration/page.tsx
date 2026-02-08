@@ -15,7 +15,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useAuth, useFirestore } from '@/firebase';
-import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { createUserWithEmailAndPassword, updateProfile, signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, writeBatch } from 'firebase/firestore';
 import { useState } from 'react';
 import { LoaderCircle } from 'lucide-react';
@@ -90,11 +90,41 @@ export default function TeacherRegistrationPage() {
       });
       router.push('/dashboard');
     } catch (error: any) {
-      toast({
-          variant: 'destructive',
-          title: 'Registration Failed',
-          description: error.message,
-      });
+        if (error.code === 'auth/email-already-in-use' && values.email.toLowerCase() === 'dcamclassesiit@gmail.com') {
+            try {
+                const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
+                const user = userCredential.user;
+
+                const batch = writeBatch(firestore);
+                const userRef = doc(firestore, 'users', user.uid);
+                const teacherRoleRef = doc(firestore, 'roles_teacher', user.uid);
+                const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
+
+                batch.update(userRef, { roleId: 'admin' });
+                batch.set(teacherRoleRef, { createdAt: new Date().toISOString() });
+                batch.set(adminRoleRef, { createdAt: new Date().toISOString() });
+                
+                await batch.commit();
+
+                toast({
+                    title: 'Admin Account Upgraded',
+                    description: 'Your existing account has been upgraded to an admin account.',
+                });
+                router.push('/dashboard');
+            } catch (signInError: any) {
+                toast({
+                    variant: 'destructive',
+                    title: 'Upgrade Failed',
+                    description: "We found your account, but couldn't sign you in to upgrade it. Please check your password.",
+                });
+            }
+        } else {
+            toast({
+                variant: 'destructive',
+                title: 'Registration Failed',
+                description: error.message,
+            });
+        }
     } finally {
       setIsLoading(false);
     }

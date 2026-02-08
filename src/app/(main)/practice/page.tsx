@@ -648,6 +648,408 @@ const StartPracticeForm: FC<{
     );
 };
 
+const TeacherView = ({
+    form,
+    onSubmit,
+    isLoading,
+    isSubmitting,
+    isTeacher,
+    questionPdfFile,
+    setQuestionPdfFile,
+    handleQuestionImageCropped,
+    questionPdfPage,
+    setQuestionPdfPage,
+    explanationPdfFile,
+    setExplanationPdfFile,
+    handleExplanationImageCropped,
+    explanationPdfPage,
+    setExplanationPdfPage,
+    questionTree,
+    topicMap,
+    classMap,
+    examTypeMap,
+    canViewPaidContent,
+    setEditingQuestion,
+    handleDeleteRequest,
+    classes,
+    subjects,
+    topics,
+    examTypes
+}: any) => {
+    const { control, watch, setValue } = form;
+    const { fields } = useFieldArray({ control, name: "options" });
+    const questionType = watch('questionType');
+    const selectedExamType = watch('examTypeId');
+    const selectedClass = watch('classId');
+    const selectedSubject = watch('subjectId');
+
+    const filteredClasses = useMemo(() => {
+        if (!selectedExamType || !classes) return [];
+        return classes.filter((c: any) => c.examTypeId === selectedExamType);
+    }, [selectedExamType, classes]);
+
+    const filteredSubjects = useMemo(() => {
+        if (!selectedClass || !subjects) return [];
+        return subjects.filter((subject: any) => subject.classId === selectedClass);
+    }, [selectedClass, subjects]);
+
+    const filteredTopics = useMemo(() => {
+        if (!selectedSubject || !topics) return [];
+        return topics.filter((topic: any) => topic.subjectId === selectedSubject);
+    }, [selectedSubject, topics]);
+
+    useEffect(() => {
+        setValue('classId', '');
+        setValue('subjectId', '');
+        setValue('topicId', '');
+    }, [selectedExamType, setValue]);
+
+    useEffect(() => {
+        setValue('subjectId', '');
+        setValue('topicId', '');
+    }, [selectedClass, setValue]);
+
+    useEffect(() => {
+        setValue('topicId', '');
+    }, [selectedSubject, setValue]);
+
+    return (
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 grid gap-8">
+            <div className='space-y-8'>
+                <PdfQuestionExtractor
+                    file={questionPdfFile}
+                    onFileChange={setQuestionPdfFile}
+                    onImageCropped={handleQuestionImageCropped}
+                    title="Add Question Image from PDF"
+                    description="Upload a PDF, crop an image for the question, then fill in details below."
+                    pageNumber={questionPdfPage}
+                    onPageNumberChange={setQuestionPdfPage}
+                />
+                <PdfQuestionExtractor
+                    file={explanationPdfFile}
+                    onFileChange={setExplanationPdfFile}
+                    onImageCropped={handleExplanationImageCropped}
+                    title="Add Explanation Image from PDF"
+                    description="Upload a PDF and crop an image for the question's explanation."
+                    pageNumber={explanationPdfPage}
+                    onPageNumberChange={setExplanationPdfPage}
+                />
+                <Card className="shadow-lg">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2 font-headline text-2xl">
+                            <PlusCircle className="w-6 h-6" /> Create New Question
+                        </CardTitle>
+                        <CardDescription>Use the tool above to add an image from a PDF, then fill out the form below to create a new question.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        {isLoading ? (<Skeleton className="h-64 w-full" />) : (
+                            <Form {...form}>
+                                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <FormField control={control} name="questionType" render={({ field }) => (
+                                            <FormItem className="space-y-3"><FormLabel>Question Type</FormLabel>
+                                                <FormControl>
+                                                    <RadioGroup onValueChange={(value) => {
+                                                        field.onChange(value);
+                                                        if (value === 'MCQ') { form.reset({ ...form.getValues(), numericalAnswer: undefined, options: ['', '', '', ''], correctAnswer: '' }); } else { form.reset({ ...form.getValues(), options: undefined, correctAnswer: undefined }); }
+                                                    }} defaultValue={field.value} className="flex flex-row space-x-4">
+                                                        <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="MCQ" /></FormControl><FormLabel className="font-normal">Multiple Choice</FormLabel></FormItem>
+                                                        <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="Numerical" /></FormControl><FormLabel className="font-normal">Numerical Answer</FormLabel></FormItem>
+                                                    </RadioGroup>
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )} />
+                                        <FormField control={control} name="accessLevel" render={({ field }) => (
+                                            <FormItem className="space-y-3"><FormLabel>Access Level</FormLabel>
+                                                <FormControl>
+                                                    <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex flex-row space-x-4">
+                                                        <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="free" /></FormControl><FormLabel className="font-normal">Free</FormLabel></FormItem>
+                                                        <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="paid" /></FormControl><FormLabel className="font-normal">Paid</FormLabel></FormItem>
+                                                    </RadioGroup>
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )} />
+                                    </div>
+                                    <FormField control={control} name="questionText" render={({ field }) => (<FormItem><FormLabel>Question Text</FormLabel><FormControl><Textarea placeholder="e.g., What is the formula for..." {...field} rows={4} /></FormControl><FormMessage /></FormItem>)} />
+
+                                    {watch('imageUrls') && watch('imageUrls').length > 0 && (
+                                        <div className="space-y-2">
+                                            <FormLabel>Question Image Previews</FormLabel>
+                                            <div className="flex flex-col gap-4">
+                                                {watch('imageUrls').map((url: string, index: number) => (
+                                                    <div key={index} className="relative group">
+                                                        <Image src={url} alt={`Question image ${index + 1}`} width={200} height={150} className="rounded-md object-cover border" />
+                                                        <Button
+                                                            type="button"
+                                                            variant="destructive"
+                                                            size="icon"
+                                                            className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100"
+                                                            onClick={() => {
+                                                                const currentUrls = form.getValues('imageUrls') || [];
+                                                                setValue('imageUrls', currentUrls.filter((_: any, i: number) => i !== index));
+                                                            }}
+                                                        >
+                                                            <X className="h-4 w-4" />
+                                                        </Button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {watch('explanationImageUrls') && watch('explanationImageUrls').length > 0 && (
+                                        <div className="space-y-2">
+                                            <FormLabel>Explanation Image Previews</FormLabel>
+                                            <div className="flex flex-col gap-4">
+                                                {watch('explanationImageUrls').map((url: string, index: number) => (
+                                                    <div key={index} className="relative group">
+                                                        <Image src={url} alt={`Explanation image ${index + 1}`} width={200} height={150} className="rounded-md object-cover border" />
+                                                        <Button
+                                                            type="button"
+                                                            variant="destructive"
+                                                            size="icon"
+                                                            className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100"
+                                                            onClick={() => {
+                                                                const currentUrls = form.getValues('explanationImageUrls') || [];
+                                                                setValue('explanationImageUrls', currentUrls.filter((_: any, i: number) => i !== index));
+                                                            }}
+                                                        >
+                                                            <X className="h-4 w-4" />
+                                                        </Button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {questionType === 'MCQ' && (
+                                        <div className="space-y-4">
+                                            <FormLabel>Options & Correct Answer</FormLabel>
+                                            <FormField control={control} name="correctAnswer" render={({ field }) => (
+                                                <FormItem className='space-y-0'><FormControl>
+                                                    <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                        {fields.map((item, index) => (<FormField key={item.id} control={control} name={`options.${index}`} render={({ field: optionField }) => (<FormItem className="flex items-center gap-2 space-y-0 rounded-md border p-4 has-[:checked]:border-primary"><FormControl><RadioGroupItem value={optionField.value} disabled={!optionField.value} /></FormControl><Input {...optionField} placeholder={`Option ${index + 1}`} className="border-none p-0 h-auto focus-visible:ring-0 focus-visible:ring-offset-0" /><FormMessage className="col-span-2" /></FormItem>)} />))}
+                                                    </RadioGroup>
+                                                </FormControl><FormMessage /></FormItem>
+                                            )} />
+                                        </div>
+                                    )}
+                                    {questionType === 'Numerical' && (<FormField control={control} name="numericalAnswer" render={({ field }) => (<FormItem><FormLabel>Correct Numerical Answer</FormLabel><FormControl><Input type="number" placeholder="e.g., 42" {...field} onChange={event => field.onChange(+event.target.value)} /></FormControl><FormMessage /></FormItem>)} />)}
+
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <FormField control={control} name="examTypeId" render={({ field }) => (
+                                            <FormItem><FormLabel>Exam Type</FormLabel>
+                                                <Select onValueChange={(value) => field.onChange(value)} value={field.value}>
+                                                    <FormControl><SelectTrigger><SelectValue placeholder="Select an exam type" /></SelectTrigger></FormControl>
+                                                    <SelectContent>{examTypes?.map((et: any) => <SelectItem key={et.id} value={et.id}>{et.name}</SelectItem>)}</SelectContent>
+                                                </Select>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )} />
+                                        <FormField control={control} name="classId" render={({ field }) => (
+                                            <FormItem><FormLabel>Class</FormLabel>
+                                                <Select onValueChange={(value) => field.onChange(value)} value={field.value} disabled={!selectedExamType}>
+                                                    <FormControl><SelectTrigger><SelectValue placeholder="Select a class" /></SelectTrigger></FormControl>
+                                                    <SelectContent>{filteredClasses?.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                                                </Select>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )} />
+                                        <FormField control={control} name="subjectId" render={({ field }) => (
+                                            <FormItem><FormLabel>Subject</FormLabel>
+                                                <Select onValueChange={(value) => field.onChange(value)} value={field.value} disabled={!selectedClass}>
+                                                    <FormControl><SelectTrigger><SelectValue placeholder="Select a subject" /></SelectTrigger></FormControl>
+                                                    <SelectContent>{filteredSubjects.map((subject: any) => <SelectItem key={subject.id} value={subject.id}>{subject.name}</SelectItem>)}</SelectContent>
+                                                </Select>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )} />
+                                        <FormField control={control} name="topicId" render={({ field }) => (
+                                            <FormItem><FormLabel>Topic</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!selectedSubject}><FormControl><SelectTrigger><SelectValue placeholder="Select a topic" /></SelectTrigger></FormControl><SelectContent>{filteredTopics.map((topic: any) => <SelectItem key={topic.id} value={topic.id}>{topic.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+                                        )} />
+                                        <FormField control={control} name="difficultyLevel" render={({ field }) => (
+                                            <FormItem><FormLabel>Difficulty</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select difficulty" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Easy">Easy</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Hard">Hard</SelectItem></SelectContent></Select><FormMessage /></FormItem>
+                                        )} />
+                                    </div>
+
+                                    <Button type="submit" disabled={isSubmitting || !isTeacher}>{isSubmitting ? (<><LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> Adding...</>) : ('Add Question')}</Button>
+                                </form>
+                            </Form>
+                        )}
+                    </CardContent>
+                </Card>
+            </div>
+            <Card className="shadow-lg">
+                <CardHeader>
+                    <CardTitle className="font-headline text-2xl flex items-center gap-2">
+                        <ClipboardList className="w-6 h-6" /> All Practice Questions
+                    </CardTitle>
+                    <CardDescription>Browse the question bank. Click on a question to view the answer.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {isLoading ? (
+                        <div className="space-y-4">
+                            <Skeleton className="h-20 w-full" />
+                            <Skeleton className="h-20 w-full" />
+                            <Skeleton className="h-20 w-full" />
+                        </div>
+                    ) : questionTree && questionTree.length > 0 ? (
+                        <Accordion type="multiple" className="w-full space-y-2">
+                            {questionTree.map((et: any) => (
+                                <AccordionItem value={et.id} key={et.id} className="border rounded-lg">
+                                    <AccordionTrigger className="text-2xl font-semibold px-6">{et.name}</AccordionTrigger>
+                                    <AccordionContent className="px-6 pb-2">
+                                        {et.classes.length > 0 ? (
+                                            <Accordion type="multiple" className="w-full space-y-2" defaultValue={et.classes.map((c: any) => c.id)}>
+                                                {et.classes.map((c: any) => (
+                                                    <AccordionItem value={c.id} key={c.id} className="border rounded-lg">
+                                                        <AccordionTrigger className="text-xl font-medium px-4">{c.name}</AccordionTrigger>
+                                                        <AccordionContent className="px-4 pb-2">
+                                                            {c.subjects.length > 0 ? (
+                                                                <Accordion type="multiple" className="w-full space-y-2" defaultValue={c.subjects.map((s: any) => s.id)}>
+                                                                    {c.subjects.map((s: any) => (
+                                                                        <AccordionItem value={s.id} key={s.id} className="border-l-2 pl-4 border-muted">
+                                                                            <AccordionTrigger className="text-lg font-medium">{s.name}</AccordionTrigger>
+                                                                            <AccordionContent className="pl-4 pt-2">
+                                                                                {s.topics.length > 0 ? (
+                                                                                    <Accordion type="multiple" className="w-full space-y-1">
+                                                                                        {s.topics.map((t: any) => (
+                                                                                            <AccordionItem value={t.id} key={t.id} className="border-none">
+                                                                                                <AccordionTrigger className="text-sm py-2">{t.name} ({t.questions.length} questions)</AccordionTrigger>
+                                                                                                <AccordionContent className="pl-4">
+                                                                                                    <Accordion type="single" collapsible className="w-full space-y-2">
+                                                                                                        {t.questions.map((q: any) => (
+                                                                                                            <QuestionItem key={q.id} question={q} topicMap={topicMap} classMap={classMap} examTypeMap={examTypeMap} isTeacher={!!isTeacher} canViewPaidContent={canViewPaidContent} onEdit={setEditingQuestion} onDelete={handleDeleteRequest} />
+                                                                                                        ))}
+                                                                                                    </Accordion>
+                                                                                                </AccordionContent>
+                                                                                            </AccordionItem>
+                                                                                        ))}
+                                                                                    </Accordion>
+                                                                                ) : <p className="text-center text-muted-foreground py-4">No topics with questions found for this subject.</p>}
+                                                                            </AccordionContent>
+                                                                        </AccordionItem>
+                                                                    ))}
+                                                                </Accordion>
+                                                            ) : <p className="text-center text-muted-foreground py-4">No subjects with questions found for this class.</p>}
+                                                        </AccordionContent>
+                                                    </AccordionItem>
+                                                ))}
+                                            </Accordion>
+                                        ) : <p className="text-center text-muted-foreground py-4">No classes with questions found for this exam type.</p>}
+                                    </AccordionContent>
+                                </AccordionItem>
+                            ))}
+                        </Accordion>
+                    ) : (
+                        <div className="text-center text-muted-foreground py-8 border-2 border-dashed rounded-lg">
+                            <p className='font-medium'>No practice questions available yet.</p>
+                            <p className='text-sm'>{isTeacher ? 'Create one above to get started!' : 'Please check back later.'}</p>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+        </main>
+    )
+};
+
+
+const StudentView = ({ isLoading, curriculumTree, isSubscribed, questionTree }: any) => (
+    <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
+        <Tabs defaultValue="quiz" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="quiz">Practice Quiz</TabsTrigger>
+                <TabsTrigger value="bank">Question Bank</TabsTrigger>
+            </TabsList>
+            <TabsContent value="quiz">
+                <Card className="shadow-lg mt-4">
+                    <CardHeader>
+                        <CardTitle className="font-headline text-2xl">Start a New Practice Session</CardTitle>
+                        <CardDescription>Customize your practice session by selecting your desired filters.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        {isLoading ? <Skeleton className="h-48 w-full" /> : (
+                            <StartPracticeForm
+                                curriculumTree={curriculumTree}
+                                isSubscribed={!!isSubscribed}
+                            />
+                        )}
+                    </CardContent>
+                </Card>
+            </TabsContent>
+            <TabsContent value="bank">
+                <Card className="shadow-lg mt-4">
+                    <CardHeader>
+                        <CardTitle className="font-headline text-2xl flex items-center gap-2">
+                            <ClipboardList className="w-6 h-6" /> All Practice Questions
+                        </CardTitle>
+                        <CardDescription>Browse the question bank by curriculum. Click on a topic to start a practice session.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        {isLoading ? (
+                            <div className="space-y-4">
+                                <Skeleton className="h-20 w-full" />
+                                <Skeleton className="h-20 w-full" />
+                                <Skeleton className="h-20 w-full" />
+                            </div>
+                        ) : questionTree.length > 0 ? (
+                            <Accordion type="multiple" className="w-full space-y-2">
+                                {questionTree.map((et: any) => (
+                                    <AccordionItem value={et.id} key={et.id} className="border rounded-lg">
+                                        <AccordionTrigger className="text-2xl font-semibold px-6">{et.name}</AccordionTrigger>
+                                        <AccordionContent className="px-6 pb-2">
+                                            {et.classes.length > 0 ? (
+                                                <Accordion type="multiple" className="w-full space-y-2" defaultValue={et.classes.map((c: any) => c.id)}>
+                                                    {et.classes.map((c: any) => (
+                                                        <AccordionItem value={c.id} key={c.id} className="border rounded-lg">
+                                                            <AccordionTrigger className="text-xl font-medium px-4">{c.name}</AccordionTrigger>
+                                                            <AccordionContent className="px-4 pb-2">
+                                                                {c.subjects.length > 0 ? (
+                                                                    <Accordion type="multiple" className="w-full space-y-2" defaultValue={c.subjects.map((s: any) => s.id)}>
+                                                                        {c.subjects.map((s: any) => (
+                                                                            <AccordionItem value={s.id} key={s.id} className="border-l-2 pl-4 border-muted">
+                                                                                <AccordionTrigger className="text-lg font-medium">{s.name}</AccordionTrigger>
+                                                                                <AccordionContent className="pl-4 pt-2">
+                                                                                    {s.topics.length > 0 ? (
+                                                                                        <Accordion type="multiple" className="w-full space-y-1">
+                                                                                            {s.topics.map((t: any) => (
+                                                                                                <AccordionItem value={t.id} key={t.id} className="border-none">
+                                                                                                    <AccordionTrigger className="text-sm py-2">{t.name} ({t.questions.length} questions)</AccordionTrigger>
+                                                                                                    <AccordionContent className="pl-4">
+                                                                                                        <StartTopicPracticeForm topic={t} isSubscribed={!!isSubscribed} />
+                                                                                                    </AccordionContent>
+                                                                                                </AccordionItem>
+                                                                                            ))}
+                                                                                        </Accordion>
+                                                                                    ) : <p className="text-center text-muted-foreground py-4">No topics with questions found for this subject.</p>}
+                                                                                </AccordionContent>
+                                                                            </AccordionItem>
+                                                                        ))}
+                                                                    </Accordion>
+                                                                ) : <p className="text-center text-muted-foreground py-4">No subjects with questions found for this class.</p>}
+                                                            </AccordionContent>
+                                                        </AccordionItem>
+                                                    ))}
+                                                </Accordion>
+                                            ) : <p className="text-center text-muted-foreground py-4">No classes with questions found for this exam type.</p>}
+                                        </AccordionContent>
+                                    </AccordionItem>
+                                ))}
+                            </Accordion>
+                        ) : (
+                            <div className="text-center text-muted-foreground py-8 border-2 border-dashed rounded-lg">
+                                <p className='font-medium'>No practice questions available yet.</p>
+                                <p className='text-sm'>Please check back later.</p>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+            </TabsContent>
+        </Tabs>
+    </main>
+);
 
 export default function PracticePage() {
   const firestore = useFirestore();
@@ -776,45 +1178,6 @@ export default function PracticePage() {
     },
   });
 
-  const { fields } = useFieldArray({ control: form.control, name: "options" });
-  
-  const { watch, setValue } = form;
-  const questionType = watch('questionType');
-  const selectedExamType = watch('examTypeId');
-  const selectedClass = watch('classId');
-  const selectedSubject = watch('subjectId');
-  
-  const filteredClasses = useMemo(() => {
-    if (!selectedExamType || !classes) return [];
-    return classes.filter(c => c.examTypeId === selectedExamType);
-  }, [selectedExamType, classes]);
-
-  const filteredSubjects = useMemo(() => {
-    if (!selectedClass || !subjects) return [];
-    return subjects.filter(subject => subject.classId === selectedClass);
-  }, [selectedClass, subjects]);
-
-  const filteredTopics = useMemo(() => {
-    if (!selectedSubject || !topics) return [];
-    return topics.filter(topic => topic.subjectId === selectedSubject);
-  }, [selectedSubject, topics]);
-  
-  useEffect(() => {
-    setValue('classId', '');
-    setValue('subjectId', '');
-    setValue('topicId', '');
-  }, [selectedExamType, setValue]);
-
-  useEffect(() => {
-    setValue('subjectId', '');
-    setValue('topicId', '');
-  }, [selectedClass, setValue]);
-
-  useEffect(() => {
-    setValue('topicId', '');
-  }, [selectedSubject, setValue]);
-
-
   const onSubmit = (values: z.infer<typeof questionSchema>) => {
     if (!isTeacher) {
       toast({ variant: 'destructive', title: 'Not Authorized', description: 'Only teachers can create questions.' });
@@ -879,352 +1242,46 @@ export default function PracticePage() {
     </div>
   );
 
-  const TeacherView = () => (
-      <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 grid gap-8">
-        <div className='space-y-8'>
-            <PdfQuestionExtractor
-              file={questionPdfFile}
-              onFileChange={setQuestionPdfFile}
-              onImageCropped={handleQuestionImageCropped} 
-              title="Add Question Image from PDF"
-              description="Upload a PDF, crop an image for the question, then fill in details below."
-              pageNumber={questionPdfPage}
-              onPageNumberChange={setQuestionPdfPage}
-            />
-            <PdfQuestionExtractor 
-              file={explanationPdfFile}
-              onFileChange={setExplanationPdfFile}
-              onImageCropped={handleExplanationImageCropped}
-              title="Add Explanation Image from PDF"
-              description="Upload a PDF and crop an image for the question's explanation."
-              pageNumber={explanationPdfPage}
-              onPageNumberChange={setExplanationPdfPage}
-            />
-            <Card className="shadow-lg">
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2 font-headline text-2xl">
-                    <PlusCircle className="w-6 h-6" /> Create New Question
-                    </CardTitle>
-                    <CardDescription>Use the tool above to add an image from a PDF, then fill out the form below to create a new question.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {isLoading ? (<Skeleton className="h-64 w-full" />) : (
-                    <Form {...form}>
-                      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <FormField control={form.control} name="questionType" render={({ field }) => (
-                                <FormItem className="space-y-3"><FormLabel>Question Type</FormLabel>
-                                    <FormControl>
-                                        <RadioGroup onValueChange={(value) => { field.onChange(value);
-                                            if (value === 'MCQ') { form.reset({ ...form.getValues(), numericalAnswer: undefined, options: ['', '', '', ''], correctAnswer: '' });
-                                            } else { form.reset({ ...form.getValues(), options: undefined, correctAnswer: undefined }); }
-                                        }} defaultValue={field.value} className="flex flex-row space-x-4">
-                                        <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="MCQ" /></FormControl><FormLabel className="font-normal">Multiple Choice</FormLabel></FormItem>
-                                        <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="Numerical" /></FormControl><FormLabel className="font-normal">Numerical Answer</FormLabel></FormItem>
-                                        </RadioGroup>
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )} />
-                            <FormField control={form.control} name="accessLevel" render={({ field }) => (
-                                <FormItem className="space-y-3"><FormLabel>Access Level</FormLabel>
-                                    <FormControl>
-                                        <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex flex-row space-x-4">
-                                        <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="free" /></FormControl><FormLabel className="font-normal">Free</FormLabel></FormItem>
-                                        <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="paid" /></FormControl><FormLabel className="font-normal">Paid</FormLabel></FormItem>
-                                        </RadioGroup>
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )} />
-                        </div>
-                          <FormField control={form.control} name="questionText" render={({ field }) => (<FormItem><FormLabel>Question Text</FormLabel><FormControl><Textarea placeholder="e.g., What is the formula for..." {...field} rows={4} /></FormControl><FormMessage /></FormItem>)} />
-                          
-                          {form.watch('imageUrls') && form.watch('imageUrls').length > 0 && (
-                            <div className="space-y-2">
-                                <FormLabel>Question Image Previews</FormLabel>
-                                <div className="flex flex-col gap-4">
-                                    {form.watch('imageUrls').map((url, index) => (
-                                        <div key={index} className="relative group">
-                                            <Image src={url} alt={`Question image ${index + 1}`} width={200} height={150} className="rounded-md object-cover border" />
-                                            <Button
-                                                type="button"
-                                                variant="destructive"
-                                                size="icon"
-                                                className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100"
-                                                onClick={() => {
-                                                    const currentUrls = form.getValues('imageUrls') || [];
-                                                    form.setValue('imageUrls', currentUrls.filter((_, i) => i !== index));
-                                                }}
-                                            >
-                                                <X className="h-4 w-4" />
-                                            </Button>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                           )}
-                          
-                           {form.watch('explanationImageUrls') && form.watch('explanationImageUrls').length > 0 && (
-                            <div className="space-y-2">
-                                <FormLabel>Explanation Image Previews</FormLabel>
-                                <div className="flex flex-col gap-4">
-                                    {form.watch('explanationImageUrls').map((url, index) => (
-                                        <div key={index} className="relative group">
-                                            <Image src={url} alt={`Explanation image ${index + 1}`} width={200} height={150} className="rounded-md object-cover border" />
-                                            <Button
-                                                type="button"
-                                                variant="destructive"
-                                                size="icon"
-                                                className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100"
-                                                onClick={() => {
-                                                    const currentUrls = form.getValues('explanationImageUrls') || [];
-                                                    form.setValue('explanationImageUrls', currentUrls.filter((_, i) => i !== index));
-                                                }}
-                                            >
-                                                <X className="h-4 w-4" />
-                                            </Button>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                           )}
+  const teacherViewProps = {
+    form,
+    onSubmit,
+    isLoading,
+    isSubmitting,
+    isTeacher,
+    questionPdfFile,
+    setQuestionPdfFile,
+    handleQuestionImageCropped,
+    questionPdfPage,
+    setQuestionPdfPage,
+    explanationPdfFile,
+    setExplanationPdfFile,
+    handleExplanationImageCropped,
+    explanationPdfPage,
+    setExplanationPdfPage,
+    questionTree,
+    topicMap,
+    classMap,
+    examTypeMap,
+    canViewPaidContent,
+    setEditingQuestion,
+    handleDeleteRequest,
+    classes,
+    subjects,
+    topics,
+    examTypes
+  };
 
-                          {questionType === 'MCQ' && (
-                              <div className="space-y-4">
-                                  <FormLabel>Options & Correct Answer</FormLabel>
-                                  <FormField control={form.control} name="correctAnswer" render={({ field }) => (
-                                      <FormItem className='space-y-0'><FormControl>
-                                          <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                          {fields.map((item, index) => (<FormField key={item.id} control={form.control} name={`options.${index}`} render={({ field: optionField }) => (<FormItem className="flex items-center gap-2 space-y-0 rounded-md border p-4 has-[:checked]:border-primary"><FormControl><RadioGroupItem value={optionField.value} disabled={!optionField.value} /></FormControl><Input {...optionField} placeholder={`Option ${index + 1}`} className="border-none p-0 h-auto focus-visible:ring-0 focus-visible:ring-offset-0" /><FormMessage className="col-span-2"/></FormItem>)} />))}
-                                          </RadioGroup>
-                                      </FormControl><FormMessage /></FormItem>
-                                  )} />
-                              </div>
-                          )}
-                          {questionType === 'Numerical' && (<FormField control={form.control} name="numericalAnswer" render={({ field }) => (<FormItem><FormLabel>Correct Numerical Answer</FormLabel><FormControl><Input type="number" placeholder="e.g., 42" {...field} onChange={event => field.onChange(+event.target.value)} /></FormControl><FormMessage /></FormItem>)} />)}
-                          
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <FormField control={form.control} name="examTypeId" render={({ field }) => (
-                              <FormItem><FormLabel>Exam Type</FormLabel>
-                                <Select onValueChange={(value) => {
-                                  field.onChange(value);
-                                }} value={field.value}>
-                                  <FormControl><SelectTrigger><SelectValue placeholder="Select an exam type" /></SelectTrigger></FormControl>
-                                  <SelectContent>{examTypes?.map(et => <SelectItem key={et.id} value={et.id}>{et.name}</SelectItem>)}</SelectContent>
-                                </Select>
-                                <FormMessage />
-                              </FormItem>
-                            )} />
-                            <FormField control={form.control} name="classId" render={({ field }) => (
-                              <FormItem><FormLabel>Class</FormLabel>
-                                <Select onValueChange={(value) => {
-                                  field.onChange(value);
-                                }} value={field.value} disabled={!selectedExamType}>
-                                  <FormControl><SelectTrigger><SelectValue placeholder="Select a class" /></SelectTrigger></FormControl>
-                                  <SelectContent>{filteredClasses?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-                                </Select>
-                                <FormMessage />
-                              </FormItem>
-                            )} />
-                            <FormField control={form.control} name="subjectId" render={({ field }) => (
-                              <FormItem><FormLabel>Subject</FormLabel>
-                                <Select onValueChange={(value) => {
-                                  field.onChange(value);
-                                }} value={field.value} disabled={!selectedClass}>
-                                  <FormControl><SelectTrigger><SelectValue placeholder="Select a subject" /></SelectTrigger></FormControl>
-                                  <SelectContent>{filteredSubjects.map(subject => <SelectItem key={subject.id} value={subject.id}>{subject.name}</SelectItem>)}</SelectContent>
-                                </Select>
-                                <FormMessage />
-                              </FormItem>
-                            )} />
-                            <FormField control={form.control} name="topicId" render={({ field }) => (
-                              <FormItem><FormLabel>Topic</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!selectedSubject}><FormControl><SelectTrigger><SelectValue placeholder="Select a topic" /></SelectTrigger></FormControl><SelectContent>{filteredTopics.map(topic => <SelectItem key={topic.id} value={topic.id}>{topic.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
-                            )} />
-                            <FormField control={form.control} name="difficultyLevel" render={({ field }) => (
-                              <FormItem><FormLabel>Difficulty</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select difficulty" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Easy">Easy</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Hard">Hard</SelectItem></SelectContent></Select><FormMessage /></FormItem>
-                            )} />
-                          </div>
-
-                          <Button type="submit" disabled={isSubmitting || isTeacherLoading}>{isSubmitting ? (<><LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> Adding...</>) : ('Add Question')}</Button>
-                      </form>
-                    </Form>
-                  )}
-                </CardContent>
-            </Card>
-        </div>
-        <Card className="shadow-lg">
-            <CardHeader>
-                <CardTitle className="font-headline text-2xl flex items-center gap-2">
-                    <ClipboardList className="w-6 h-6" /> All Practice Questions
-                </CardTitle>
-                <CardDescription>Browse the question bank. Click on a question to view the answer.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                {isLoading ? (
-                    <div className="space-y-4">
-                        <Skeleton className="h-20 w-full" />
-                        <Skeleton className="h-20 w-full" />
-                        <Skeleton className="h-20 w-full" />
-                    </div>
-                ) : questionTree && questionTree.length > 0 ? (
-                    <Accordion type="multiple" className="w-full space-y-2">
-                        {questionTree.map(et => (
-                            <AccordionItem value={et.id} key={et.id} className="border rounded-lg">
-                                <AccordionTrigger className="text-2xl font-semibold px-6">{et.name}</AccordionTrigger>
-                                <AccordionContent className="px-6 pb-2">
-                                    {et.classes.length > 0 ? (
-                                        <Accordion type="multiple" className="w-full space-y-2" defaultValue={et.classes.map(c => c.id)}>
-                                            {et.classes.map(c => (
-                                                <AccordionItem value={c.id} key={c.id} className="border rounded-lg">
-                                                    <AccordionTrigger className="text-xl font-medium px-4">{c.name}</AccordionTrigger>
-                                                    <AccordionContent className="px-4 pb-2">
-                                                        {c.subjects.length > 0 ? (
-                                                            <Accordion type="multiple" className="w-full space-y-2" defaultValue={c.subjects.map(s => s.id)}>
-                                                                {c.subjects.map(s => (
-                                                                    <AccordionItem value={s.id} key={s.id} className="border-l-2 pl-4 border-muted">
-                                                                        <AccordionTrigger className="text-lg font-medium">{s.name}</AccordionTrigger>
-                                                                        <AccordionContent className="pl-4 pt-2">
-                                                                            {s.topics.length > 0 ? (
-                                                                                <Accordion type="multiple" className="w-full space-y-1">
-                                                                                    {s.topics.map(t => (
-                                                                                        <AccordionItem value={t.id} key={t.id} className="border-none">
-                                                                                            <AccordionTrigger className="text-sm py-2">{t.name} ({t.questions.length} questions)</AccordionTrigger>
-                                                                                            <AccordionContent className="pl-4">
-                                                                                                <Accordion type="single" collapsible className="w-full space-y-2">
-                                                                                                    {t.questions.map(q => (
-                                                                                                        <QuestionItem key={q.id} question={q} topicMap={topicMap} classMap={classMap} examTypeMap={examTypeMap} isTeacher={!!isTeacher} canViewPaidContent={canViewPaidContent} onEdit={setEditingQuestion} onDelete={handleDeleteRequest} />
-                                                                                                    ))}
-                                                                                                </Accordion>
-                                                                                            </AccordionContent>
-                                                                                        </AccordionItem>
-                                                                                    ))}
-                                                                                </Accordion>
-                                                                            ) : <p className="text-center text-muted-foreground py-4">No topics with questions found for this subject.</p>}
-                                                                        </AccordionContent>
-                                                                    </AccordionItem>
-                                                                ))}
-                                                            </Accordion>
-                                                        ) : <p className="text-center text-muted-foreground py-4">No subjects with questions found for this class.</p>}
-                                                    </AccordionContent>
-                                                </AccordionItem>
-                                            ))}
-                                        </Accordion>
-                                    ) : <p className="text-center text-muted-foreground py-4">No classes with questions found for this exam type.</p>}
-                                </AccordionContent>
-                            </AccordionItem>
-                        ))}
-                    </Accordion>
-                ) : (
-                    <div className="text-center text-muted-foreground py-8 border-2 border-dashed rounded-lg">
-                        <p className='font-medium'>No practice questions available yet.</p>
-                        <p className='text-sm'>{isTeacher ? 'Create one above to get started!' : 'Please check back later.'}</p>
-                    </div>
-                )}
-            </CardContent>
-        </Card>
-    </main>
-  );
-
-  const StudentView = () => (
-      <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
-          <Tabs defaultValue="quiz" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="quiz">Practice Quiz</TabsTrigger>
-                <TabsTrigger value="bank">Question Bank</TabsTrigger>
-            </TabsList>
-            <TabsContent value="quiz">
-                <Card className="shadow-lg mt-4">
-                    <CardHeader>
-                        <CardTitle className="font-headline text-2xl">Start a New Practice Session</CardTitle>
-                        <CardDescription>Customize your practice session by selecting your desired filters.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        {isLoading ? <Skeleton className="h-48 w-full" /> : (
-                            <StartPracticeForm 
-                                curriculumTree={curriculumTree}
-                                isSubscribed={!!isSubscribed}
-                            />
-                        )}
-                    </CardContent>
-                </Card>
-            </TabsContent>
-            <TabsContent value="bank">
-                 <Card className="shadow-lg mt-4">
-                    <CardHeader>
-                        <CardTitle className="font-headline text-2xl flex items-center gap-2">
-                            <ClipboardList className="w-6 h-6" /> All Practice Questions
-                        </CardTitle>
-                        <CardDescription>Browse the question bank by curriculum. Click on a topic to start a practice session.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        {isLoading ? (
-                            <div className="space-y-4">
-                                <Skeleton className="h-20 w-full" />
-                                <Skeleton className="h-20 w-full" />
-                                <Skeleton className="h-20 w-full" />
-                            </div>
-                        ) : questionTree.length > 0 ? (
-                            <Accordion type="multiple" className="w-full space-y-2">
-                                {questionTree.map(et => (
-                                    <AccordionItem value={et.id} key={et.id} className="border rounded-lg">
-                                        <AccordionTrigger className="text-2xl font-semibold px-6">{et.name}</AccordionTrigger>
-                                        <AccordionContent className="px-6 pb-2">
-                                            {et.classes.length > 0 ? (
-                                                <Accordion type="multiple" className="w-full space-y-2" defaultValue={et.classes.map(c => c.id)}>
-                                                    {et.classes.map(c => (
-                                                        <AccordionItem value={c.id} key={c.id} className="border rounded-lg">
-                                                            <AccordionTrigger className="text-xl font-medium px-4">{c.name}</AccordionTrigger>
-                                                            <AccordionContent className="px-4 pb-2">
-                                                                {c.subjects.length > 0 ? (
-                                                                    <Accordion type="multiple" className="w-full space-y-2" defaultValue={c.subjects.map(s => s.id)}>
-                                                                        {c.subjects.map(s => (
-                                                                            <AccordionItem value={s.id} key={s.id} className="border-l-2 pl-4 border-muted">
-                                                                                <AccordionTrigger className="text-lg font-medium">{s.name}</AccordionTrigger>
-                                                                                <AccordionContent className="pl-4 pt-2">
-                                                                                    {s.topics.length > 0 ? (
-                                                                                        <Accordion type="multiple" className="w-full space-y-1">
-                                                                                            {s.topics.map(t => (
-                                                                                                <AccordionItem value={t.id} key={t.id} className="border-none">
-                                                                                                    <AccordionTrigger className="text-sm py-2">{t.name} ({t.questions.length} questions)</AccordionTrigger>
-                                                                                                    <AccordionContent className="pl-4">
-                                                                                                        <StartTopicPracticeForm topic={t} isSubscribed={!!isSubscribed} />
-                                                                                                    </AccordionContent>
-                                                                                                </AccordionItem>
-                                                                                            ))}
-                                                                                        </Accordion>
-                                                                                    ) : <p className="text-center text-muted-foreground py-4">No topics with questions found for this subject.</p>}
-                                                                                </AccordionContent>
-                                                                            </AccordionItem>
-                                                                        ))}
-                                                                    </Accordion>
-                                                                ) : <p className="text-center text-muted-foreground py-4">No subjects with questions found for this class.</p>}
-                                                            </AccordionContent>
-                                                        </AccordionItem>
-                                                    ))}
-                                                </Accordion>
-                                            ) : <p className="text-center text-muted-foreground py-4">No classes with questions found for this exam type.</p>}
-                                        </AccordionContent>
-                                    </AccordionItem>
-                                ))}
-                            </Accordion>
-                        ) : (
-                            <div className="text-center text-muted-foreground py-8 border-2 border-dashed rounded-lg">
-                                <p className='font-medium'>No practice questions available yet.</p>
-                                <p className='text-sm'>Please check back later.</p>
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
-            </TabsContent>
-          </Tabs>
-      </main>
-  );
+  const studentViewProps = {
+    isLoading,
+    curriculumTree,
+    isSubscribed: !!isSubscribed,
+    questionTree
+  };
 
   return (
     <div className="flex flex-col h-full">
       <DashboardHeader title="Practice Questions" />
-      {isTeacher ? <TeacherView /> : <StudentView />}
+      {isTeacher ? <TeacherView {...teacherViewProps} /> : <StudentView {...studentViewProps} />}
       <Dialog open={!!editingQuestion} onOpenChange={(isOpen) => !isOpen && setEditingQuestion(null)}>
         <DialogContent className="sm:max-w-4xl">
           <DialogHeader>

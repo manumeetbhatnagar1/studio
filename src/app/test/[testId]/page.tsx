@@ -38,7 +38,9 @@ type MockQuestion = {
   numericalAnswer?: number;
   subject: SubjectName;
   imageUrl?: string;
+  imageUrls?: string[];
   explanationImageUrl?: string;
+  explanationImageUrls?: string[];
 };
 
 type Answer = {
@@ -360,6 +362,17 @@ export default function MockTestPage() {
 
     const currentQuestion = questions[currentQuestionIndex];
 
+    const questionImages = useMemo(() => {
+        if (!currentQuestion) return [];
+        if (currentQuestion.imageUrls && Array.isArray(currentQuestion.imageUrls)) {
+            return currentQuestion.imageUrls;
+        }
+        if (currentQuestion.imageUrl && typeof currentQuestion.imageUrl === 'string') {
+            return [currentQuestion.imageUrl];
+        }
+        return [];
+    }, [currentQuestion]);
+
     const handleSelectQuestion = (index: number) => {
         const cq = questions[currentQuestionIndex];
         const currentStatus = getQuestionStatus(cq.id);
@@ -493,23 +506,34 @@ export default function MockTestPage() {
                                     }
                                     const attempted = ans && (ans.value !== '' && ans.value !== undefined);
 
+                                    const qImages = (q.imageUrls && Array.isArray(q.imageUrls)) ? q.imageUrls : (q.imageUrl ? [q.imageUrl] : []);
+                                    const explanationImages = (q.explanationImageUrls && Array.isArray(q.explanationImageUrls)) ? q.explanationImageUrls : (q.explanationImageUrl ? [q.explanationImageUrl] : []);
+
                                     return (
                                         <div key={q.id} className="flex items-start gap-3 p-3 border-b last:border-b-0">
                                             {attempted ? (isCorrect ? <Check className="h-5 w-5 text-green-500 mt-1 flex-shrink-0" /> : <XIcon className="h-5 w-5 text-red-500 mt-1 flex-shrink-0" />) : <div className="w-5 h-5 mt-1 flex-shrink-0" />}
                                             <div className="flex-1">
                                                 <p className="font-medium">Q{i+1}: {q.questionText}</p>
-                                                 {q.imageUrl && (
-                                                    <div className="my-2 p-2 border rounded-md bg-muted/50">
-                                                        <Image src={q.imageUrl} alt={`Question ${i + 1} image`} width={1000} height={750} className="rounded-md object-contain mx-auto" />
+                                                 {qImages.length > 0 && (
+                                                    <div className="my-2 space-y-2">
+                                                        {qImages.map((url, imgIndex) => (
+                                                             <div key={imgIndex} className="p-2 border rounded-md bg-muted/50">
+                                                                <Image src={url} alt={`Question ${i + 1} image ${imgIndex + 1}`} width={1000} height={750} className="rounded-md object-contain mx-auto" />
+                                                            </div>
+                                                        ))}
                                                     </div>
                                                 )}
                                                 <p className="text-sm">Your answer: <span className="font-semibold">{attempted ? ans.value : 'Not Answered'}</span></p>
                                                 {!isCorrect && attempted && <p className="text-sm">Correct answer: <span className="font-semibold text-green-600">{q.correctAnswer || q.numericalAnswer}</span></p>}
-                                                {q.explanationImageUrl && (
+                                                {explanationImages.length > 0 && (
                                                     <div className="my-2">
                                                         <p className="text-sm font-semibold text-muted-foreground">Explanation:</p>
-                                                        <div className="mt-1 p-2 border rounded-md bg-muted/50">
-                                                            <Image src={q.explanationImageUrl} alt={`Explanation for question ${i + 1}`} width={1000} height={750} className="rounded-md object-contain mx-auto" />
+                                                        <div className="mt-1 space-y-2">
+                                                            {explanationImages.map((url, imgIndex) => (
+                                                                <div key={imgIndex} className="p-2 border rounded-md bg-muted/50">
+                                                                    <Image src={url} alt={`Explanation for question ${i + 1} image ${imgIndex + 1}`} width={1000} height={750} className="rounded-md object-contain mx-auto" />
+                                                                </div>
+                                                            ))}
                                                         </div>
                                                     </div>
                                                 )}
@@ -543,9 +567,13 @@ export default function MockTestPage() {
                         </CardHeader>
                         <CardContent className="prose max-w-none">
                             <p>{currentQuestion.questionText}</p>
-                            {currentQuestion.imageUrl && (
-                                <div className="my-4 p-2 border rounded-md bg-muted/50">
-                                    <Image src={currentQuestion.imageUrl} alt={`Question image`} width={1000} height={750} className="rounded-md object-contain mx-auto" />
+                            {questionImages.length > 0 && (
+                                <div className="my-4 space-y-2">
+                                    {questionImages.map((url, index) => (
+                                        <div key={index} className="p-2 border rounded-md bg-muted/50">
+                                            <Image src={url} alt={`Question image ${index + 1}`} width={1000} height={750} className="rounded-md object-contain mx-auto" />
+                                        </div>
+                                    ))}
                                 </div>
                             )}
                         </CardContent>

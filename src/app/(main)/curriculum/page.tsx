@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useFirestore, useCollection, addDocumentNonBlocking, useMemoFirebase, updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
-import { useIsTeacher } from '@/hooks/useIsTeacher';
+import { useIsAdmin } from '@/hooks/useIsAdmin';
 import { collection, query, orderBy, doc, writeBatch, getDocs, where } from 'firebase/firestore';
 import DashboardHeader from '@/components/dashboard-header';
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -457,7 +457,7 @@ const EditForm: FC<{
 
 
 export default function CurriculumPage() {
-  const { isTeacher, isLoading: isTeacherLoading } = useIsTeacher();
+  const { isAdmin, isLoading: isAdminLoading } = useIsAdmin();
   const firestore = useFirestore();
   const { toast } = useToast();
   const [formKey, setFormKey] = useState(0);
@@ -505,7 +505,7 @@ export default function CurriculumPage() {
   }, [examTypes, classes, subjects, topics]);
 
 
-  const isLoading = isTeacherLoading || areExamTypesLoading || areClassesLoading || areSubjectsLoading || areTopicsLoading;
+  const isLoading = isAdminLoading || areExamTypesLoading || areClassesLoading || areSubjectsLoading || areTopicsLoading;
   const onFormSubmit = () => setFormKey(prev => prev + 1);
 
   const handleEdit = (type: 'examType' | 'class' | 'subject' | 'topic', data: any) => {
@@ -594,7 +594,7 @@ export default function CurriculumPage() {
     <div className="flex flex-col h-full">
       <DashboardHeader title="Curriculum Management" />
       <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 grid gap-8">
-        {isTeacher && (
+        {isAdmin && (
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
             <Card className="shadow-lg">
                 <CardHeader>
@@ -653,7 +653,7 @@ export default function CurriculumPage() {
                   <AccordionItem value={et.id} key={et.id} className="border rounded-lg">
                     <div className='flex items-center w-full'>
                       <AccordionTrigger className="text-2xl font-semibold px-6 flex-1 hover:no-underline">{et.name}</AccordionTrigger>
-                       {isTeacher && (
+                       {isAdmin && (
                           <div className="flex items-center gap-1 pr-4">
                               <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleEdit('examType', et); }}>
                                   <Edit2 className="h-4 w-4" />
@@ -671,7 +671,7 @@ export default function CurriculumPage() {
                                 <AccordionItem value={c.id} key={c.id} className="border rounded-lg">
                                     <div className='flex items-center w-full'>
                                     <AccordionTrigger className="text-xl font-semibold px-6 flex-1 hover:no-underline">{c.name}</AccordionTrigger>
-                                    {isTeacher && (
+                                    {isAdmin && (
                                         <div className="flex items-center gap-1 pr-4">
                                             <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleEdit('class', c); }}>
                                                 <Edit2 className="h-4 w-4" />
@@ -689,7 +689,7 @@ export default function CurriculumPage() {
                                                 <AccordionItem value={s.id} key={s.id} className="border-l-2 pl-4 border-muted">
                                                     <div className="flex items-center w-full">
                                                     <AccordionTrigger className="text-lg font-medium flex-1 hover:no-underline">{s.name}</AccordionTrigger>
-                                                    {isTeacher && (
+                                                    {isAdmin && (
                                                         <div className="flex items-center gap-1 pr-4">
                                                             <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleEdit('subject', s); }}>
                                                                 <Edit2 className="h-4 w-4" />
@@ -709,7 +709,7 @@ export default function CurriculumPage() {
                                                                     <p className="font-medium">{topic.name}</p>
                                                                     {topic.description && <p className="text-sm text-muted-foreground">{topic.description}</p>}
                                                                     </div>
-                                                                    {isTeacher && (
+                                                                    {isAdmin && (
                                                                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                                                             <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleEdit('topic', topic); }}>
                                                                                 <Edit2 className="h-4 w-4" />
@@ -752,7 +752,7 @@ export default function CurriculumPage() {
             ) : (
               <div className="text-center text-muted-foreground py-8 border-2 border-dashed rounded-lg">
                 <p className='font-medium'>No curriculum available yet.</p>
-                {isTeacher && <p className='text-sm'>Add an exam type above to get started!</p>}
+                {isAdmin && <p className='text-sm'>Add an exam type above to get started!</p>}
               </div>
             )}
           </CardContent>

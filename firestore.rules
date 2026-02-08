@@ -66,6 +66,14 @@ service cloud.firestore {
     function isTeacher() {
       return exists(/databases/$(database)/documents/roles_teacher/$(request.auth.uid));
     }
+
+    /**
+     * Checks if the authenticated user has an 'admin' role.
+     * This is determined by the existence of a document in the /roles_admin collection.
+     */
+    function isAdmin() {
+      return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+    }
     
     /**
      * Checks if the authenticated user has an active subscription.
@@ -168,6 +176,20 @@ service cloud.firestore {
     }
 
     /**
+     * @description A lookup collection to identify admins. Existence of a document
+     *              confers admin privileges. Only other admins can manage this.
+     * @path        /roles_admin/{userId}
+     * @allow       (read) Any signed-in user checking if another user is an admin.
+     * @allow       (write) Only admins can manage other admins.
+     * @principle   Protects a critical authorization lookup table from client modification.
+     */
+    match /roles_admin/{userId} {
+      allow get, list: if isSignedIn();
+      allow create, update: if isAdmin();
+      allow delete: if false; // prevent accidental deletion of all admins
+    }
+
+    /**
      * @description A lookup collection to identify teachers. Existence of a document
      *              confers teacher privileges. Read-only for clients.
      * @path        /roles_teacher/{userId}
@@ -190,28 +212,28 @@ service cloud.firestore {
     
     /**
      * @description Exam Type definitions (e.g., IIT-JEE). Readable by anyone signed in,
-     *              but only manageable by teachers.
+     *              but only manageable by admins.
      * @path        /exam_types/{examTypeId}
      * @allow       (get, list) Any signed-in user.
-     * @deny        (create) A student trying to create a new exam type.
+     * @deny        (create) A non-admin trying to create a new exam type.
      * @principle   Role-restricted writes with public reads.
      */
     match /exam_types/{examTypeId} {
       allow get, list: if isSignedIn();
-      allow create, update, delete: if isTeacher();
+      allow create, update, delete: if isAdmin();
     }
     
     /**
      * @description Class definitions (e.g., Class 11). Readable by anyone signed in,
-     *              but only manageable by teachers.
+     *              but only manageable by admins.
      * @path        /classes/{classId}
      * @allow       (get, list) Any signed-in user.
-     * @deny        (create) A student trying to create a new class.
+     * @deny        (create) A non-admin trying to create a new class.
      * @principle   Role-restricted writes with public reads.
      */
     match /classes/{classId} {
       allow get, list: if isSignedIn();
-      allow create, update, delete: if isTeacher();
+      allow create, update, delete: if isAdmin();
     }
 
     /**
@@ -228,26 +250,26 @@ service cloud.firestore {
     }
 
     /**
-     * @description Curriculum topics. Readable by anyone signed in, but only manageable by teachers.
+     * @description Curriculum topics. Readable by anyone signed in, but only manageable by admins.
      * @path        /topics/{topicId}
      * @allow       (list) Any signed-in user listing available topics.
-     * @deny        (update) A student trying to rename a topic.
+     * @deny        (update) A non-admin trying to rename a topic.
      * @principle   Public read access with role-restricted writes.
      */
     match /topics/{topicId} {
       allow get, list: if isSignedIn();
-      allow create, update, delete: if isTeacher();
+      allow create, update, delete: if isAdmin();
     }
     
     /**
      * @description Subject definitions. Readable by anyone signed in.
      * @path        /subjects/{subjectId}
      * @allow       (list) Any signed-in user listing available subjects.
-     * @principle   Public read access.
+     * @principle   Public read access with role-restricted writes.
      */
     match /subjects/{subjectId} {
         allow get, list: if isSignedIn();
-        allow create, update, delete: if isTeacher();
+        allow create, update, delete: if isAdmin();
     }
 
     /**

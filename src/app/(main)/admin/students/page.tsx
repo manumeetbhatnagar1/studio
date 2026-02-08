@@ -3,7 +3,7 @@
 import { useIsAdmin } from '@/hooks/useIsAdmin';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, doc, writeBatch } from 'firebase/firestore';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import DashboardHeader from '@/components/dashboard-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -16,6 +16,7 @@ import { User, Shield, AlertTriangle, Trash2, LoaderCircle } from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
+import { Input } from '@/components/ui/input';
 
 type UserProfile = {
     id: string;
@@ -134,6 +135,7 @@ export default function UserManagementPage() {
     const { toast } = useToast();
     const [userToDelete, setUserToDelete] = useState<UserProfile | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
 
     const usersQuery = useMemoFirebase(
         () => firestore ? query(collection(firestore, 'users'), orderBy('lastName')) : null,
@@ -141,6 +143,14 @@ export default function UserManagementPage() {
     );
 
     const { data: users, isLoading: areUsersLoading } = useCollection<UserProfile>(usersQuery);
+
+    const filteredUsers = useMemo(() => {
+        if (!users) return [];
+        return users.filter(user => 
+            user.email.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+    }, [users, searchQuery]);
+
 
     const handleDeleteUser = async () => {
         if (!userToDelete) return;
@@ -208,6 +218,14 @@ export default function UserManagementPage() {
                     <CardHeader>
                         <CardTitle>All Users</CardTitle>
                         <CardDescription>View and manage roles for all users in the system.</CardDescription>
+                        <div className="pt-4">
+                            <Input
+                                placeholder="Search by email..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="max-w-sm"
+                            />
+                        </div>
                     </CardHeader>
                     <CardContent>
                         <Table>
@@ -231,8 +249,8 @@ export default function UserManagementPage() {
                                             <TableCell className="text-right"><Skeleton className="h-10 w-32 ml-auto" /></TableCell>
                                         </TableRow>
                                     ))
-                                ) : users && users.length > 0 ? (
-                                    users.map(user => {
+                                ) : filteredUsers && filteredUsers.length > 0 ? (
+                                    filteredUsers.map(user => {
                                         const isPendingTeacher = user.roleId === 'teacher' && user.teacherStatus === 'pending';
                                         return (
                                             <TableRow key={user.id}>

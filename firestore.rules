@@ -97,7 +97,7 @@ service cloud.firestore {
     match /users/{userId} {
       allow get: if isOwner(userId) || isTeacher() || isAdmin();
       allow list: if isSignedIn();
-      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      allow create: if isOwner(userId) && request.resource.data.id == userId && !exists(/databases/$(database)/documents/blocked_emails/$(request.resource.data.email));
       // Admins can manage roles and subscriptions. Teachers can manage subscriptions. Users can update their own profile.
       // The special admin email can update their own role for bootstrapping.
       allow update: if (isOwner(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['firstName', 'lastName', 'photoURL'])) ||
@@ -180,6 +180,15 @@ service cloud.firestore {
       allow create: if isOwner(userId) || isAdmin();
       allow update: if false;
       allow delete: if isAdmin();
+    }
+    
+    /**
+     * @description Stores emails of users who are blocked from creating new accounts.
+     *              Only manageable by admins.
+     * @path        /blocked_emails/{email}
+     */
+    match /blocked_emails/{email} {
+      allow read, write: if isAdmin();
     }
 
     // --------------------------------------------------------------------

@@ -12,8 +12,10 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
-import { User, Shield, AlertTriangle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { User, Shield, AlertTriangle, Trash2, LoaderCircle } from 'lucide-react';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { cn } from '@/lib/utils';
 
 type UserProfile = {
     id: string;
@@ -129,6 +131,9 @@ const RoleSelector = ({ user }: { user: UserProfile }) => {
 export default function UserManagementPage() {
     const { isAdmin, isLoading: isAdminLoading } = useIsAdmin();
     const firestore = useFirestore();
+    const { toast } = useToast();
+    const [userToDelete, setUserToDelete] = useState<UserProfile | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     const usersQuery = useMemoFirebase(
         () => firestore ? query(collection(firestore, 'users'), orderBy('lastName')) : null,
@@ -136,6 +141,40 @@ export default function UserManagementPage() {
     );
 
     const { data: users, isLoading: areUsersLoading } = useCollection<UserProfile>(usersQuery);
+
+    const handleDeleteUser = async () => {
+        if (!userToDelete) return;
+    
+        setIsDeleting(true);
+        try {
+            const batch = writeBatch(firestore);
+            
+            const blockedEmailRef = doc(firestore, "blocked_emails", userToDelete.email);
+            batch.set(blockedEmailRef, { blockedAt: new Date().toISOString() });
+    
+            const userRef = doc(firestore, 'users', userToDelete.id);
+            batch.delete(userRef);
+    
+            const teacherRoleRef = doc(firestore, 'roles_teacher', userToDelete.id);
+            batch.delete(teacherRoleRef);
+            
+            const adminRoleRef = doc(firestore, 'roles_admin', userToDelete.id);
+            batch.delete(adminRoleRef);
+            
+            await batch.commit();
+            
+            toast({
+                title: 'User Deleted',
+                description: `${userToDelete.firstName} ${userToDelete.lastName} has been deleted and blocked.`,
+            });
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Deletion Failed', description: error.message });
+        } finally {
+            setIsDeleting(false);
+            setUserToDelete(null);
+        }
+    };
+
 
     if (isAdminLoading) {
         return <div className="p-8"><Skeleton className="h-48 w-full" /></div>
@@ -226,11 +265,16 @@ export default function UserManagementPage() {
                                                     )}
                                                 </TableCell>
                                                 <TableCell className="text-right">
-                                                    {isPendingTeacher ? (
-                                                        <TeacherApprovalActions user={user} />
-                                                    ) : (
-                                                        <RoleSelector user={user} />
-                                                    )}
+                                                    <div className="flex justify-end items-center gap-2">
+                                                        {isPendingTeacher ? (
+                                                            <TeacherApprovalActions user={user} />
+                                                        ) : (
+                                                            <RoleSelector user={user} />
+                                                        )}
+                                                        <Button variant="ghost" size="icon" onClick={() => setUserToDelete(user)}>
+                                                            <Trash2 className="h-4 w-4 text-destructive" />
+                                                        </Button>
+                                                    </div>
                                                 </TableCell>
                                             </TableRow>
                                         );
@@ -245,6 +289,25 @@ export default function UserManagementPage() {
                     </CardContent>
                 </Card>
             </main>
+            <AlertDialog open={!!userToDelete} onOpenChange={() => setUserToDelete(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This will permanently delete {userToDelete?.firstName} {userToDelete?.lastName}'s data from the app and block them from registering again with the same email. This action cannot be undone.
+                            <br/><br/>
+                            <span className="font-semibold text-destructive">Note:</span> This does not delete their authentication record. Sub-collection data like test results will be orphaned but inaccessible.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDeleteUser} disabled={isDeleting} className={cn(buttonVariants({ variant: 'destructive' }))}>
+                            {isDeleting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+                            Delete User
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }

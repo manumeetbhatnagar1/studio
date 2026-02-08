@@ -938,6 +938,20 @@
         "createdAt",
         "examTypeId"
       ]
+    },
+    "BlockedEmail": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "BlockedEmail",
+      "type": "object",
+      "description": "Represents an email address that is blocked from registering a new account.",
+      "properties": {
+        "blockedAt": {
+          "type": "string",
+          "description": "The timestamp when the email was blocked.",
+          "format": "date-time"
+        }
+      },
+      "required": ["blockedAt"]
     }
   },
   "auth": {
@@ -1308,6 +1322,22 @@
             {
               "name": "linkId",
               "description": "The unique ID for the dashboard link."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/blocked_emails/{email}",
+        "definition": {
+          "entityName": "BlockedEmail",
+          "schema": {
+            "$ref": "#/backend/entities/BlockedEmail"
+          },
+          "description": "Stores email addresses that are blocked from creating new user accounts. The document ID is the email address itself for efficient lookups.",
+          "params": [
+            {
+              "name": "email",
+              "description": "The email address to block."
             }
           ]
         }

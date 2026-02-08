@@ -31,6 +31,15 @@
           "type": "string",
           "description": "Reference to Role. (Relationship: Role 1:N User)"
         },
+        "teacherStatus": {
+          "type": "string",
+          "description": "The approval status of a teacher account.",
+          "enum": [
+            "pending",
+            "approved",
+            "rejected"
+          ]
+        },
         "classLevel": {
           "type": "string",
           "description": "The class level of the student, if applicable.",

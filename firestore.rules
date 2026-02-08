@@ -102,7 +102,7 @@ service cloud.firestore {
       // The special admin email can update their own role for bootstrapping.
       allow update: if (isOwner(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['firstName', 'lastName', 'photoURL'])) ||
                        (isTeacher() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['subscriptionStatus', 'subscriptionPlanId'])) ||
-                       (isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['roleId', 'subscriptionStatus', 'subscriptionPlanId'])) ||
+                       (isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['roleId', 'subscriptionStatus', 'subscriptionPlanId', 'teacherStatus'])) ||
                        (isOwner(userId) && request.auth.token.email == 'dcamclassesiit@gmail.com' && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['roleId']));
       allow delete: if isExistingOwner(userId) || isAdmin();
       

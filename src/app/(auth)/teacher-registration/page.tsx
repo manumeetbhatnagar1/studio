@@ -67,26 +67,25 @@ export default function TeacherRegistrationPage() {
         lastName: values.lastName,
         email: values.email,
         roleId: 'teacher',
+        teacherStatus: 'pending',
       };
       batch.set(userRef, userData);
       
-      const teacherRoleRef = doc(firestore, 'roles_teacher', user.uid);
-      batch.set(teacherRoleRef, { createdAt: new Date().toISOString() });
-
       // Check if the registering user is the designated admin
       if (values.email.toLowerCase() === 'dcamclassesiit@gmail.com') {
           const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
+          const teacherRoleRef = doc(firestore, 'roles_teacher', user.uid);
           batch.set(adminRoleRef, { createdAt: new Date().toISOString() });
-          
-          // Also update the user's roleId to 'admin'
-          batch.update(userRef, { roleId: 'admin' });
+          batch.set(teacherRoleRef, { createdAt: new Date().toISOString() });
+          // Also update the user's roleId to 'admin' and status to 'approved'
+          batch.update(userRef, { roleId: 'admin', teacherStatus: 'approved' });
       }
 
       await batch.commit();
       
       toast({
-        title: 'Registration Successful',
-        description: 'Your teacher account has been created.',
+        title: 'Registration Submitted',
+        description: 'Your teacher account is pending approval from an administrator.',
       });
       router.push('/dashboard');
     } catch (error: any) {
@@ -100,7 +99,7 @@ export default function TeacherRegistrationPage() {
                 const teacherRoleRef = doc(firestore, 'roles_teacher', user.uid);
                 const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
 
-                batch.update(userRef, { roleId: 'admin' });
+                batch.update(userRef, { roleId: 'admin', teacherStatus: 'approved' });
                 batch.set(teacherRoleRef, { createdAt: new Date().toISOString() });
                 batch.set(adminRoleRef, { createdAt: new Date().toISOString() });
                 

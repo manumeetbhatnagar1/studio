@@ -305,11 +305,9 @@ service cloud.firestore {
 
       allow update: if resource != null
                     && isOwner(resource.data.teacherId)
-                    && request.resource.data.teacherId == resource.data.teacherId
-                    && request.resource.data.examTypeId == resource.data.examTypeId
-                    && request.resource.data.classId == resource.data.classId
-                    && request.resource.data.subjectId == resource.data.subjectId
-                    && request.resource.data.topicId == resource.data.topicId;
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                      'title', 'startTime', 'duration', 'meetingUrl', 'accessLevel', 'recordingUrl'
+                    ]);
 
       allow delete: if resource != null && isOwner(resource.data.teacherId);
     }

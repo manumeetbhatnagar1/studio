@@ -628,16 +628,22 @@ export default function MockTestPage() {
                 </div>
                 <AlertDialog open={isSubmitDialogOpen} onOpenChange={setIsSubmitDialogOpen}>
                     <AlertDialogContent>
-                        <AlertDialogHeader><AlertDialogTitle>Are you sure you want to submit?</AlertDialogTitle>
-                        <AlertDialogDescription>You will not be able to change your answers after submitting. Here is a summary:
-                            <div className="grid grid-cols-2 gap-2 mt-4 text-sm">
-                                <p><span className="font-semibold">Answered:</span> {summary.answered + summary.answeredAndMarked}</p>
-                                <p><span className="font-semibold">Not Answered:</span> {summary.notAnswered}</p>
-                                <p><span className="font-semibold">Marked for Review:</span> {summary.markedForReview + summary.answeredAndMarked}</p>
-                                <p><span className="font-semibold">Not Visited:</span> {summary.notVisited}</p>
-                            </div>
-                        </AlertDialogDescription></AlertDialogHeader>
-                        <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleSubmitTest}>Submit</AlertDialogAction></AlertDialogFooter>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Are you sure you want to submit?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                You will not be able to change your answers after submitting. Here is a summary:
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground">
+                            <div><span className="font-semibold text-foreground">Answered:</span> {summary.answered + summary.answeredAndMarked}</div>
+                            <div><span className="font-semibold text-foreground">Not Answered:</span> {summary.notAnswered}</div>
+                            <div><span className="font-semibold text-foreground">Marked for Review:</span> {summary.markedForReview + summary.answeredAndMarked}</div>
+                            <div><span className="font-semibold text-foreground">Not Visited:</span> {summary.notVisited}</div>
+                        </div>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleSubmitTest}>Submit</AlertDialogAction>
+                        </AlertDialogFooter>
                     </AlertDialogContent>
                 </AlertDialog>
             </div>

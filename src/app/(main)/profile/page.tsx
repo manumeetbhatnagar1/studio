@@ -15,7 +15,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase, updateDocumentNonBlocking } from '@/firebase';
-import { updateProfile } from 'firebase/auth';
+import { updateProfile, updateEmail } from 'firebase/auth';
 import { doc } from 'firebase/firestore';
 import { useState, useEffect } from 'react';
 import { LoaderCircle, User as UserIcon } from 'lucide-react';
@@ -27,7 +27,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 const profileFormSchema = z.object({
   firstName: z.string().min(1, 'First name is required'),
   lastName: z.string().min(1, 'Last name is required'),
-  email: z.string().email().optional(), // email is not editable
+  email: z.string().email(),
   phoneNumber: z.string().min(10, 'A valid phone number is required'),
 });
 
@@ -69,11 +69,14 @@ export default function ProfilePage() {
   });
 
   useEffect(() => {
+    if (user) {
+        form.setValue('email', user.email || '');
+    }
     if (userProfile) {
       form.reset({
+        ...form.getValues(),
         firstName: userProfile.firstName,
         lastName: userProfile.lastName,
-        email: user?.email || '',
         phoneNumber: userProfile.phoneNumber,
       });
       if (userProfile.photoURL) {
@@ -113,12 +116,17 @@ export default function ProfilePage() {
           displayName: `${values.firstName} ${values.lastName}`,
           photoURL: newPhotoURL
         });
+        
+        if (values.email && values.email !== auth.currentUser.email) {
+            await updateEmail(auth.currentUser, values.email);
+        }
       }
 
       // Update Firestore document
       const updatedData = {
         firstName: values.firstName,
         lastName: values.lastName,
+        email: values.email,
         phoneNumber: values.phoneNumber,
         photoURL: newPhotoURL || ''
       };
@@ -130,11 +138,19 @@ export default function ProfilePage() {
       });
       setImageFile(null);
     } catch (error: any) {
-      toast({
-          variant: 'destructive',
-          title: 'Update Failed',
-          description: error.message,
-      });
+        if (error.code === 'auth/requires-recent-login') {
+            toast({
+                variant: 'destructive',
+                title: 'Please Sign In Again',
+                description: 'To change your email address, please sign out and sign back in for security reasons.',
+            });
+        } else {
+            toast({
+                variant: 'destructive',
+                title: 'Update Failed',
+                description: error.message,
+            });
+        }
     } finally {
       setIsLoading(false);
     }
@@ -243,7 +259,7 @@ export default function ProfilePage() {
                                     <FormItem>
                                     <FormLabel>Email</FormLabel>
                                     <FormControl>
-                                        <Input placeholder="user@example.com" {...field} disabled />
+                                        <Input placeholder="user@example.com" {...field} />
                                     </FormControl>
                                     <FormMessage />
                                     </FormItem>

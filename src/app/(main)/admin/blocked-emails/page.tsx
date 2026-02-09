@@ -71,6 +71,17 @@ export default function BlockedEmailsPage() {
     const handleConfirmDelete = async () => {
         if (!emailToDelete || !firestore) return;
 
+        if (!emailToDelete.userId) {
+            toast({
+                variant: 'destructive',
+                title: 'Deletion Failed',
+                description: 'User ID is missing from the block record. Cannot delete.',
+            });
+            console.error("Attempted to delete user but userId was missing from:", emailToDelete);
+            setEmailToDelete(null);
+            return;
+        }
+
         try {
             const batch = writeBatch(firestore);
 
@@ -88,9 +99,9 @@ export default function BlockedEmailsPage() {
                 title: 'User Permanently Deleted',
                 description: `All data for ${emailToDelete.id} has been permanently removed.`,
             });
-        } catch (error) {
+        } catch (error: any) {
             console.error("Permanent delete failed:", error);
-            const description = error instanceof Error ? error.message : "An unknown error occurred.";
+            const description = error instanceof Error ? error.message : "An unknown error occurred while deleting the user.";
             toast({
                 variant: "destructive",
                 title: "Deletion Failed",

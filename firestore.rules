@@ -99,12 +99,12 @@ service cloud.firestore {
       allow list: if isSignedIn();
       allow create: if isOwner(userId) && request.resource.data.id == userId && !exists(/databases/$(database)/documents/blocked_emails/$(request.resource.data.email));
       allow update: if
-          // An admin can update any part of a user's profile.
+          // Admins can update any part of a user's profile.
           isAdmin() ||
-          // A teacher can only update a user's subscription status.
-          (isTeacher() && request.resource.data.diff(resource.data).affectedKeys().subset(['subscriptionStatus', 'subscriptionPlanId']).size() > 0) ||
-          // A user can update their own profile, but cannot change their role or teacher status.
-          (isOwner(userId) && request.resource.data.roleId == resource.data.roleId && request.resource.data.teacherStatus == resource.data.teacherStatus);
+          // Teachers can ONLY update a user's subscription status.
+          (isTeacher() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['subscriptionStatus', 'subscriptionPlanId'])) ||
+          // Users can update their own profile, but cannot change their role or teacher status.
+          (isOwner(userId) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['roleId', 'teacherStatus']));
       allow delete: if isExistingOwner(userId) || isAdmin();
       
        /**
@@ -364,3 +364,5 @@ service cloud.firestore {
     }
   }
 }
+
+    

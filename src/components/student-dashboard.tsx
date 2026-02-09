@@ -3,33 +3,29 @@
 import { useMemo } from 'react';
 import Link from 'next/link';
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
-import { doc, collection, query, orderBy, where, limit, getDoc } from 'firebase/firestore';
+import { doc, collection, query, orderBy } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { AlertTriangle, CreditCard, PlayCircle, CalendarClock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle, CreditCard, PlayCircle, CalendarClock, Video, ClipboardCheck, MessageSquare, ClipboardList } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from 'recharts';
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 
-
-// Types
-type UserProfile = {
-  subscriptionStatus?: 'active' | 'canceled' | 'past_due' | 'trialing';
-};
-
+// TYPES
 type LiveClass = {
   id: string;
   title: string;
   startTime: { toDate: () => Date };
   recordingUrl?: string;
   teacherName: string;
-  meetingUrl: string;
 };
 
-type Doubt = {
-    studentId: string;
-}
+type UserProfile = {
+  subscriptionStatus?: 'active' | 'canceled' | 'past_due' | 'trialing';
+};
+
+// COMPONENTS
 
 // 1. Fee Payment Reminder
 function FeePaymentReminder() {
@@ -73,94 +69,8 @@ function FeePaymentReminder() {
     return null;
 }
 
-// 2. Progress Overview Component
-function ProgressOverview() {
-    const { user } = useUser();
-    const firestore = useFirestore();
 
-    // Live Classes Attended
-    const liveClassesQuery = useMemoFirebase(() => {
-        if (!firestore) return null;
-        return query(collection(firestore, 'live_classes'), where('startTime', '<', new Date()));
-    }, [firestore]);
-    const { data: pastLiveClasses, isLoading: areLiveClassesLoading } = useCollection<LiveClass>(liveClassesQuery);
-
-    // Mock Tests Completed
-    const testsQuery = useMemoFirebase(() => {
-        if (!user) return null;
-        return query(collection(firestore, 'users', user.uid, 'test_results'));
-    }, [user, firestore]);
-    const { data: testResults, isLoading: areTestsLoading } = useCollection(testsQuery);
-
-    // Doubts Asked
-    const doubtsQuery = useMemoFirebase(() => {
-        if (!user) return null;
-        return query(collection(firestore, 'doubts'), where('studentId', '==', user.uid));
-    }, [user, firestore]);
-    const { data: doubts, isLoading: areDoubtsLoading } = useCollection<Doubt>(doubtsQuery);
-    
-    // Practice Questions Completed
-    const practiceResultsQuery = useMemoFirebase(() => {
-        if (!user) return null;
-        return query(collection(firestore, 'users', user.uid, 'practice_results'));
-    }, [user, firestore]);
-    const { data: practiceResults, isLoading: arePracticeResultsLoading } = useCollection<{totalQuestions: number}>(practiceResultsQuery);
-
-    const practiceQuestionsCompleted = useMemo(() => {
-        if (!practiceResults) return 0;
-        return practiceResults.reduce((sum, result) => sum + (result.totalQuestions || 0), 0);
-    }, [practiceResults]);
-
-    const isLoading = areLiveClassesLoading || areTestsLoading || areDoubtsLoading || arePracticeResultsLoading;
-    
-    const overviewItems = [
-        {
-            title: "Live Classes Attended",
-            value: pastLiveClasses?.length || 0,
-            icon: Video,
-            href: "/live-classes"
-        },
-        {
-            title: "Mock Tests Completed",
-            value: testResults?.length || 0,
-            icon: ClipboardCheck,
-            href: "/mock-tests"
-        },
-        {
-            title: "Practice Questions",
-            value: practiceQuestionsCompleted,
-            icon: ClipboardList,
-            href: "/practice"
-        },
-        {
-            title: "Doubts Asked",
-            value: doubts?.length || 0,
-            icon: MessageSquare,
-            href: "/doubts"
-        }
-    ];
-
-    return (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {overviewItems.map(item => (
-                <Link href={item.href} key={item.title} className="group">
-                    <Card className="h-full transition-all duration-200 hover:border-primary hover:shadow-lg">
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">{item.title}</CardTitle>
-                            <item.icon className="h-4 w-4 text-muted-foreground" />
-                        </CardHeader>
-                        <CardContent>
-                            {isLoading ? <Skeleton className="h-8 w-12" /> : <div className="text-2xl font-bold">{item.value}</div>}
-                        </CardContent>
-                    </Card>
-                </Link>
-            ))}
-        </div>
-    );
-}
-
-
-// 3. Class Activity Chart
+// 2. Class Activity Chart
 function ClassActivityChart({ classes, isLoading }: { classes: LiveClass[], isLoading: boolean }) {
     const chartData = useMemo(() => {
         if (!classes) return [];
@@ -222,7 +132,7 @@ function ClassActivityChart({ classes, isLoading }: { classes: LiveClass[], isLo
     )
 }
 
-// 4. Upcoming Classes
+// 3. Upcoming Classes
 function UpcomingClasses({ classes, isLoading }: { classes: LiveClass[], isLoading: boolean }) {
     if (isLoading) {
         return (
@@ -257,11 +167,8 @@ function UpcomingClasses({ classes, isLoading }: { classes: LiveClass[], isLoadi
                             <p className="font-semibold">{c.title}</p>
                             <p className="text-sm text-muted-foreground">{format(c.startTime.toDate(), "EEE, MMM d 'at' h:mm a")}</p>
                         </div>
-                        <Button asChild size="sm">
-                            <Link href={c.meetingUrl} target="_blank">
-                                <Video className="mr-2 h-4 w-4" />
-                                Join
-                            </Link>
+                        <Button asChild variant="ghost" size="sm">
+                            <Link href="/live-classes"><CalendarClock className="h-4 w-4" /></Link>
                         </Button>
                     </div>
                 ))}
@@ -270,7 +177,7 @@ function UpcomingClasses({ classes, isLoading }: { classes: LiveClass[], isLoadi
     );
 }
 
-// 5. Recent Recordings
+// 4. Recent Recordings
 function RecentRecordings({ classes, isLoading }: { classes: LiveClass[], isLoading: boolean }) {
     const recordings = useMemo(() => {
         return classes.filter(c => c.recordingUrl).slice(0, 5);
@@ -321,9 +228,9 @@ function RecentRecordings({ classes, isLoading }: { classes: LiveClass[], isLoad
     )
 }
 
-// Main Student Dashboard Component
+// Main Dashboard Widget component
 export default function StudentDashboard() {
-  const firestore = useFirestore();
+    const firestore = useFirestore();
 
     const liveClassesQuery = useMemoFirebase(
         () => firestore ? query(collection(firestore, 'live_classes'), orderBy('startTime', 'desc')) : null,
@@ -339,15 +246,30 @@ export default function StudentDashboard() {
         return { upcomingClasses: upcoming, pastClasses: past };
     }, [liveClasses]);
 
-  return (
-    <div className="space-y-6">
-        <FeePaymentReminder />
-        <ProgressOverview />
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <ClassActivityChart classes={pastClasses} isLoading={isLoading} />
-            <UpcomingClasses classes={upcomingClasses} isLoading={isLoading} />
+    const totalCompleted = pastClasses.length;
+    const totalRemaining = liveClasses ? liveClasses.length - totalCompleted : 0;
+
+    return (
+        <div className="space-y-6">
+            <FeePaymentReminder />
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <Card>
+                    <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Classes Completed</CardTitle></CardHeader>
+                    <CardContent><div className="text-2xl font-bold">{isLoading ? <Skeleton className="h-8 w-16" /> : totalCompleted}</div></CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Classes Remaining</CardTitle></CardHeader>
+                    <CardContent><div className="text-2xl font-bold">{isLoading ? <Skeleton className="h-8 w-16" /> : totalRemaining}</div></CardContent>
+                </Card>
+            </div>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <ClassActivityChart classes={pastClasses} isLoading={isLoading} />
+                <UpcomingClasses classes={upcomingClasses} isLoading={isLoading} />
+            </div>
+
+            <RecentRecordings classes={pastClasses} isLoading={isLoading} />
         </div>
-        <RecentRecordings classes={pastClasses} isLoading={isLoading} />
-    </div>
-  );
+    );
 }

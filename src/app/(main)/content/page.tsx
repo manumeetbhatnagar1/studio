@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect, FC } from 'react';
@@ -124,7 +125,7 @@ function ContentForm({ examTypes, classes, subjects, topics, onFormFinished, con
 
   const form = useForm<z.infer<typeof contentSchema>>({
     resolver: zodResolver(contentSchema),
-    defaultValues: isEditMode ? {} : {
+    defaultValues: {
       title: '',
       description: '',
       type: 'video',

@@ -47,15 +47,24 @@ export default function LoginPage() {
   const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
 
   useEffect(() => {
-    if (!(window as any).recaptchaVerifier) {
+    if (auth && !(window as any).recaptchaVerifier) {
       const recaptchaContainer = document.getElementById('recaptcha-container');
       if (recaptchaContainer) {
-        (window as any).recaptchaVerifier = new RecaptchaVerifier(auth, recaptchaContainer, {
+        const verifier = new RecaptchaVerifier(auth, recaptchaContainer, {
           'size': 'invisible',
+        });
+        (window as any).recaptchaVerifier = verifier;
+        verifier.render().catch((error) => {
+            console.error("reCAPTCHA render error:", error);
+            toast({
+                variant: 'destructive',
+                title: "Could not initialize login security",
+                description: "Please refresh the page and try again."
+            })
         });
       }
     }
-  }, [auth]);
+  }, [auth, toast]);
 
   const emailForm = useForm<z.infer<typeof emailFormSchema>>({
     resolver: zodResolver(emailFormSchema),
@@ -111,7 +120,7 @@ export default function LoginPage() {
                 description: `A verification code has been sent to ${phoneNumber}.`
             });
         } else {
-            throw new Error("reCAPTCHA verifier not initialized.");
+            throw new Error("reCAPTCHA verifier not initialized. Please refresh the page.");
         }
     } catch (error: any) {
         toast({

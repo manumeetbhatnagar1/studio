@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useMemo, useEffect, FC } from 'react';
@@ -7,8 +8,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import DashboardHeader from '@/components/dashboard-header';
-import { useFirestore, useCollection, addDocumentNonBlocking, useMemoFirebase, updateDocumentNonBlocking, doc } from '@/firebase';
-import { collection, query, orderBy } from 'firebase/firestore';
+import { useFirestore, useCollection, addDocumentNonBlocking, useMemoFirebase, updateDocumentNonBlocking } from '@/firebase';
+import { collection, query, orderBy, doc } from 'firebase/firestore';
 import { useIsTeacher } from '@/hooks/useIsTeacher';
 import { useIsAdmin } from '@/hooks/useIsAdmin';
 import { useIsSubscribed } from '@/hooks/useIsSubscribed';
@@ -125,7 +126,11 @@ function ContentForm({ examTypes, classes, subjects, topics, onFormFinished, con
 
   const form = useForm<z.infer<typeof contentSchema>>({
     resolver: zodResolver(contentSchema),
-    defaultValues: {
+    defaultValues: contentToEdit ? {
+        ...contentToEdit,
+        videoUrl: contentToEdit.videoUrl || '',
+        fileUrl: contentToEdit.fileUrl || '',
+      } : {
       title: '',
       description: '',
       type: 'video',
@@ -487,7 +492,7 @@ export default function ContentPage() {
               classes={classes || []}
               subjects={subjects || []}
               topics={topics || []}
-              onFormFinished={() => setEditingContent(null)}
+              onFinished={() => setEditingContent(null)}
             />
           )}
         </DialogContent>

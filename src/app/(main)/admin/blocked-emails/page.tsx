@@ -88,9 +88,14 @@ export default function BlockedEmailsPage() {
                 title: 'User Permanently Deleted',
                 description: `All data for ${emailToDelete.id} has been permanently removed.`,
             });
-        } catch (error: any) {
-            const errorMessage = error && typeof error === 'object' && 'message' in error ? String(error.message) : 'An unknown error occurred.';
-            toast({ variant: 'destructive', title: 'Deletion Failed', description: errorMessage });
+        } catch (error) {
+            console.error("Permanent delete failed:", error);
+            const description = error instanceof Error ? error.message : "An unknown error occurred.";
+            toast({
+                variant: "destructive",
+                title: "Deletion Failed",
+                description,
+            });
         } finally {
             setEmailToDelete(null);
         }

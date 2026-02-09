@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useForm } from 'react-hook-form';
@@ -46,36 +47,23 @@ export default function LoginPage() {
   const [phoneIsLoading, setPhoneIsLoading] = useState(false);
   const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
   const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null);
+  const [activeTab, setActiveTab] = useState('email');
 
   useEffect(() => {
-    if (!auth) return;
-
-    // Ensure the container is clean before rendering
-    const recaptchaContainer = document.getElementById('recaptcha-container');
-    if (recaptchaContainer) {
-      recaptchaContainer.innerHTML = '';
+    if (!auth || activeTab !== 'phone') {
+      recaptchaVerifierRef.current?.clear();
+      recaptchaVerifierRef.current = null;
+      return;
     }
 
-    const verifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-      'size': 'invisible',
-    });
+    if (auth && !recaptchaVerifierRef.current) {
+        const verifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+          'size': 'invisible',
+        });
+        recaptchaVerifierRef.current = verifier;
+    }
 
-    recaptchaVerifierRef.current = verifier;
-    
-    verifier.render().catch((error) => {
-      console.error("reCAPTCHA render error:", error);
-      toast({
-          variant: 'destructive',
-          title: "Could not initialize login security",
-          description: "Please refresh the page and try again."
-      });
-    });
-
-    // Cleanup function to run when the component unmounts
-    return () => {
-      verifier.clear();
-    };
-  }, [auth, toast]);
+  }, [auth, toast, activeTab]);
 
   const emailForm = useForm<z.infer<typeof emailFormSchema>>({
     resolver: zodResolver(emailFormSchema),
@@ -131,7 +119,7 @@ export default function LoginPage() {
                 description: `A verification code has been sent to ${phoneNumber}.`
             });
         } else {
-            throw new Error("reCAPTCHA verifier not initialized. Please refresh the page.");
+            throw new Error("reCAPTCHA verifier not initialized. Please refresh the page or try again.");
         }
     } catch (error: any) {
         toast({
@@ -139,6 +127,9 @@ export default function LoginPage() {
             title: "Failed to send OTP",
             description: error.message,
         });
+        // Reset verifier on error
+        recaptchaVerifierRef.current?.clear();
+        recaptchaVerifierRef.current = null;
     } finally {
         setPhoneIsLoading(false);
     }
@@ -169,7 +160,6 @@ export default function LoginPage() {
 
   return (
     <Card className="w-full max-w-md">
-        <div id="recaptcha-container"></div>
         <CardHeader className="text-center">
             <Link href="/dashboard" className="flex items-center gap-2 justify-center mb-4">
                 <Logo className="w-8 h-8 text-primary" />
@@ -181,7 +171,7 @@ export default function LoginPage() {
             <CardDescription>Enter your credentials to access your account.</CardDescription>
         </CardHeader>
         <CardContent>
-            <Tabs defaultValue="email" className="w-full">
+            <Tabs defaultValue="email" className="w-full" onValueChange={setActiveTab}>
                 <TabsList className="grid w-full grid-cols-2">
                     <TabsTrigger value="email">Email</TabsTrigger>
                     <TabsTrigger value="phone">Phone</TabsTrigger>
@@ -223,6 +213,7 @@ export default function LoginPage() {
                     </Form>
                 </TabsContent>
                 <TabsContent value="phone">
+                <div id="recaptcha-container"></div>
                 {!confirmationResult ? (
                      <Form {...phoneForm}>
                         <form onSubmit={phoneForm.handleSubmit(onPhoneSubmit)} className="space-y-4 pt-4">

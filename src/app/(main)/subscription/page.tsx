@@ -23,6 +23,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
+import { Checkbox } from '@/components/ui/checkbox';
 
 // Zod Schema & Types
 const planSchema = z.object({
@@ -32,7 +33,7 @@ const planSchema = z.object({
   numberOfLiveClasses: z.coerce.number().int().min(0, 'Number of live classes cannot be negative.').optional(),
   examTypeId: z.string().min(1, 'You must select an exam type.'),
   classId: z.string().optional(),
-  subjectId: z.string().optional(),
+  subjectIds: z.array(z.string()).optional(),
   topicId: z.string().optional(),
   features: z.string().min(10, 'Please list at least one feature (one per line).'),
 });
@@ -50,7 +51,7 @@ type SubscriptionPlan = {
   numberOfLiveClasses?: number;
   examTypeId: string;
   classId?: string;
-  subjectId?: string;
+  subjectIds?: string[];
   topicId?: string;
   features: string[];
   isPopular?: boolean; // For styling
@@ -73,6 +74,7 @@ const PlanForm: FC<{
         resolver: zodResolver(planSchema),
         defaultValues: planToEdit ? {
             ...planToEdit,
+            subjectIds: planToEdit.subjectIds || [],
             numberOfLiveClasses: planToEdit.numberOfLiveClasses ?? 0,
             features: planToEdit.features.join('\n'),
         } : {
@@ -82,7 +84,7 @@ const PlanForm: FC<{
             numberOfLiveClasses: 0,
             examTypeId: '',
             classId: '',
-            subjectId: '',
+            subjectIds: [],
             topicId: '',
             features: '',
         },
@@ -91,7 +93,7 @@ const PlanForm: FC<{
     const { watch, setValue } = form;
     const selectedExamType = watch('examTypeId');
     const selectedClass = watch('classId');
-    const selectedSubject = watch('subjectId');
+    const selectedSubjects = watch('subjectIds') || [];
 
     const filteredClasses = useMemo(() => {
         if (!selectedExamType) return [];
@@ -102,29 +104,31 @@ const PlanForm: FC<{
         return subjects.filter(subject => subject.classId === selectedClass);
     }, [selectedClass, subjects]);
     const filteredTopics = useMemo(() => {
-        if (!selectedSubject) return [];
-        return topics.filter(topic => topic.subjectId === selectedSubject);
-    }, [selectedSubject, topics]);
+        if (selectedSubjects.length !== 1) return [];
+        return topics.filter(topic => topic.subjectId === selectedSubjects[0]);
+    }, [selectedSubjects, topics]);
 
     useEffect(() => {
         setValue('classId', '');
-        setValue('subjectId', '');
+        setValue('subjectIds', []);
         setValue('topicId', '');
     }, [selectedExamType, setValue]);
 
     useEffect(() => {
-        setValue('subjectId', '');
+        setValue('subjectIds', []);
         setValue('topicId', '');
     }, [selectedClass, setValue]);
 
     useEffect(() => {
-        setValue('topicId', '');
-    }, [selectedSubject, setValue]);
+        if (selectedSubjects.length !== 1) {
+            setValue('topicId', '');
+        }
+    }, [selectedSubjects, setValue]);
 
 
     async function onSubmit(values: z.infer<typeof planSchema>) {
         setIsSubmitting(true);
-        const { features, classId, subjectId, topicId, ...rest } = values;
+        const { features, classId, subjectIds, topicId, ...rest } = values;
         
         const dataToSave: any = {
             ...rest,
@@ -132,7 +136,7 @@ const PlanForm: FC<{
         };
 
         if (classId) dataToSave.classId = classId;
-        if (subjectId) dataToSave.subjectId = subjectId;
+        if (subjectIds) dataToSave.subjectIds = subjectIds;
         if (topicId) dataToSave.topicId = topicId;
 
 
@@ -186,19 +190,39 @@ const PlanForm: FC<{
                             <FormMessage />
                         </FormItem>
                     )} />
-                     <FormField control={form.control} name="subjectId" render={({ field }) => (
-                        <FormItem><FormLabel>Subject (Optional)</FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value || ''} disabled={!selectedClass}>
-                                <FormControl><SelectTrigger><SelectValue placeholder="All Subjects" /></SelectTrigger></FormControl>
-                                <SelectContent>{filteredSubjects.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
-                            </Select>
+                     <FormField control={form.control} name="subjectIds" render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Subjects (Optional)</FormLabel>
+                            <FormDescription>Select one or more subjects for this plan.</FormDescription>
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 p-2 border rounded-md">
+                            {filteredSubjects.map((item) => (
+                                <FormItem key={item.id} className="flex flex-row items-start space-x-3 space-y-0">
+                                    <FormControl>
+                                        <Checkbox
+                                            checked={field.value?.includes(item.id)}
+                                            onCheckedChange={(checked) => {
+                                                return checked
+                                                ? field.onChange([...(field.value || []), item.id])
+                                                : field.onChange(
+                                                    field.value?.filter(
+                                                        (value) => value !== item.id
+                                                    )
+                                                    );
+                                            }}
+                                            disabled={!selectedClass}
+                                        />
+                                    </FormControl>
+                                    <FormLabel className="font-normal text-sm">{item.name}</FormLabel>
+                                </FormItem>
+                            ))}
+                            </div>
                             <FormMessage />
                         </FormItem>
                     )} />
                     <FormField control={form.control} name="topicId" render={({ field }) => (
                         <FormItem><FormLabel>Topic (Optional)</FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value || ''} disabled={!selectedSubject}>
-                                <FormControl><SelectTrigger><SelectValue placeholder="All Topics" /></SelectTrigger></FormControl>
+                            <Select onValueChange={field.onChange} value={field.value || ''} disabled={selectedSubjects.length !== 1}>
+                                <FormControl><SelectTrigger><SelectValue placeholder="Select topic (requires 1 subject)" /></SelectTrigger></FormControl>
                                 <SelectContent>{filteredTopics.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
                             </Select>
                             <FormMessage />
@@ -239,7 +263,10 @@ const AdminView: FC<{
     const getPlanScope = (plan: SubscriptionPlan): string => {
         const scopeParts = [examTypeMap[plan.examTypeId]];
         if (plan.classId && classMap[plan.classId]) scopeParts.push(classMap[plan.classId]);
-        if (plan.subjectId && subjectMap[plan.subjectId]) scopeParts.push(subjectMap[plan.subjectId]);
+        if (plan.subjectIds && plan.subjectIds.length > 0) {
+            const subjectNames = plan.subjectIds.map(id => subjectMap[id]).filter(Boolean).join(', ');
+            if (subjectNames) scopeParts.push(subjectNames);
+        }
         if (plan.topicId && topicMap[plan.topicId]) scopeParts.push(topicMap[plan.topicId]);
         return scopeParts.join(' / ');
     };
@@ -343,7 +370,10 @@ const StudentView: FC<{
     const getPlanScope = (plan: SubscriptionPlan): string => {
         const scopeParts = [examTypeMap[plan.examTypeId]];
         if (plan.classId && classMap[plan.classId]) scopeParts.push(classMap[plan.classId]);
-        if (plan.subjectId && subjectMap[plan.subjectId]) scopeParts.push(subjectMap[plan.subjectId]);
+        if (plan.subjectIds && plan.subjectIds.length > 0) {
+            const subjectNames = plan.subjectIds.map(id => subjectMap[id]).filter(Boolean).join(', ');
+            if (subjectNames) scopeParts.push(subjectNames);
+        }
         if (plan.topicId && topicMap[plan.topicId]) scopeParts.push(topicMap[plan.topicId]);
         return scopeParts.join(' / ');
     };
@@ -466,3 +496,5 @@ export default function SubscriptionPage() {
     </div>
   );
 }
+
+    

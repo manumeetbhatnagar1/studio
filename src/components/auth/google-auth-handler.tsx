@@ -80,7 +80,7 @@ export function GoogleAuthHandler() {
             }
 
              // Special admin logic for the designated admin email
-            if (newUser.email?.toLowerCase() === 'dcamclassesiit@gmail.com') {
+            if (newUser.email?.toLowerCase() === 'manumeet.bhatnagar1@gmail.com') {
                 userData.roleId = 'admin';
                 userData.teacherStatus = 'approved';
                 

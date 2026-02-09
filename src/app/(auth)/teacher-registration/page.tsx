@@ -76,7 +76,7 @@ export default function TeacherRegistrationPage() {
       batch.set(userRef, userData);
       
       // Check if the registering user is the designated admin
-      if (values.email.toLowerCase() === 'dcamclassesiit@gmail.com') {
+      if (values.email.toLowerCase() === 'manumeet.bhatnagar1@gmail.com') {
           const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
           const teacherRoleRef = doc(firestore, 'roles_teacher', user.uid);
           batch.set(adminRoleRef, { createdAt: new Date().toISOString() });
@@ -93,7 +93,7 @@ export default function TeacherRegistrationPage() {
       });
       router.push('/dashboard');
     } catch (error: any) {
-        if (error.code === 'auth/email-already-in-use' && values.email.toLowerCase() === 'dcamclassesiit@gmail.com') {
+        if (error.code === 'auth/email-already-in-use' && values.email.toLowerCase() === 'manumeet.bhatnagar1@gmail.com') {
             try {
                 const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
                 const user = userCredential.user;

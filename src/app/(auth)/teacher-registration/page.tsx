@@ -23,6 +23,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Logo } from '@/components/icons';
+import { GoogleAuthHandler } from '@/components/auth/google-auth-handler';
 
 const formSchema = z.object({
   firstName: z.string().min(1, 'First name is required'),
@@ -220,18 +221,23 @@ export default function TeacherRegistrationPage() {
                 </Button>
             </form>
             </Form>
-              <p className="mt-4 text-center text-sm text-muted-foreground">
-                Already have an account?{' '}
-                <Link href="/login" className="font-medium text-primary hover:underline">
-                    Log in
-                </Link>
-            </p>
-             <p className="mt-2 text-center text-sm text-muted-foreground">
-                Are you a student?{' '}
-                <Link href="/student-registration" className="font-medium text-primary hover:underline">
-                    Register here
-                </Link>
-            </p>
+
+            <GoogleAuthHandler />
+
+            <div className="mt-4 text-center text-sm text-muted-foreground space-y-2">
+                <p>
+                    Already have an account?{' '}
+                    <Link href="/login" className="font-medium text-primary hover:underline">
+                        Log in
+                    </Link>
+                </p>
+                <p>
+                    Are you a student?{' '}
+                    <Link href="/student-registration" className="font-medium text-primary hover:underline">
+                        Register here
+                    </Link>
+                </p>
+            </div>
         </CardContent>
     </Card>
   );

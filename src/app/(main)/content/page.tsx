@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, FC } from 'react';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import DashboardHeader from '@/components/dashboard-header';
-import { useFirestore, useCollection, addDocumentNonBlocking, useMemoFirebase } from '@/firebase';
+import { useFirestore, useCollection, addDocumentNonBlocking, useMemoFirebase, updateDocumentNonBlocking, doc } from '@/firebase';
 import { collection, query, orderBy } from 'firebase/firestore';
 import { useIsTeacher } from '@/hooks/useIsTeacher';
 import { useIsSubscribed } from '@/hooks/useIsSubscribed';
@@ -21,7 +21,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { PlusCircle, Film, LoaderCircle, Youtube, BookOpen, FileText, Lock } from 'lucide-react';
+import { PlusCircle, Film, LoaderCircle, Youtube, BookOpen, FileText, Lock, Edit } from 'lucide-react';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
 
@@ -115,13 +115,15 @@ const SubscriptionPromptDialog = ({ open, onOpenChange }: { open: boolean, onOpe
 );
 
 
-function ContentForm({ examTypes, classes, subjects, topics, onFormReset }: { examTypes: ExamType[], classes: Class[], subjects: Subject[], topics: Topic[]; onFormReset: () => void }) {
+function ContentForm({ examTypes, classes, subjects, topics, onFormFinished, contentToEdit }: { examTypes: ExamType[], classes: Class[], subjects: Subject[], topics: Topic[], onFormFinished: () => void, contentToEdit?: Content | null }) {
   const { toast } = useToast();
   const firestore = useFirestore();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isEditMode = !!contentToEdit;
+
   const form = useForm<z.infer<typeof contentSchema>>({
     resolver: zodResolver(contentSchema),
-    defaultValues: {
+    defaultValues: isEditMode ? {} : {
       title: '',
       description: '',
       type: 'video',
@@ -136,48 +138,72 @@ function ContentForm({ examTypes, classes, subjects, topics, onFormReset }: { ex
     },
   });
 
+  useEffect(() => {
+    if (isEditMode && contentToEdit) {
+      const topic = topics.find(t => t.id === contentToEdit.topicId);
+      const subject = subjects.find(s => s.id === (topic?.subjectId || contentToEdit.subjectId));
+      const classItem = classes.find(c => c.id === (subject?.classId || contentToEdit.classId));
+      const examType = examTypes.find(et => et.id === (classItem?.examTypeId || contentToEdit.examTypeId));
+
+      form.reset({
+        ...contentToEdit,
+        examTypeId: examType?.id || '',
+        classId: classItem?.id || '',
+        subjectId: subject?.id || '',
+      });
+    }
+  }, [isEditMode, contentToEdit, topics, subjects, classes, examTypes, form]);
+
+
   const contentType = form.watch('type');
   const selectedExamType = form.watch('examTypeId');
   const selectedClass = form.watch('classId');
   const selectedSubject = form.watch('subjectId');
 
-  useEffect(() => { form.setValue('classId', ''); form.setValue('subjectId', ''); form.setValue('topicId', ''); }, [selectedExamType, form]);
-  useEffect(() => { form.setValue('subjectId', ''); form.setValue('topicId', ''); }, [selectedClass, form]);
-  useEffect(() => { form.setValue('topicId', ''); }, [selectedSubject, form]);
+  useEffect(() => { if (!isEditMode || form.getValues('examTypeId') !== selectedExamType) { form.setValue('classId', ''); form.setValue('subjectId', ''); form.setValue('topicId', ''); } }, [selectedExamType, form, isEditMode]);
+  useEffect(() => { if (!isEditMode || form.getValues('classId') !== selectedClass) { form.setValue('subjectId', ''); form.setValue('topicId', ''); } }, [selectedClass, form, isEditMode]);
+  useEffect(() => { if (!isEditMode || form.getValues('subjectId') !== selectedSubject) { form.setValue('topicId', ''); } }, [selectedSubject, form, isEditMode]);
 
   const filteredClasses = useMemo(() => { if (!selectedExamType) return []; return classes.filter(c => c.examTypeId === selectedExamType); }, [selectedExamType, classes]);
   const filteredSubjects = useMemo(() => { if (!selectedClass) return []; return subjects.filter(subject => subject.classId === selectedClass); }, [selectedClass, subjects]);
   const filteredTopics = useMemo(() => { if (!selectedSubject) return []; return topics.filter(topic => topic.subjectId === selectedSubject); }, [selectedSubject, topics]);
 
-  const onSubmit = (values: z.infer<typeof contentSchema>) => {
+  const onSubmit = async (values: z.infer<typeof contentSchema>) => {
     setIsSubmitting(true);
-    const contentRef = collection(firestore, 'content');
-    
-    const dataToSave: Partial<z.infer<typeof contentSchema>> = { ...values };
+    const dataToSave: { [key: string]: any } = { ...values };
     if (dataToSave.type === 'video') {
-        delete dataToSave.fileUrl;
+        dataToSave.fileUrl = '';
     } else {
-        delete dataToSave.videoUrl;
+        dataToSave.videoUrl = '';
     }
 
-    addDocumentNonBlocking(contentRef, dataToSave);
-    toast({
-      title: 'Content Added!',
-      description: `${values.title} has been added to the library.`,
-    });
-    form.reset();
-    onFormReset();
-    setIsSubmitting(false);
+    try {
+        if (isEditMode && contentToEdit) {
+            const contentRef = doc(firestore, 'content', contentToEdit.id);
+            await updateDocumentNonBlocking(contentRef, dataToSave);
+            toast({ title: 'Content Updated!', description: `${values.title} has been updated.` });
+        } else {
+            const contentRef = collection(firestore, 'content');
+            await addDocumentNonBlocking(contentRef, dataToSave);
+            toast({ title: 'Content Added!', description: `${values.title} has been added.` });
+            form.reset();
+        }
+        onFormFinished();
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: 'Operation Failed', description: error.message });
+    } finally {
+        setIsSubmitting(false);
+    }
   };
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 max-h-[70vh] overflow-y-auto pr-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <FormField control={form.control} name="type" render={({ field }) => (
                 <FormItem className="space-y-3"><FormLabel>Content Type</FormLabel>
                     <FormControl>
-                        <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex flex-row space-x-4">
+                        <RadioGroup onValueChange={field.onChange} value={field.value} className="flex flex-row space-x-4">
                             <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="video" /></FormControl><FormLabel className="font-normal">Video</FormLabel></FormItem>
                             <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="pdf" /></FormControl><FormLabel className="font-normal">PDF</FormLabel></FormItem>
                         </RadioGroup>
@@ -188,7 +214,7 @@ function ContentForm({ examTypes, classes, subjects, topics, onFormReset }: { ex
             <FormField control={form.control} name="accessLevel" render={({ field }) => (
                 <FormItem className="space-y-3"><FormLabel>Access Level</FormLabel>
                     <FormControl>
-                        <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex flex-row space-x-4">
+                        <RadioGroup onValueChange={field.onChange} value={field.value} className="flex flex-row space-x-4">
                             <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="free" /></FormControl><FormLabel className="font-normal">Free</FormLabel></FormItem>
                             <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="paid" /></FormControl><FormLabel className="font-normal">Paid</FormLabel></FormItem>
                         </RadioGroup>
@@ -215,7 +241,7 @@ function ContentForm({ examTypes, classes, subjects, topics, onFormReset }: { ex
         )}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormField control={form.control} name="examTypeId" render={({ field }) => (
-            <FormItem><FormLabel>Exam Type</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an exam type" /></SelectTrigger></FormControl><SelectContent>{examTypes.map(et => <SelectItem key={et.id} value={et.id}>{et.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+            <FormItem><FormLabel>Exam Type</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select an exam type" /></SelectTrigger></FormControl><SelectContent>{examTypes.map(et => <SelectItem key={et.id} value={et.id}>{et.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
           )} />
            <FormField control={form.control} name="classId" render={({ field }) => (
             <FormItem><FormLabel>Class</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!selectedExamType}><FormControl><SelectTrigger><SelectValue placeholder="Select a class" /></SelectTrigger></FormControl><SelectContent>{filteredClasses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
@@ -231,23 +257,28 @@ function ContentForm({ examTypes, classes, subjects, topics, onFormReset }: { ex
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormField control={form.control} name="difficultyLevel" render={({ field }) => (
-            <FormItem><FormLabel>Difficulty</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select difficulty" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Easy">Easy</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Hard">Hard</SelectItem></SelectContent></Select><FormMessage /></FormItem>
+            <FormItem><FormLabel>Difficulty</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select difficulty" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Easy">Easy</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Hard">Hard</SelectItem></SelectContent></Select><FormMessage /></FormItem>
           )} />
         </div>
         <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> Adding...</> : <><PlusCircle className="mr-2" /> Add Content</>}
+          {isSubmitting ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> {isEditMode ? 'Saving...' : 'Adding...'}</> : <>{isEditMode ? 'Save Changes' : <><PlusCircle className="mr-2" /> Add Content</>}</>}
         </Button>
       </form>
     </Form>
   );
 }
 
-function ContentListItem({ contentItem, canViewPaidContent }: { contentItem: Content, canViewPaidContent: boolean }) {
+function ContentListItem({ contentItem, canViewPaidContent, isTeacher, onEdit }: { contentItem: Content, canViewPaidContent: boolean, isTeacher: boolean, onEdit: (item: Content) => void }) {
   const [showSubPrompt, setShowSubPrompt] = useState(false);
   const embed = getEmbedUrl(contentItem.videoUrl);
   const difficultyVariant = { Easy: 'default', Medium: 'secondary', Hard: 'destructive' } as const;
   
   const isLocked = contentItem.accessLevel === 'paid' && !canViewPaidContent;
+
+  const handleEditClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onEdit(contentItem);
+  };
 
   const itemContent = (
     <div className={cn("group flex cursor-pointer items-start gap-4 rounded-lg border p-4 transition-all hover:bg-muted/50", isLocked && "bg-muted/50 hover:bg-muted/50 cursor-not-allowed")}>
@@ -255,9 +286,16 @@ function ContentListItem({ contentItem, canViewPaidContent }: { contentItem: Con
             {isLocked ? <Lock /> : contentItem.type === 'video' ? (embed?.type === 'youtube' ? <Youtube /> : <Film />) : <FileText />}
         </div>
         <div className="flex-1">
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between items-start">
                 <h3 className={cn("font-semibold", !isLocked && "group-hover:underline")}>{contentItem.title}</h3>
-                {contentItem.accessLevel === 'free' && <Badge variant="secondary">Free</Badge>}
+                 <div className="flex items-center gap-2">
+                    {contentItem.accessLevel === 'free' && <Badge variant="secondary">Free</Badge>}
+                    {isTeacher && (
+                      <Button variant="ghost" size="icon" onClick={handleEditClick}>
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                    )}
+                </div>
             </div>
             <p className="text-sm text-muted-foreground line-clamp-2">{contentItem.description}</p>
             <div className="mt-2 flex items-center gap-2">
@@ -310,6 +348,7 @@ export default function ContentPage() {
   const { isTeacher, isLoading: isTeacherLoading } = useIsTeacher();
   const { isSubscribed, isLoading: isSubscribedLoading } = useIsSubscribed();
   const [formKey, setFormKey] = useState(0);
+  const [editingContent, setEditingContent] = useState<Content | null>(null);
 
   const examTypesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'exam_types'), orderBy('name')) : null, [firestore]);
   const classesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'classes'), orderBy('name')) : null, [firestore]);
@@ -362,7 +401,7 @@ export default function ContentPage() {
                   <Skeleton className="h-10 w-1/3" />
                 </div>
               ) : (
-                <ContentForm key={formKey} examTypes={examTypes || []} classes={classes || []} subjects={subjects || []} topics={topics || []} onFormReset={() => setFormKey(prev => prev + 1)} />
+                <ContentForm key={formKey} examTypes={examTypes || []} classes={classes || []} subjects={subjects || []} topics={topics || []} onFormFinished={() => setFormKey(prev => prev + 1)} />
               )}
             </CardContent>
           </Card>
@@ -402,7 +441,7 @@ export default function ContentPage() {
                                           <AccordionTrigger className="text-sm py-2">{t.name}</AccordionTrigger>
                                           <AccordionContent className="pl-4">
                                               <div className="grid gap-4 pt-2">
-                                                {t.items.map(item => <ContentListItem key={item.id} contentItem={item} canViewPaidContent={canViewPaidContent} />)}
+                                                {t.items.map(item => <ContentListItem key={item.id} contentItem={item} canViewPaidContent={canViewPaidContent} isTeacher={!!isTeacher} onEdit={setEditingContent} />)}
                                               </div>
                                           </AccordionContent>
                                         </AccordionItem>
@@ -429,6 +468,24 @@ export default function ContentPage() {
           </CardContent>
         </Card>
       </main>
+
+      <Dialog open={!!editingContent} onOpenChange={(open) => !open && setEditingContent(null)}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit Content</DialogTitle>
+          </DialogHeader>
+          {editingContent && !isLoading && (
+            <ContentForm
+              contentToEdit={editingContent}
+              examTypes={examTypes || []}
+              classes={classes || []}
+              subjects={subjects || []}
+              topics={topics || []}
+              onFormFinished={() => setEditingContent(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

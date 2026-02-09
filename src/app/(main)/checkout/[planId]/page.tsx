@@ -3,21 +3,17 @@
 import { useParams, useRouter } from 'next/navigation';
 import { useUser, useFirestore, useDoc, useMemoFirebase, setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
 import { doc } from 'firebase/firestore';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
 import DashboardHeader from '@/components/dashboard-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CreditCard, IndianRupee, LoaderCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { add } from 'date-fns';
 import { useEffect, useState } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
-import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
+import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
+import { createPaymentIntent } from '@/app/actions';
 
 // --- Types ---
 type SubscriptionPlan = {
@@ -27,109 +23,62 @@ type SubscriptionPlan = {
   billingInterval: 'monthly' | 'yearly';
 };
 
-const paymentSchema = z.object({
-    nameOnCard: z.string().min(1, 'Name on card is required'),
-});
-
 // --- Stripe Initialization ---
-// It's crucial to load Stripe outside of a component's render to avoid recreating the Stripe object on every render.
 const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
   ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
-  : Promise.resolve(null);
+  : null;
 
 // --- CheckoutForm Component ---
-// This component contains the actual form logic and interacts with Stripe.
 const CheckoutForm = ({ plan }: { plan: SubscriptionPlan }) => {
     const stripe = useStripe();
     const elements = useElements();
     const { user } = useUser();
-    const firestore = useFirestore();
-    const router = useRouter();
     const { toast } = useToast();
     const [isProcessing, setIsProcessing] = useState(false);
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-    const form = useForm<z.infer<typeof paymentSchema>>({
-        resolver: zodResolver(paymentSchema),
-        defaultValues: { nameOnCard: user?.displayName || '' }
-    });
-     useEffect(() => {
-        if (user?.displayName) {
-            form.setValue('nameOnCard', user.displayName);
-        }
-    }, [user, form]);
+    const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
 
-
-    const handleSubmit = async (values: z.infer<typeof paymentSchema>) => {
         if (!stripe || !elements || !user || !plan) {
             toast({ variant: 'destructive', title: 'Error', description: 'Checkout is not ready. Please try again.' });
             return;
         }
 
-        const cardElement = elements.getElement(CardElement);
-        if (!cardElement) {
-             toast({ variant: 'destructive', title: 'Error', description: 'Card details not found. Please try again.' });
-            return;
-        }
-
         setIsProcessing(true);
+        setErrorMessage(null);
 
-        // In a real application, this is where you would call your backend to create a PaymentIntent.
-        // For this demo, we simulate a successful payment.
-
-        console.log("Simulating payment processing for:", values);
-        
-        try {
-            // Simulate network delay
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            
-            // This is the logic that should run *after* a successful paymentIntent confirmation.
-            const userRef = doc(firestore, 'users', user.uid);
-            updateDocumentNonBlocking(userRef, {
-                subscriptionPlanId: plan.id,
-                subscriptionStatus: 'active',
-            });
-            
-            const userSubscriptionRef = doc(firestore, 'users', user.uid, 'subscriptions', 'main');
-            const now = new Date();
-            const endDate = plan.billingInterval === 'monthly' ? add(now, { months: 1 }) : add(now, { years: 1 });
-            
-            setDocumentNonBlocking(userSubscriptionRef, {
-                id: 'main',
-                planId: plan.id,
-                status: 'active',
-                currentPeriodStart: now.toISOString(),
-                currentPeriodEnd: endDate.toISOString(),
-            }, { merge: true });
-
-            toast({ title: 'Payment Successful!', description: `You have successfully subscribed to the ${plan.name}.` });
-            router.push('/dashboard');
-        } catch (error: any) {
-             // This catch block is for synchronous errors or errors from the awaited promise (setTimeout).
-             // Firestore errors are handled globally by the errorEmitter.
-             toast({ variant: 'destructive', title: 'Operation Failed', description: error.message || 'An unexpected error occurred during the final steps of your subscription.' });
-        } finally {
-            setIsProcessing(false);
+        const { error: submitError } = await elements.submit();
+        if (submitError) {
+          setErrorMessage(submitError.message || "An unexpected error occurred.");
+          setIsProcessing(false);
+          return;
         }
-    };
-    
-    const cardElementOptions = {
-        style: {
-            base: {
-                color: '#32325d',
-                fontFamily: '"Helvetica Neue", Helvetica, sans-serif',
-                fontSmoothing: 'antialiased',
-                fontSize: '16px',
-                '::placeholder': {
-                    color: '#aab7c4'
-                }
+
+        // The payment intent is already created on page load.
+        // Now we just confirm it.
+        const { error } = await stripe.confirmPayment({
+            elements,
+            confirmParams: {
+                return_url: `${window.location.origin}/checkout/completion?planId=${plan.id}`,
+                receipt_email: user.email || undefined,
             },
-            invalid: {
-                color: '#fa755a',
-                iconColor: '#fa755a'
+            // The redirect will happen automatically if payment is successful
+            // or requires another step. We handle the db update on the completion page.
+        });
+
+        // This point will only be reached if there is an immediate error during confirmation.
+        // Otherwise, the user is redirected to the `return_url`.
+        if (error) {
+            if (error.type === "card_error" || error.type === "validation_error") {
+                setErrorMessage(error.message || "An unexpected error occurred.");
+            } else {
+                setErrorMessage("An unexpected error occurred.");
             }
         }
+        
+        setIsProcessing(false);
     };
-
 
     return (
          <Card>
@@ -140,23 +89,14 @@ const CheckoutForm = ({ plan }: { plan: SubscriptionPlan }) => {
                 <CardDescription>Enter your payment information to complete the subscription.</CardDescription>
             </CardHeader>
             <CardContent>
-                <Form {...form}>
-                    <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
-                        <FormField control={form.control} name="nameOnCard" render={({ field }) => (
-                            <FormItem><FormLabel>Name on Card</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                        )} />
-                        <FormItem>
-                           <FormLabel>Card Details</FormLabel>
-                           <div className="p-3 border rounded-md">
-                             <CardElement options={cardElementOptions}/>
-                           </div>
-                        </FormItem>
-                        <Button type="submit" size="lg" className="w-full" disabled={isProcessing || !stripe}>
-                            {isProcessing ? <LoaderCircle className="mr-2 animate-spin" /> : <IndianRupee className="mr-2" />}
-                            Pay ₹{plan.price.toLocaleString()}
-                        </Button>
-                    </form>
-                </Form>
+                <form onSubmit={handleSubmit} className="space-y-6">
+                    <PaymentElement />
+                    {errorMessage && <div className="text-destructive text-sm font-medium">{errorMessage}</div>}
+                    <Button type="submit" size="lg" className="w-full" disabled={isProcessing || !stripe || !elements}>
+                        {isProcessing ? <LoaderCircle className="mr-2 animate-spin" /> : <IndianRupee className="mr-2" />}
+                        Pay ₹{plan.price.toLocaleString()}
+                    </Button>
+                </form>
             </CardContent>
         </Card>
     );
@@ -166,6 +106,8 @@ const CheckoutForm = ({ plan }: { plan: SubscriptionPlan }) => {
 export default function CheckoutPage() {
     const { planId } = useParams() as { planId: string };
     const firestore = useFirestore();
+    const { toast } = useToast();
+    const [clientSecret, setClientSecret] = useState<string | null>(null);
     
     const planDocRef = useMemoFirebase(() => {
         if (!firestore) return null;
@@ -174,11 +116,25 @@ export default function CheckoutPage() {
 
     const { data: plan, isLoading: isPlanLoading } = useDoc<SubscriptionPlan>(planDocRef);
     
+    useEffect(() => {
+        if (plan?.price) {
+            createPaymentIntent(plan.price)
+                .then(data => {
+                    if (data.error) {
+                        toast({ variant: 'destructive', title: 'Payment Error', description: data.error });
+                        setClientSecret(null);
+                    } else {
+                        setClientSecret(data.clientSecret);
+                    }
+                });
+        }
+    }, [plan, toast]);
+    
     const renderContent = () => {
         if (isPlanLoading) {
             return (
                 <div className="w-full max-w-2xl space-y-6">
-                    <Skeleton className="h-48 w-full" />
+                    <Skeleton className="h-24 w-full" />
                     <Skeleton className="h-64 w-full" />
                 </div>
             );
@@ -194,6 +150,26 @@ export default function CheckoutPage() {
                 </Card>
             );
         }
+        
+        if (!process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY) {
+             return (
+                <Card className="w-full max-w-2xl">
+                    <CardHeader>
+                        <CardTitle className="text-destructive">Stripe Not Configured</CardTitle>
+                        <CardDescription>The application is missing the Stripe publishable key. Please add it to your .env file.</CardDescription>
+                    </CardHeader>
+                </Card>
+            );
+        }
+
+        if (!clientSecret) {
+             return (
+                <div className="w-full max-w-2xl space-y-6">
+                    <Card><CardHeader><CardTitle>Order Summary</CardTitle></CardHeader><CardContent className="flex justify-between items-center"><div><p className="font-semibold text-lg">{plan.name}</p><p className="text-muted-foreground">{plan.billingInterval === 'monthly' ? 'Billed Monthly' : 'Billed Yearly'}</p></div><p className="text-2xl font-bold flex items-center"><IndianRupee className="h-6 w-6"/>{plan.price.toLocaleString()}</p></CardContent></Card>
+                    <div className='flex items-center justify-center gap-2 p-8'><LoaderCircle className='animate-spin' /> Preparing payment form...</div>
+                </div>
+            );
+        }
 
         return (
             <div className="w-full max-w-2xl grid gap-8">
@@ -207,7 +183,7 @@ export default function CheckoutPage() {
                         <p className="text-2xl font-bold flex items-center"><IndianRupee className="h-6 w-6"/>{plan.price.toLocaleString()}</p>
                     </CardContent>
                 </Card>
-                <Elements stripe={stripePromise}>
+                <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: 'stripe' } }}>
                     <CheckoutForm plan={plan} />
                 </Elements>
             </div>

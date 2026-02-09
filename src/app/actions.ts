@@ -5,6 +5,7 @@ import {
   type PersonalizedLearningPathInput,
   type PersonalizedLearningPathOutput,
 } from "@/ai/flows/personalized-learning-path";
+import Stripe from 'stripe';
 
 
 export type ActionResult = {
@@ -31,4 +32,26 @@ export async function getRecommendations(
         error: "An unexpected error occurred while fetching recommendations.",
      };
   }
+}
+
+export async function createPaymentIntent(amount: number): Promise<{clientSecret: string | null, error?: string}> {
+    if (!process.env.STRIPE_SECRET_KEY) {
+        console.error("Stripe secret key not found.");
+        return { clientSecret: null, error: 'Stripe is not configured. Please provide a secret key.' };
+    }
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2024-06-20' });
+
+    try {
+        const paymentIntent = await stripe.paymentIntents.create({
+            amount: amount * 100, // amount in cents
+            currency: 'inr',
+            automatic_payment_methods: {
+                enabled: true,
+            },
+        });
+        return { clientSecret: paymentIntent.client_secret };
+    } catch (error: any) {
+        console.error("Error creating payment intent:", error);
+        return { clientSecret: null, error: error.message };
+    }
 }

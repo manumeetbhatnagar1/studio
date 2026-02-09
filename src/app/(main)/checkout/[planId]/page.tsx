@@ -33,7 +33,9 @@ const paymentSchema = z.object({
 
 // --- Stripe Initialization ---
 // It's crucial to load Stripe outside of a component's render to avoid recreating the Stripe object on every render.
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
+const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+  ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
+  : Promise.resolve(null);
 
 // --- CheckoutForm Component ---
 // This component contains the actual form logic and interacts with Stripe.
@@ -72,38 +74,8 @@ const CheckoutForm = ({ plan }: { plan: SubscriptionPlan }) => {
         setIsProcessing(true);
 
         // In a real application, this is where you would call your backend to create a PaymentIntent.
-        // The backend would return a `clientSecret`.
-        //
-        // Example:
-        // const response = await fetch('/api/create-payment-intent', {
-        //   method: 'POST',
-        //   headers: { 'Content-Type': 'application/json' },
-        //   body: JSON.stringify({ amount: plan.price * 100, currency: 'inr' })
-        // });
-        // const { clientSecret, error: backendError } = await response.json();
-        //
-        // if (backendError) {
-        //   toast({ variant: 'destructive', title: 'Server Error', description: backendError });
-        //   setIsProcessing(false);
-        //   return;
-        // }
-        //
-        // Then, you would use the clientSecret to confirm the payment on the client:
-        // const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
-        //   payment_method: {
-        //     card: cardElement,
-        //     billing_details: { name: values.nameOnCard },
-        //   },
-        // });
-        //
-        // if (stripeError) {
-        //   toast({ variant: 'destructive', title: 'Payment Failed', description: stripeError.message });
-        //   setIsProcessing(false);
-        //   return;
-        // }
+        // For this demo, we simulate a successful payment.
 
-        // --- SIMULATION FOR DEMO PURPOSES ---
-        // Since we don't have a backend, we'll simulate a successful payment after a short delay.
         console.log("Simulating payment processing for:", values);
         
         try {
@@ -112,7 +84,7 @@ const CheckoutForm = ({ plan }: { plan: SubscriptionPlan }) => {
             
             // This is the logic that should run *after* a successful paymentIntent confirmation.
             const userRef = doc(firestore, 'users', user.uid);
-            await updateDocumentNonBlocking(userRef, {
+            updateDocumentNonBlocking(userRef, {
                 subscriptionPlanId: plan.id,
                 subscriptionStatus: 'active',
             });
@@ -121,7 +93,7 @@ const CheckoutForm = ({ plan }: { plan: SubscriptionPlan }) => {
             const now = new Date();
             const endDate = plan.billingInterval === 'monthly' ? add(now, { months: 1 }) : add(now, { years: 1 });
             
-            await setDocumentNonBlocking(userSubscriptionRef, {
+            setDocumentNonBlocking(userSubscriptionRef, {
                 id: 'main',
                 planId: plan.id,
                 status: 'active',
@@ -132,7 +104,9 @@ const CheckoutForm = ({ plan }: { plan: SubscriptionPlan }) => {
             toast({ title: 'Payment Successful!', description: `You have successfully subscribed to the ${plan.name}.` });
             router.push('/dashboard');
         } catch (error: any) {
-             toast({ variant: 'destructive', title: 'Subscription Update Failed', description: error.message || 'An unexpected error occurred after payment.' });
+             // This catch block is for synchronous errors or errors from the awaited promise (setTimeout).
+             // Firestore errors are handled globally by the errorEmitter.
+             toast({ variant: 'destructive', title: 'Operation Failed', description: error.message || 'An unexpected error occurred during the final steps of your subscription.' });
         } finally {
             setIsProcessing(false);
         }

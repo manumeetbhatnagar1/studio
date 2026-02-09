@@ -16,7 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useAuth } from '@/firebase';
 import { signInWithEmailAndPassword, RecaptchaVerifier, signInWithPhoneNumber, type ConfirmationResult } from 'firebase/auth';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { LoaderCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
@@ -45,10 +45,12 @@ export default function LoginPage() {
 
   const [phoneIsLoading, setPhoneIsLoading] = useState(false);
   const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
+  const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null);
 
   useEffect(() => {
     if (!auth) return;
 
+    // Ensure the container is clean before rendering
     const recaptchaContainer = document.getElementById('recaptcha-container');
     if (recaptchaContainer) {
       recaptchaContainer.innerHTML = '';
@@ -58,7 +60,7 @@ export default function LoginPage() {
       'size': 'invisible',
     });
 
-    (window as any).recaptchaVerifier = verifier;
+    recaptchaVerifierRef.current = verifier;
     
     verifier.render().catch((error) => {
       console.error("reCAPTCHA render error:", error);
@@ -119,7 +121,7 @@ export default function LoginPage() {
   async function onPhoneSubmit(values: z.infer<typeof phoneFormSchema>) {
     setPhoneIsLoading(true);
     try {
-        const verifier = (window as any).recaptchaVerifier;
+        const verifier = recaptchaVerifierRef.current;
         if (verifier) {
             const phoneNumber = `+91${values.phoneNumber}`;
             const confirmation = await signInWithPhoneNumber(auth, phoneNumber, verifier);

@@ -199,17 +199,25 @@ export default function LoginPage() {
                         )}
                         />
                         <FormField
-                        control={emailForm.control}
-                        name="password"
-                        render={({ field }) => (
+                          control={emailForm.control}
+                          name="password"
+                          render={({ field }) => (
                             <FormItem>
-                            <FormLabel>Password</FormLabel>
-                            <FormControl>
+                              <div className="flex items-center justify-between">
+                                <FormLabel>Password</FormLabel>
+                                <Link
+                                  href="/forgot-password"
+                                  className="text-sm font-medium text-primary hover:underline"
+                                >
+                                  Forgot Password?
+                                </Link>
+                              </div>
+                              <FormControl>
                                 <Input type="password" placeholder="********" {...field} />
-                            </FormControl>
-                            <FormMessage />
+                              </FormControl>
+                              <FormMessage />
                             </FormItem>
-                        )}
+                          )}
                         />
                         <Button type="submit" className="w-full" disabled={isLoading}>
                             {isLoading && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}

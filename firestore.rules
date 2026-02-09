@@ -102,9 +102,9 @@ service cloud.firestore {
           // Admins can update any part of a user's profile.
           isAdmin() ||
           // Teachers can ONLY update a user's subscription status or plan.
-          (isTeacher() && request.writeFields.subset(['subscriptionStatus', 'subscriptionPlanId'].toSet())) ||
-          // Users can update their own profile, but not their role or teacher status.
-          (isOwner(userId) && !('roleId' in request.writeFields) && !('teacherStatus' in request.writeFields));
+          (isTeacher() && request.writeFields.isSubset(['subscriptionStatus', 'subscriptionPlanId'].toSet())) ||
+          // Users can update their own profile, but only if they are not changing their role or teacher status.
+          (isOwner(userId) && request.resource.data.roleId == resource.data.roleId && request.resource.data.teacherStatus == resource.data.teacherStatus);
       allow delete: if isExistingOwner(userId) || isAdmin();
       
        /**
@@ -113,9 +113,8 @@ service cloud.firestore {
        * @path        /users/{userId}/subscriptions/{subscriptionId}
        */
       match /subscriptions/{subscriptionId} {
-        allow get, list: if isOwner(userId) || isTeacher() || isAdmin();
-        allow create, update: if isOwner(userId) || isTeacher() || isAdmin();
-        allow delete: if isTeacher() || isAdmin();
+        allow read: if isOwner(userId) || isTeacher() || isAdmin();
+        allow write: if isOwner(userId) || isTeacher() || isAdmin();
       }
       
       /**

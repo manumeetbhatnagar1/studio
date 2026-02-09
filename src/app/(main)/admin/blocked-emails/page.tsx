@@ -9,8 +9,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { AlertTriangle, Unlock } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { AlertTriangle, Trash2 } from 'lucide-react';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -24,7 +24,7 @@ export default function BlockedEmailsPage() {
     const { isAdmin, isLoading: isAdminLoading } = useIsAdmin();
     const firestore = useFirestore();
     const { toast } = useToast();
-    const [emailToUnblock, setEmailToUnblock] = useState<string | null>(null);
+    const [emailToDelete, setEmailToDelete] = useState<string | null>(null);
 
     const blockedEmailsQuery = useMemoFirebase(
         () => firestore ? query(collection(firestore, 'blocked_emails'), orderBy('blockedAt', 'desc')) : null,
@@ -33,25 +33,25 @@ export default function BlockedEmailsPage() {
 
     const { data: blockedEmails, isLoading: areEmailsLoading } = useCollection<BlockedEmail>(blockedEmailsQuery);
 
-    const handleUnblockRequest = (email: string) => {
-        setEmailToUnblock(email);
+    const handleDeleteRequest = (email: string) => {
+        setEmailToDelete(email);
     };
     
-    const handleConfirmUnblock = async () => {
-        if (!emailToUnblock) return;
+    const handleConfirmDelete = async () => {
+        if (!emailToDelete) return;
     
         try {
-            const emailDocRef = doc(firestore, 'blocked_emails', emailToUnblock);
+            const emailDocRef = doc(firestore, 'blocked_emails', emailToDelete);
             await deleteDocumentNonBlocking(emailDocRef);
             
             toast({
-                title: 'Email Unblocked',
-                description: `${emailToUnblock} can now register for an account.`,
+                title: 'Record Deleted',
+                description: `${emailToDelete} has been removed from the blocklist.`,
             });
         } catch (error: any) {
-            toast({ variant: 'destructive', title: 'Unblock Failed', description: error.message });
+            toast({ variant: 'destructive', title: 'Deletion Failed', description: error.message });
         } finally {
-            setEmailToUnblock(null);
+            setEmailToDelete(null);
         }
     };
 
@@ -127,8 +127,8 @@ export default function BlockedEmailsPage() {
                                                 <TableCell className="font-medium">{email.id}</TableCell>
                                                 <TableCell>{formatDistanceToNow(blockedAtDate, { addSuffix: true })}</TableCell>
                                                 <TableCell className="text-right">
-                                                    <Button variant="outline" size="sm" onClick={() => handleUnblockRequest(email.id)}>
-                                                        <Unlock className="mr-2 h-4 w-4" /> Unblock
+                                                    <Button variant="destructive" size="sm" onClick={() => handleDeleteRequest(email.id)}>
+                                                        <Trash2 className="mr-2 h-4 w-4" /> Delete Record
                                                     </Button>
                                                 </TableCell>
                                             </TableRow>
@@ -144,18 +144,20 @@ export default function BlockedEmailsPage() {
                     </CardContent>
                 </Card>
             </main>
-             <AlertDialog open={!!emailToUnblock} onOpenChange={(open) => !open && setEmailToUnblock(null)}>
+             <AlertDialog open={!!emailToDelete} onOpenChange={(open) => !open && setEmailToDelete(null)}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Are you sure you want to unblock this email?</AlertDialogTitle>
+                        <AlertDialogTitle>Delete from Blocklist?</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Unblocking <span className="font-semibold text-foreground">{emailToUnblock}</span> will allow a new user to register with this email address. This action cannot be undone.
+                            This will permanently delete the email <span className="font-semibold text-foreground">{emailToDelete}</span> from the blocklist.
+                            <br/><br/>
+                            This means a new user will be able to register with this email address again. Note: The original user account associated with this email has already been permanently deleted.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleConfirmUnblock}>
-                            Unblock Email
+                        <AlertDialogAction onClick={handleConfirmDelete} className={cn(buttonVariants({ variant: 'destructive' }))}>
+                            Yes, Delete Record
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

@@ -335,12 +335,12 @@ const StudentView: FC<{
     const [billingInterval, setBillingInterval] = useState<'monthly' | 'yearly'>('yearly');
     const [selectedExamType, setSelectedExamType] = useState<string>('all');
 
+    const examTypeMap = useMemo(() => examTypes.reduce((acc, et) => ({ ...acc, [et.id]: et.name }), {} as Record<string, string>), [examTypes]);
     const classMap = useMemo(() => classes.reduce((acc, c) => ({...acc, [c.id]: c.name}), {} as Record<string, string>), [classes]);
     const subjectMap = useMemo(() => subjects.reduce((acc, s) => ({...acc, [s.id]: s.name}), {} as Record<string, string>), [subjects]);
     const topicMap = useMemo(() => topics.reduce((acc, t) => ({...acc, [t.id]: t.name}), {} as Record<string, string>), [topics]);
 
     const getPlanScope = (plan: SubscriptionPlan): string => {
-        const examTypeMap = examTypes.reduce((acc, et) => ({ ...acc, [et.id]: et.name }), {} as Record<string, string>);
         const scopeParts = [examTypeMap[plan.examTypeId]];
         if (plan.classId && classMap[plan.classId]) scopeParts.push(classMap[plan.classId]);
         if (plan.subjectId && subjectMap[plan.subjectId]) scopeParts.push(subjectMap[plan.subjectId]);

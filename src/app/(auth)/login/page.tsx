@@ -15,17 +15,26 @@ import {
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useAuth } from '@/firebase';
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import { useState } from 'react';
+import { signInWithEmailAndPassword, RecaptchaVerifier, signInWithPhoneNumber, type ConfirmationResult } from 'firebase/auth';
+import { useState, useEffect } from 'react';
 import { LoaderCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Logo } from '@/components/icons';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-const formSchema = z.object({
+const emailFormSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(1, 'Password is required'),
+});
+
+const phoneFormSchema = z.object({
+    phoneNumber: z.string().min(10, 'Please enter a valid 10-digit phone number.').max(10, 'Please enter a valid 10-digit phone number.'),
+});
+
+const otpFormSchema = z.object({
+    otp: z.string().length(6, 'OTP must be 6 digits.'),
 });
 
 export default function LoginPage() {
@@ -34,15 +43,29 @@ export default function LoginPage() {
   const { toast } = useToast();
   const router = useRouter();
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
+  const [phoneIsLoading, setPhoneIsLoading] = useState(false);
+  const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
+
+  useEffect(() => {
+    if (!(window as any).recaptchaVerifier) {
+      const recaptchaContainer = document.getElementById('recaptcha-container');
+      if (recaptchaContainer) {
+        (window as any).recaptchaVerifier = new RecaptchaVerifier(auth, recaptchaContainer, {
+          'size': 'invisible',
+        });
+      }
+    }
+  }, [auth]);
+
+  const emailForm = useForm<z.infer<typeof emailFormSchema>>({
+    resolver: zodResolver(emailFormSchema),
     defaultValues: {
       email: '',
       password: '',
     },
   });
 
-  async function onSubmit(values: z.infer<typeof formSchema>) {
+  async function onEmailSubmit(values: z.infer<typeof emailFormSchema>) {
     setIsLoading(true);
     try {
       await signInWithEmailAndPassword(auth, values.email, values.password);
@@ -61,8 +84,72 @@ export default function LoginPage() {
     }
   }
 
+  const phoneForm = useForm<z.infer<typeof phoneFormSchema>>({
+    resolver: zodResolver(phoneFormSchema),
+    defaultValues: {
+        phoneNumber: '',
+    }
+  });
+
+  const otpForm = useForm<z.infer<typeof otpFormSchema>>({
+    resolver: zodResolver(otpFormSchema),
+    defaultValues: {
+        otp: '',
+    }
+  });
+
+  async function onPhoneSubmit(values: z.infer<typeof phoneFormSchema>) {
+    setPhoneIsLoading(true);
+    try {
+        const verifier = (window as any).recaptchaVerifier;
+        if (verifier) {
+            const phoneNumber = `+91${values.phoneNumber}`;
+            const confirmation = await signInWithPhoneNumber(auth, phoneNumber, verifier);
+            setConfirmationResult(confirmation);
+            toast({
+                title: "OTP Sent",
+                description: `A verification code has been sent to ${phoneNumber}.`
+            });
+        } else {
+            throw new Error("reCAPTCHA verifier not initialized.");
+        }
+    } catch (error: any) {
+        toast({
+            variant: "destructive",
+            title: "Failed to send OTP",
+            description: error.message,
+        });
+    } finally {
+        setPhoneIsLoading(false);
+    }
+  }
+
+  async function onOtpSubmit(values: z.infer<typeof otpFormSchema>) {
+    if (!confirmationResult) {
+        toast({ variant: 'destructive', title: 'Verification Error', description: 'Please request an OTP first.' });
+        return;
+    }
+    setPhoneIsLoading(true);
+    try {
+        await confirmationResult.confirm(values.otp);
+        toast({
+            title: 'Login Successful'
+        });
+        router.push('/dashboard');
+    } catch (error: any) {
+        toast({
+            variant: 'destructive',
+            title: 'Login Failed',
+            description: 'The OTP is invalid or has expired. Please try again.',
+        });
+    } finally {
+        setPhoneIsLoading(false);
+    }
+  }
+
   return (
     <Card className="w-full max-w-md">
+        <div id="recaptcha-container"></div>
         <CardHeader className="text-center">
             <Link href="/dashboard" className="flex items-center gap-2 justify-center mb-4">
                 <Logo className="w-8 h-8 text-primary" />
@@ -74,40 +161,97 @@ export default function LoginPage() {
             <CardDescription>Enter your credentials to access your account.</CardDescription>
         </CardHeader>
         <CardContent>
-            <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                        <Input placeholder="user@example.com" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                    </FormItem>
+            <Tabs defaultValue="email" className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="email">Email</TabsTrigger>
+                    <TabsTrigger value="phone">Phone</TabsTrigger>
+                </TabsList>
+                <TabsContent value="email">
+                    <Form {...emailForm}>
+                    <form onSubmit={emailForm.handleSubmit(onEmailSubmit)} className="space-y-4 pt-4">
+                        <FormField
+                        control={emailForm.control}
+                        name="email"
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel>Email</FormLabel>
+                            <FormControl>
+                                <Input placeholder="user@example.com" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                        />
+                        <FormField
+                        control={emailForm.control}
+                        name="password"
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel>Password</FormLabel>
+                            <FormControl>
+                                <Input type="password" placeholder="********" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                        />
+                        <Button type="submit" className="w-full" disabled={isLoading}>
+                            {isLoading && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+                            Log In
+                        </Button>
+                    </form>
+                    </Form>
+                </TabsContent>
+                <TabsContent value="phone">
+                {!confirmationResult ? (
+                     <Form {...phoneForm}>
+                        <form onSubmit={phoneForm.handleSubmit(onPhoneSubmit)} className="space-y-4 pt-4">
+                            <FormField
+                                control={phoneForm.control}
+                                name="phoneNumber"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Phone Number</FormLabel>
+                                        <div className="flex items-center">
+                                            <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-input bg-background text-sm text-muted-foreground">+91</span>
+                                            <Input type="tel" placeholder="9876543210" {...field} className="rounded-l-none" />
+                                        </div>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <Button type="submit" className="w-full" disabled={phoneIsLoading}>
+                                {phoneIsLoading ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                Send OTP
+                            </Button>
+                        </form>
+                    </Form>
+                ) : (
+                    <Form {...otpForm}>
+                        <form onSubmit={otpForm.handleSubmit(onOtpSubmit)} className="space-y-4 pt-4">
+                             <FormField
+                                control={otpForm.control}
+                                name="otp"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Verification Code</FormLabel>
+                                        <FormControl>
+                                            <Input type="tel" placeholder="Enter 6-digit OTP" {...field} />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                             <Button type="submit" className="w-full" disabled={phoneIsLoading}>
+                                {phoneIsLoading ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                Verify & Log In
+                            </Button>
+                        </form>
+                    </Form>
                 )}
-                />
-                <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>Password</FormLabel>
-                    <FormControl>
-                        <Input type="password" placeholder="********" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                    </FormItem>
-                )}
-                />
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
-                    Log In
-                </Button>
-            </form>
-            </Form>
+                </TabsContent>
+            </Tabs>
+            
             <div className="mt-4 text-center text-sm text-muted-foreground">
                 <p>
                     Don&apos;t have an account?

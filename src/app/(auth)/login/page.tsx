@@ -49,7 +49,11 @@ export default function LoginPage() {
   useEffect(() => {
     if (!auth) return;
 
-    // This verifier instance is scoped to the effect
+    const recaptchaContainer = document.getElementById('recaptcha-container');
+    if (recaptchaContainer) {
+      recaptchaContainer.innerHTML = '';
+    }
+
     const verifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
       'size': 'invisible',
     });
@@ -69,7 +73,7 @@ export default function LoginPage() {
     return () => {
       verifier.clear();
     };
-  }, [auth]);
+  }, [auth, toast]);
 
   const emailForm = useForm<z.infer<typeof emailFormSchema>>({
     resolver: zodResolver(emailFormSchema),
@@ -252,7 +256,7 @@ export default function LoginPage() {
                                 className="p-0 h-auto font-medium"
                                 onClick={() => setConfirmationResult(null)}
                             >
-                                Wrong number?
+                                Change number?
                             </Button>
                         </div>
 

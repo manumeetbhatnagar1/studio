@@ -28,6 +28,7 @@ type UserProfile = {
     roleId: 'student' | 'teacher' | 'admin';
     photoURL?: string;
     teacherStatus?: 'pending' | 'approved' | 'rejected';
+    status?: 'active' | 'blocked';
 };
 
 const TeacherApprovalActions = ({ user }: { user: UserProfile }) => {
@@ -135,8 +136,8 @@ export default function UserManagementPage() {
     const { isAdmin, isLoading: isAdminLoading } = useIsAdmin();
     const firestore = useFirestore();
     const { toast } = useToast();
-    const [userToDelete, setUserToDelete] = useState<UserProfile | null>(null);
-    const [isDeleting, setIsDeleting] = useState(false);
+    const [userToBlock, setUserToBlock] = useState<UserProfile | null>(null);
+    const [isBlocking, setIsBlocking] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
 
     const usersQuery = useMemoFirebase(
@@ -149,41 +150,42 @@ export default function UserManagementPage() {
     const filteredUsers = useMemo(() => {
         if (!users) return [];
         return users.filter(user => 
+            user.status !== 'blocked' &&
             user.email.toLowerCase().includes(searchQuery.toLowerCase())
         );
     }, [users, searchQuery]);
 
 
-    const handleDeleteUser = async () => {
-        if (!userToDelete) return;
+    const handleBlockUser = async () => {
+        if (!userToBlock) return;
     
-        setIsDeleting(true);
+        setIsBlocking(true);
         try {
             const batch = writeBatch(firestore);
             
-            const blockedEmailRef = doc(firestore, "blocked_emails", userToDelete.email);
-            batch.set(blockedEmailRef, { blockedAt: new Date() });
+            const blockedEmailRef = doc(firestore, "blocked_emails", userToBlock.email);
+            batch.set(blockedEmailRef, { blockedAt: new Date(), userId: userToBlock.id });
     
-            const userRef = doc(firestore, 'users', userToDelete.id);
-            batch.delete(userRef);
+            const userRef = doc(firestore, 'users', userToBlock.id);
+            batch.update(userRef, { status: 'blocked' });
     
-            const teacherRoleRef = doc(firestore, 'roles_teacher', userToDelete.id);
+            const teacherRoleRef = doc(firestore, 'roles_teacher', userToBlock.id);
             batch.delete(teacherRoleRef);
             
-            const adminRoleRef = doc(firestore, 'roles_admin', userToDelete.id);
+            const adminRoleRef = doc(firestore, 'roles_admin', userToBlock.id);
             batch.delete(adminRoleRef);
             
             await batch.commit();
             
             toast({
-                title: 'User Deleted',
-                description: `${userToDelete.firstName} ${userToDelete.lastName} has been deleted and blocked.`,
+                title: 'User Blocked',
+                description: `${userToBlock.firstName} ${userToBlock.lastName} has been blocked and can be unblocked from the Blocked Emails page.`,
             });
         } catch (error: any) {
-            toast({ variant: 'destructive', title: 'Deletion Failed', description: error.message });
+            toast({ variant: 'destructive', title: 'Blocking Failed', description: error.message });
         } finally {
-            setIsDeleting(false);
-            setUserToDelete(null);
+            setIsBlocking(false);
+            setUserToBlock(null);
         }
     };
 
@@ -321,7 +323,7 @@ export default function UserManagementPage() {
                                                         ) : (
                                                             <RoleSelector user={user} />
                                                         )}
-                                                        <Button variant="ghost" size="icon" onClick={() => setUserToDelete(user)}>
+                                                        <Button variant="ghost" size="icon" onClick={() => setUserToBlock(user)}>
                                                             <Trash2 className="h-4 w-4 text-destructive" />
                                                         </Button>
                                                     </div>
@@ -339,21 +341,19 @@ export default function UserManagementPage() {
                     </CardContent>
                 </Card>
             </main>
-            <AlertDialog open={!!userToDelete} onOpenChange={() => setUserToDelete(null)}>
+            <AlertDialog open={!!userToBlock} onOpenChange={() => setUserToBlock(null)}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                        <AlertDialogTitle>Block this user?</AlertDialogTitle>
                         <AlertDialogDescription>
-                            This will permanently delete {userToDelete?.firstName} {userToDelete?.lastName}'s data from the app and block them from registering again with the same email. This action cannot be undone.
-                            <br/><br/>
-                            <span className="font-semibold text-destructive">Note:</span> This does not delete their authentication record. Sub-collection data like test results will be orphaned but inaccessible.
+                            This will block {userToBlock?.firstName} {userToBlock?.lastName} from accessing the application. Their data will be preserved, and you can unblock them from the "Blocked Emails" page.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDeleteUser} disabled={isDeleting} className={cn(buttonVariants({ variant: 'destructive' }))}>
-                            {isDeleting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
-                            Delete User
+                        <AlertDialogAction onClick={handleBlockUser} disabled={isBlocking} className={cn(buttonVariants({ variant: 'destructive' }))}>
+                            {isBlocking && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+                            Block User
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

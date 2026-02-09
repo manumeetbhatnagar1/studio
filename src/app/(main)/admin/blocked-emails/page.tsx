@@ -2,7 +2,7 @@
 
 import { useIsAdmin } from '@/hooks/useIsAdmin';
 import { useFirestore, useCollection, useMemoFirebase, deleteDocumentNonBlocking } from '@/firebase';
-import { collection, query, orderBy, doc } from 'firebase/firestore';
+import { collection, query, orderBy, doc, writeBatch } from 'firebase/firestore';
 import { useState } from 'react';
 import DashboardHeader from '@/components/dashboard-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,13 +18,14 @@ import { cn } from '@/lib/utils';
 type BlockedEmail = {
     id: string; // The email is the ID
     blockedAt: { toDate: () => Date } | string;
+    userId: string;
 };
 
 export default function BlockedEmailsPage() {
     const { isAdmin, isLoading: isAdminLoading } = useIsAdmin();
     const firestore = useFirestore();
     const { toast } = useToast();
-    const [emailToDelete, setEmailToDelete] = useState<string | null>(null);
+    const [emailToUnblock, setEmailToUnblock] = useState<BlockedEmail | null>(null);
 
     const blockedEmailsQuery = useMemoFirebase(
         () => firestore ? query(collection(firestore, 'blocked_emails'), orderBy('blockedAt', 'desc')) : null,
@@ -33,25 +34,32 @@ export default function BlockedEmailsPage() {
 
     const { data: blockedEmails, isLoading: areEmailsLoading } = useCollection<BlockedEmail>(blockedEmailsQuery);
 
-    const handleDeleteRequest = (email: string) => {
-        setEmailToDelete(email);
+    const handleUnblockRequest = (email: BlockedEmail) => {
+        setEmailToUnblock(email);
     };
     
-    const handleConfirmDelete = async () => {
-        if (!emailToDelete) return;
+    const handleConfirmUnblock = async () => {
+        if (!emailToUnblock) return;
     
         try {
-            const emailDocRef = doc(firestore, 'blocked_emails', emailToDelete);
-            await deleteDocumentNonBlocking(emailDocRef);
-            
+            const batch = writeBatch(firestore);
+
+            const emailDocRef = doc(firestore, 'blocked_emails', emailToUnblock.id);
+            batch.delete(emailDocRef);
+
+            const userRef = doc(firestore, 'users', emailToUnblock.userId);
+            batch.update(userRef, { status: 'active' });
+
+            await batch.commit();
+
             toast({
-                title: 'Record Deleted',
-                description: `${emailToDelete} has been removed from the blocklist.`,
+                title: 'User Unblocked',
+                description: `${emailToUnblock.id} has been unblocked and can now log in again.`,
             });
         } catch (error: any) {
-            toast({ variant: 'destructive', title: 'Deletion Failed', description: error.message });
+            toast({ variant: 'destructive', title: 'Unblock Failed', description: error.message });
         } finally {
-            setEmailToDelete(null);
+            setEmailToUnblock(null);
         }
     };
 
@@ -127,8 +135,8 @@ export default function BlockedEmailsPage() {
                                                 <TableCell className="font-medium">{email.id}</TableCell>
                                                 <TableCell>{formatDistanceToNow(blockedAtDate, { addSuffix: true })}</TableCell>
                                                 <TableCell className="text-right">
-                                                    <Button variant="destructive" size="sm" onClick={() => handleDeleteRequest(email.id)}>
-                                                        <Trash2 className="mr-2 h-4 w-4" /> Delete Record
+                                                    <Button variant="default" size="sm" onClick={() => handleUnblockRequest(email)}>
+                                                        Unblock User
                                                     </Button>
                                                 </TableCell>
                                             </TableRow>
@@ -144,20 +152,18 @@ export default function BlockedEmailsPage() {
                     </CardContent>
                 </Card>
             </main>
-             <AlertDialog open={!!emailToDelete} onOpenChange={(open) => !open && setEmailToDelete(null)}>
+             <AlertDialog open={!!emailToUnblock} onOpenChange={(open) => !open && setEmailToUnblock(null)}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Delete from Blocklist?</AlertDialogTitle>
+                        <AlertDialogTitle>Unblock this user?</AlertDialogTitle>
                         <AlertDialogDescription>
-                            This will permanently delete the email <span className="font-semibold text-foreground">{emailToDelete}</span> from the blocklist.
-                            <br/><br/>
-                            This means a new user will be able to register with this email address again. Note: The original user account associated with this email has already been permanently deleted.
+                            This will unblock the user with email <span className="font-semibold text-foreground">{emailToUnblock?.id}</span>. They will be able to log in again, and their record will reappear in the User Management list.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleConfirmDelete} className={cn(buttonVariants({ variant: 'destructive' }))}>
-                            Yes, Delete Record
+                        <AlertDialogAction onClick={handleConfirmUnblock} className={cn(buttonVariants({ variant: 'default' }))}>
+                            Yes, Unblock
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

@@ -44,6 +44,14 @@
             "rejected"
           ]
         },
+        "status": {
+          "type": "string",
+          "description": "The current status of the user account.",
+          "enum": [
+            "active",
+            "blocked"
+          ]
+        },
         "classLevel": {
           "type": "string",
           "description": "The class level of the student, if applicable.",
@@ -954,9 +962,16 @@
           "type": "string",
           "description": "The timestamp when the email was blocked.",
           "format": "date-time"
+        },
+        "userId": {
+          "type": "string",
+          "description": "The ID of the user associated with this blocked email."
         }
       },
-      "required": ["blockedAt"]
+      "required": [
+        "blockedAt",
+        "userId"
+      ]
     }
   },
   "auth": {

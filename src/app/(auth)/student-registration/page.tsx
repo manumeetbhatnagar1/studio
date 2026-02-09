@@ -70,6 +70,7 @@ export default function StudentRegistrationPage() {
         email: values.email,
         phoneNumber: values.phoneNumber,
         roleId: 'student',
+        status: 'active',
       };
       
       await setDocumentNonBlocking(userRef, userData, { merge: false });

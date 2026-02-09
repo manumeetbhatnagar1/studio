@@ -72,6 +72,7 @@ export default function TeacherRegistrationPage() {
         phoneNumber: values.phoneNumber,
         roleId: 'teacher',
         teacherStatus: 'pending',
+        status: 'active',
       };
       batch.set(userRef, userData);
       
@@ -82,7 +83,7 @@ export default function TeacherRegistrationPage() {
           batch.set(adminRoleRef, { createdAt: new Date().toISOString() });
           batch.set(teacherRoleRef, { createdAt: new Date().toISOString() });
           // Also update the user's roleId to 'admin' and status to 'approved'
-          batch.update(userRef, { roleId: 'admin', teacherStatus: 'approved' });
+          batch.update(userRef, { roleId: 'admin', teacherStatus: 'approved', status: 'active' });
       }
 
       await batch.commit();
@@ -103,7 +104,7 @@ export default function TeacherRegistrationPage() {
                 const teacherRoleRef = doc(firestore, 'roles_teacher', user.uid);
                 const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
 
-                batch.update(userRef, { roleId: 'admin', teacherStatus: 'approved' });
+                batch.update(userRef, { roleId: 'admin', teacherStatus: 'approved', status: 'active' });
                 batch.set(teacherRoleRef, { createdAt: new Date().toISOString() });
                 batch.set(adminRoleRef, { createdAt: new Date().toISOString() });
                 

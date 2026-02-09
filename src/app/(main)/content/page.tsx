@@ -9,6 +9,7 @@ import DashboardHeader from '@/components/dashboard-header';
 import { useFirestore, useCollection, addDocumentNonBlocking, useMemoFirebase, updateDocumentNonBlocking, doc } from '@/firebase';
 import { collection, query, orderBy } from 'firebase/firestore';
 import { useIsTeacher } from '@/hooks/useIsTeacher';
+import { useIsAdmin } from '@/hooks/useIsAdmin';
 import { useIsSubscribed } from '@/hooks/useIsSubscribed';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -268,7 +269,7 @@ function ContentForm({ examTypes, classes, subjects, topics, onFormFinished, con
   );
 }
 
-function ContentListItem({ contentItem, canViewPaidContent, isTeacher, onEdit }: { contentItem: Content, canViewPaidContent: boolean, isTeacher: boolean, onEdit: (item: Content) => void }) {
+function ContentListItem({ contentItem, canViewPaidContent, canEdit, onEdit }: { contentItem: Content, canViewPaidContent: boolean, canEdit: boolean, onEdit: (item: Content) => void }) {
   const [showSubPrompt, setShowSubPrompt] = useState(false);
   const embed = getEmbedUrl(contentItem.videoUrl);
   const difficultyVariant = { Easy: 'default', Medium: 'secondary', Hard: 'destructive' } as const;
@@ -290,7 +291,7 @@ function ContentListItem({ contentItem, canViewPaidContent, isTeacher, onEdit }:
                 <h3 className={cn("font-semibold", !isLocked && "group-hover:underline")}>{contentItem.title}</h3>
                  <div className="flex items-center gap-2">
                     {contentItem.accessLevel === 'free' && <Badge variant="secondary">Free</Badge>}
-                    {isTeacher && (
+                    {canEdit && (
                       <Button variant="ghost" size="icon" onClick={handleEditClick}>
                         <Edit className="h-4 w-4" />
                       </Button>
@@ -346,6 +347,7 @@ function ContentListItem({ contentItem, canViewPaidContent, isTeacher, onEdit }:
 export default function ContentPage() {
   const firestore = useFirestore();
   const { isTeacher, isLoading: isTeacherLoading } = useIsTeacher();
+  const { isAdmin, isLoading: isAdminLoading } = useIsAdmin();
   const { isSubscribed, isLoading: isSubscribedLoading } = useIsSubscribed();
   const [formKey, setFormKey] = useState(0);
   const [editingContent, setEditingContent] = useState<Content | null>(null);
@@ -380,14 +382,15 @@ export default function ContentPage() {
     })).filter(et => et.classes.length > 0);
   }, [content, topics, subjects, classes, examTypes]);
   
-  const isLoading = isTeacherLoading || areExamTypesLoading || areClassesLoading || areSubjectsLoading || areTopicsLoading || areContentLoading || isSubscribedLoading;
-  const canViewPaidContent = isTeacher || isSubscribed;
+  const isLoading = isTeacherLoading || isAdminLoading || areExamTypesLoading || areClassesLoading || areSubjectsLoading || areTopicsLoading || areContentLoading || isSubscribedLoading;
+  const canEdit = isTeacher || isAdmin;
+  const canViewPaidContent = canEdit || isSubscribed;
 
   return (
     <div className="flex flex-col h-full">
       <DashboardHeader title="Study Materials" />
       <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 grid gap-8">
-        {isTeacher && (
+        {canEdit && (
           <Card className="shadow-lg">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 font-headline text-2xl"><PlusCircle /> Add New Content</CardTitle>
@@ -441,7 +444,7 @@ export default function ContentPage() {
                                           <AccordionTrigger className="text-sm py-2">{t.name}</AccordionTrigger>
                                           <AccordionContent className="pl-4">
                                               <div className="grid gap-4 pt-2">
-                                                {t.items.map(item => <ContentListItem key={item.id} contentItem={item} canViewPaidContent={canViewPaidContent} isTeacher={!!isTeacher} onEdit={setEditingContent} />)}
+                                                {t.items.map(item => <ContentListItem key={item.id} contentItem={item} canViewPaidContent={canViewPaidContent} canEdit={canEdit} onEdit={setEditingContent} />)}
                                               </div>
                                           </AccordionContent>
                                         </AccordionItem>
@@ -462,7 +465,7 @@ export default function ContentPage() {
             ) : (
               <div className="text-center text-muted-foreground py-8 border-2 border-dashed rounded-lg">
                 <p className='font-medium'>No study materials available yet.</p>
-                <p className='text-sm'>{isTeacher ? 'Add some content above to get started!' : 'Please check back later.'}</p>
+                <p className='text-sm'>{canEdit ? 'Add some content above to get started!' : 'Please check back later.'}</p>
               </div>
             )}
           </CardContent>

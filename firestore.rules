@@ -104,11 +104,7 @@ service cloud.firestore {
           // A teacher can only update a user's subscription status.
           (isTeacher() && request.resource.data.diff(resource.data).affectedKeys().subset(['subscriptionStatus', 'subscriptionPlanId']).size() > 0) ||
           // A user can update their own profile, but cannot change their role or teacher status.
-          (
-            isOwner(userId) &&
-            !('roleId' in request.resource.data.diff(resource.data).affectedKeys()) &&
-            !('teacherStatus' in request.resource.data.diff(resource.data).affectedKeys())
-          );
+          (isOwner(userId) && request.resource.data.roleId == resource.data.roleId && request.resource.data.teacherStatus == resource.data.teacherStatus);
       allow delete: if isExistingOwner(userId) || isAdmin();
       
        /**

@@ -236,27 +236,43 @@ export default function LoginPage() {
                         </form>
                     </Form>
                 ) : (
-                    <Form {...otpForm}>
-                        <form onSubmit={otpForm.handleSubmit(onOtpSubmit)} className="space-y-4 pt-4">
-                             <FormField
-                                control={otpForm.control}
-                                name="otp"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Verification Code</FormLabel>
-                                        <FormControl>
-                                            <Input type="tel" placeholder="Enter 6-digit OTP" {...field} />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                             <Button type="submit" className="w-full" disabled={phoneIsLoading}>
-                                {phoneIsLoading ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                Verify & Log In
+                    <div>
+                        <div className="text-center text-sm text-muted-foreground mb-4 pt-4">
+                            <p>
+                                Enter the code sent to +91 {phoneForm.getValues('phoneNumber')}.
+                            </p>
+                            <Button
+                                type="button"
+                                variant="link"
+                                className="p-0 h-auto font-medium"
+                                onClick={() => setConfirmationResult(null)}
+                            >
+                                Wrong number?
                             </Button>
-                        </form>
-                    </Form>
+                        </div>
+
+                        <Form {...otpForm}>
+                            <form onSubmit={otpForm.handleSubmit(onOtpSubmit)} className="space-y-4">
+                                <FormField
+                                    control={otpForm.control}
+                                    name="otp"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Verification Code</FormLabel>
+                                            <FormControl>
+                                                <Input type="tel" placeholder="Enter 6-digit OTP" {...field} />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <Button type="submit" className="w-full" disabled={phoneIsLoading}>
+                                    {phoneIsLoading ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                    Verify & Log In
+                                </Button>
+                            </form>
+                        </Form>
+                    </div>
                 )}
                 </TabsContent>
             </Tabs>

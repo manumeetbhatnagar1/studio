@@ -1,7 +1,7 @@
 'use client';
 
 import { useIsAdmin } from '@/hooks/useIsAdmin';
-import { useFirestore, useCollection, useMemoFirebase, deleteDocumentNonBlocking } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, doc, writeBatch } from 'firebase/firestore';
 import { useState } from 'react';
 import DashboardHeader from '@/components/dashboard-header';
@@ -26,6 +26,7 @@ export default function BlockedEmailsPage() {
     const firestore = useFirestore();
     const { toast } = useToast();
     const [emailToUnblock, setEmailToUnblock] = useState<BlockedEmail | null>(null);
+    const [emailToDelete, setEmailToDelete] = useState<BlockedEmail | null>(null);
 
     const blockedEmailsQuery = useMemoFirebase(
         () => firestore ? query(collection(firestore, 'blocked_emails'), orderBy('blockedAt', 'desc')) : null,
@@ -36,6 +37,10 @@ export default function BlockedEmailsPage() {
 
     const handleUnblockRequest = (email: BlockedEmail) => {
         setEmailToUnblock(email);
+    };
+
+    const handleDeleteRequest = (email: BlockedEmail) => {
+        setEmailToDelete(email);
     };
     
     const handleConfirmUnblock = async () => {
@@ -60,6 +65,33 @@ export default function BlockedEmailsPage() {
             toast({ variant: 'destructive', title: 'Unblock Failed', description: error.message });
         } finally {
             setEmailToUnblock(null);
+        }
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!emailToDelete) return;
+
+        try {
+            const batch = writeBatch(firestore);
+
+            // Delete the main user document
+            const userDocRef = doc(firestore, 'users', emailToDelete.userId);
+            batch.delete(userDocRef);
+            
+            // Delete the blocklist entry
+            const emailDocRef = doc(firestore, 'blocked_emails', emailToDelete.id);
+            batch.delete(emailDocRef);
+
+            await batch.commit();
+
+            toast({
+                title: 'User Permanently Deleted',
+                description: `All data for ${emailToDelete.id} has been permanently removed.`,
+            });
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Deletion Failed', description: error.message });
+        } finally {
+            setEmailToDelete(null);
         }
     };
 
@@ -104,7 +136,7 @@ export default function BlockedEmailsPage() {
                 <Card>
                     <CardHeader>
                         <CardTitle>Blocked Email Addresses</CardTitle>
-                        <CardDescription>This is a list of emails that are blocked from creating new accounts because their associated user was deleted.</CardDescription>
+                        <CardDescription>This is a list of emails that are blocked. You can unblock them to restore access, or permanently delete all their data.</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <Table>
@@ -134,9 +166,12 @@ export default function BlockedEmailsPage() {
                                             <TableRow key={email.id}>
                                                 <TableCell className="font-medium">{email.id}</TableCell>
                                                 <TableCell>{formatDistanceToNow(blockedAtDate, { addSuffix: true })}</TableCell>
-                                                <TableCell className="text-right">
+                                                <TableCell className="text-right flex items-center justify-end gap-2">
                                                     <Button variant="default" size="sm" onClick={() => handleUnblockRequest(email)}>
                                                         Unblock User
+                                                    </Button>
+                                                    <Button variant="destructive" size="sm" onClick={() => handleDeleteRequest(email)}>
+                                                        <Trash2 className="mr-2 h-4 w-4" /> Permanently Delete
                                                     </Button>
                                                 </TableCell>
                                             </TableRow>
@@ -164,6 +199,22 @@ export default function BlockedEmailsPage() {
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
                         <AlertDialogAction onClick={handleConfirmUnblock} className={cn(buttonVariants({ variant: 'default' }))}>
                             Yes, Unblock
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+            <AlertDialog open={!!emailToDelete} onOpenChange={(open) => !open && setEmailToDelete(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This action cannot be undone. This will permanently delete the user's main profile ({emailToDelete?.id}) and all associated data. The user will be gone forever.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleConfirmDelete} className={cn(buttonVariants({ variant: 'destructive' }))}>
+                            Yes, Permanently Delete
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

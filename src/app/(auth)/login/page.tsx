@@ -15,8 +15,8 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { useAuth } from '@/firebase';
-import { signInWithEmailAndPassword, RecaptchaVerifier, signInWithPhoneNumber, type ConfirmationResult } from 'firebase/auth';
+import { useAuth, useFirestore } from '@/firebase';
+import { signInWithEmailAndPassword, RecaptchaVerifier, signInWithPhoneNumber, type ConfirmationResult, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { useState, useEffect, useRef } from 'react';
 import { LoaderCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -24,6 +24,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Logo } from '@/components/icons';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { doc, getDoc } from 'firebase/firestore';
+import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 
 const emailFormSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -40,30 +42,43 @@ const otpFormSchema = z.object({
 
 export default function LoginPage() {
   const auth = useAuth();
+  const firestore = useFirestore();
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
 
   const [phoneIsLoading, setPhoneIsLoading] = useState(false);
   const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
+  const recaptchaContainerRef = useRef<HTMLDivElement>(null);
   const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null);
   const [activeTab, setActiveTab] = useState('email');
 
   useEffect(() => {
-    if (!auth || activeTab !== 'phone') {
-      recaptchaVerifierRef.current?.clear();
-      recaptchaVerifierRef.current = null;
-      return;
-    }
-
-    if (auth && !recaptchaVerifierRef.current) {
-        const verifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+    if (auth && activeTab === 'phone' && recaptchaContainerRef.current && !recaptchaVerifierRef.current) {
+        // Clear the container in case there's a stale verifier
+        recaptchaContainerRef.current.innerHTML = '';
+        
+        const verifier = new RecaptchaVerifier(auth, recaptchaContainerRef.current, {
           'size': 'invisible',
         });
         recaptchaVerifierRef.current = verifier;
+        verifier.render().catch((error) => {
+            toast({
+                variant: "destructive",
+                title: "reCAPTCHA Error",
+                description: `Failed to render reCAPTCHA: ${error.message}`
+            });
+        });
     }
 
-  }, [auth, toast, activeTab]);
+    return () => {
+        // Cleanup the verifier when the component unmounts or tab changes
+        if (recaptchaVerifierRef.current) {
+            recaptchaVerifierRef.current.clear();
+            recaptchaVerifierRef.current = null;
+        }
+    };
+  }, [auth, activeTab, toast]);
 
   const emailForm = useForm<z.infer<typeof emailFormSchema>>({
     resolver: zodResolver(emailFormSchema),
@@ -127,9 +142,6 @@ export default function LoginPage() {
             title: "Failed to send OTP",
             description: error.message,
         });
-        // Reset verifier on error
-        recaptchaVerifierRef.current?.clear();
-        recaptchaVerifierRef.current = null;
     } finally {
         setPhoneIsLoading(false);
     }
@@ -157,9 +169,53 @@ export default function LoginPage() {
         setPhoneIsLoading(false);
     }
   }
+  
+  async function handleGoogleSignIn() {
+    setIsLoading(true);
+    const provider = new GoogleAuthProvider();
+    try {
+        const result = await signInWithPopup(auth, provider);
+        const user = result.user;
+
+        // Check if user exists in Firestore
+        const userDocRef = doc(firestore, 'users', user.uid);
+        const userDocSnap = await getDoc(userDocRef);
+
+        if (!userDocSnap.exists()) {
+            // New user, create a document in Firestore
+            const [firstName, ...lastName] = user.displayName?.split(' ') || ['User', ''];
+            await setDocumentNonBlocking(userDocRef, {
+                id: user.uid,
+                firstName: firstName,
+                lastName: lastName.join(' '),
+                email: user.email,
+                photoURL: user.photoURL,
+                roleId: 'student', // Default role for new Google sign-ups
+                phoneNumber: user.phoneNumber || ''
+            }, { merge: false });
+        }
+        
+        toast({
+            title: 'Login Successful',
+            description: `Welcome back, ${user.displayName}!`,
+        });
+        router.push('/dashboard');
+
+    } catch (error: any) {
+        toast({
+            variant: 'destructive',
+            title: 'Google Sign-In Failed',
+            description: error.message,
+        });
+    } finally {
+        setIsLoading(false);
+    }
+}
+
 
   return (
     <Card className="w-full max-w-md">
+        <div ref={recaptchaContainerRef}></div>
         <CardHeader className="text-center">
             <Link href="/dashboard" className="flex items-center gap-2 justify-center mb-4">
                 <Logo className="w-8 h-8 text-primary" />
@@ -213,7 +269,6 @@ export default function LoginPage() {
                     </Form>
                 </TabsContent>
                 <TabsContent value="phone">
-                <div id="recaptcha-container"></div>
                 {!confirmationResult ? (
                      <Form {...phoneForm}>
                         <form onSubmit={phoneForm.handleSubmit(onPhoneSubmit)} className="space-y-4 pt-4">
@@ -278,6 +333,22 @@ export default function LoginPage() {
                 )}
                 </TabsContent>
             </Tabs>
+
+            <div className="relative my-4">
+                <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-muted-foreground">
+                        Or continue with
+                    </span>
+                </div>
+            </div>
+
+            <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={isLoading}>
+                <svg className="mr-2 h-4 w-4" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512"><path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 126 23.4 172.9 61.9l-72.2 72.2C322 108.5 288.7 96 248 96c-88.8 0-160.1 71.9-160.1 160.1s71.3 160.1 160.1 160.1c98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z"></path></svg>
+                Sign in with Google
+            </Button>
             
             <div className="mt-4 text-center text-sm text-muted-foreground">
                 <p>

@@ -963,7 +963,8 @@
     "providers": [
       "password",
       "anonymous",
-      "phone"
+      "phone",
+      "google.com"
     ]
   },
   "firestore": {
@@ -1251,7 +1252,7 @@
           "schema": {
             "$ref": "#/backend/entities/Doubt"
           },
-          "description": "Stores student doubts. Students can create, teachers can update/answer.",
+          "description": "Stores student doubts. Students can create, teachers can answer.",
           "params": [
             { "name": "doubtId", "description": "The unique ID for the doubt." }
           ]

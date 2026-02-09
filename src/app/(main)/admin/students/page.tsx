@@ -162,7 +162,7 @@ export default function UserManagementPage() {
             const batch = writeBatch(firestore);
             
             const blockedEmailRef = doc(firestore, "blocked_emails", userToDelete.email);
-            batch.set(blockedEmailRef, { blockedAt: new Date().toISOString() });
+            batch.set(blockedEmailRef, { blockedAt: new Date() });
     
             const userRef = doc(firestore, 'users', userToDelete.id);
             batch.delete(userRef);

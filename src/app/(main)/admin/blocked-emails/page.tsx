@@ -17,7 +17,7 @@ import { cn } from '@/lib/utils';
 
 type BlockedEmail = {
     id: string; // The email is the ID
-    blockedAt: { toDate: () => Date };
+    blockedAt: { toDate: () => Date } | string;
 };
 
 export default function BlockedEmailsPage() {
@@ -117,17 +117,23 @@ export default function BlockedEmailsPage() {
                                         </TableRow>
                                     ))
                                 ) : blockedEmails && blockedEmails.length > 0 ? (
-                                    blockedEmails.map(email => (
-                                        <TableRow key={email.id}>
-                                            <TableCell className="font-medium">{email.id}</TableCell>
-                                            <TableCell>{formatDistanceToNow(email.blockedAt.toDate(), { addSuffix: true })}</TableCell>
-                                            <TableCell className="text-right">
-                                                <Button variant="outline" size="sm" onClick={() => handleUnblockRequest(email.id)}>
-                                                    <Unlock className="mr-2 h-4 w-4" /> Unblock
-                                                </Button>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))
+                                    blockedEmails.map(email => {
+                                        const blockedAtDate = typeof email.blockedAt === 'string'
+                                            ? new Date(email.blockedAt)
+                                            : (email.blockedAt as any).toDate();
+
+                                        return (
+                                            <TableRow key={email.id}>
+                                                <TableCell className="font-medium">{email.id}</TableCell>
+                                                <TableCell>{formatDistanceToNow(blockedAtDate, { addSuffix: true })}</TableCell>
+                                                <TableCell className="text-right">
+                                                    <Button variant="outline" size="sm" onClick={() => handleUnblockRequest(email.id)}>
+                                                        <Unlock className="mr-2 h-4 w-4" /> Unblock
+                                                    </Button>
+                                                </TableCell>
+                                            </TableRow>
+                                        );
+                                    })
                                 ) : (
                                     <TableRow>
                                         <TableCell colSpan={3} className="text-center h-24">No emails are currently blocked.</TableCell>

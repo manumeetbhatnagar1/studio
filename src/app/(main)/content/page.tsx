@@ -148,6 +148,8 @@ function ContentForm({ examTypes, classes, subjects, topics, onFormFinished, con
 
       form.reset({
         ...contentToEdit,
+        videoUrl: contentToEdit.videoUrl || '',
+        fileUrl: contentToEdit.fileUrl || '',
         examTypeId: examType?.id || '',
         classId: classItem?.id || '',
         subjectId: subject?.id || '',

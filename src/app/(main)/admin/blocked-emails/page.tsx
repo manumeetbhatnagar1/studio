@@ -70,35 +70,38 @@ export default function BlockedEmailsPage() {
 
     const handleConfirmDelete = async () => {
         if (!emailToDelete || !firestore) return;
-
-        if (!emailToDelete.userId) {
-            toast({
-                variant: 'destructive',
-                title: 'Deletion Failed',
-                description: 'User ID is missing from the block record. Cannot delete.',
-            });
-            console.error("Attempted to delete user but userId was missing from:", emailToDelete);
-            setEmailToDelete(null);
-            return;
-        }
+        
+        const wasUserIdPresent = !!emailToDelete.userId;
 
         try {
             const batch = writeBatch(firestore);
 
-            // Delete the main user document
-            const userDocRef = doc(firestore, 'users', emailToDelete.userId);
-            batch.delete(userDocRef);
-            
-            // Delete the blocklist entry
+            // Always delete the blocklist entry
             const emailDocRef = doc(firestore, 'blocked_emails', emailToDelete.id);
             batch.delete(emailDocRef);
 
+            // Conditionally delete the user document if the ID is present
+            if (wasUserIdPresent) {
+                const userDocRef = doc(firestore, 'users', emailToDelete.userId);
+                batch.delete(userDocRef);
+            }
+
             await batch.commit();
 
-            toast({
-                title: 'User Permanently Deleted',
-                description: `All data for ${emailToDelete.id} has been permanently removed.`,
-            });
+            if (wasUserIdPresent) {
+                toast({
+                    title: 'User Permanently Deleted',
+                    description: `All data for ${emailToDelete.id} has been permanently removed.`,
+                });
+            } else {
+                 toast({
+                    variant: 'default',
+                    title: 'Block Record Deleted',
+                    description: `The block record for ${emailToDelete.id} was deleted. The associated user document could not be removed as the User ID was missing.`,
+                });
+                console.warn(`Could not delete user document for ${emailToDelete.id} because userId was missing.`);
+            }
+
         } catch (error: any) {
             console.error("Permanent delete failed:", error);
             const description = error instanceof Error ? error.message : "An unknown error occurred while deleting the user.";

@@ -104,13 +104,13 @@ service cloud.firestore {
           isAdmin() ||
           // Teachers can ONLY update a user's subscription status or plan.
           (
-            isTeacher() && 
+            isTeacher() &&
             request.writeFields.hasOnly(['subscriptionStatus', 'subscriptionPlanId'])
           ) ||
-          // Users can update their own profile data, but cannot change their role or teacher status.
+          // A user can update their own document, but cannot change their role or teacher status.
           (
             isOwner(userId) &&
-            request.writeFields.subset(['firstName', 'lastName', 'email', 'phoneNumber', 'photoURL', 'subscriptionStatus', 'subscriptionPlanId'])
+            request.writeFields.disjoint(['roleId', 'teacherStatus'])
           );
 
       allow delete: if isExistingOwner(userId) || isAdmin();

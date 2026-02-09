@@ -110,7 +110,7 @@ service cloud.firestore {
           // Users can update their own profile data, but cannot change their role or teacher status.
           (
             isOwner(userId) &&
-            request.writeFields.disjoint(['roleId', 'teacherStatus'])
+            request.writeFields.subset(['firstName', 'lastName', 'email', 'phoneNumber', 'photoURL', 'subscriptionStatus', 'subscriptionPlanId'])
           );
 
       allow delete: if isExistingOwner(userId) || isAdmin();

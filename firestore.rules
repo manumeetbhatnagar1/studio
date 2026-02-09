@@ -316,12 +316,12 @@ service cloud.firestore {
     // --------------------------------------------------------------------
     
     /**
-     * @description Defines the available subscription plans. Readable by all, writable by teachers/admins.
+     * @description Defines the available subscription plans. Readable by all, writable only by admins.
      * @path        /subscription_plans/{planId}
      */
     match /subscription_plans/{planId} {
         allow get, list: if isSignedIn();
-        allow create, update, delete: if isTeacher() || isAdmin();
+        allow create, update, delete: if isAdmin();
     }
     
     // --------------------------------------------------------------------

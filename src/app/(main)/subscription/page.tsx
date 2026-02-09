@@ -16,7 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Check, PlusCircle, Edit, Trash2, LoaderCircle } from 'lucide-react';
-import { useIsTeacher } from '@/hooks/useIsTeacher';
+import { useIsAdmin } from '@/hooks/useIsAdmin';
 import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
 import { collection, query, orderBy, doc } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -217,8 +217,8 @@ const PlanForm: FC<{
     )
 };
 
-// Teacher View Component
-const TeacherView: FC<{ 
+// Admin View Component
+const AdminView: FC<{ 
     plans: SubscriptionPlan[]; 
     examTypes: ExamType[]; 
     classes: Class[];
@@ -415,7 +415,7 @@ const StudentView: FC<{
 // Main Page Component
 export default function SubscriptionPage() {
   const firestore = useFirestore();
-  const { isTeacher, isLoading: isTeacherLoading } = useIsTeacher();
+  const { isAdmin, isLoading: isAdminLoading } = useIsAdmin();
 
   const plansQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'subscription_plans'), orderBy('price')) : null, [firestore]);
   const examTypesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'exam_types'), orderBy('name')) : null, [firestore]);
@@ -430,7 +430,7 @@ export default function SubscriptionPage() {
   const { data: topics, isLoading: areTopicsLoading } = useCollection<Topic>(topicsQuery);
 
 
-  const isLoading = isTeacherLoading || arePlansLoading || areExamTypesLoading || areClassesLoading || areSubjectsLoading || areTopicsLoading;
+  const isLoading = isAdminLoading || arePlansLoading || areExamTypesLoading || areClassesLoading || areSubjectsLoading || areTopicsLoading;
 
   return (
     <div className="flex flex-col h-full">
@@ -445,8 +445,8 @@ export default function SubscriptionPage() {
                     <Skeleton className="h-80 w-full" />
                 </div>
             </div>
-        ) : isTeacher ? (
-            <TeacherView 
+        ) : isAdmin ? (
+            <AdminView 
                 plans={plans || []} 
                 examTypes={examTypes || []} 
                 classes={classes || []}

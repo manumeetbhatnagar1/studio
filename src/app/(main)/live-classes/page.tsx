@@ -4,11 +4,13 @@ import { useState, useMemo, type FC, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { CalendarIcon, PlusCircle, Video, LoaderCircle, Trash2, User, Clock, Link as LinkIcon, AlertTriangle, CreditCard, PlayCircle, CalendarClock, BookOpen, Edit } from 'lucide-react';
+import { CalendarIcon, PlusCircle, Video, LoaderCircle, Trash2, User, Clock, Link as LinkIcon, AlertTriangle, CreditCard, PlayCircle, CalendarClock, BookOpen, Edit, Lock } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase, addDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
 import { useIsTeacher } from '@/hooks/useIsTeacher';
+import { useIsAdmin } from '@/hooks/useIsAdmin';
+import { useIsSubscribed } from '@/hooks/useIsSubscribed';
 import { collection, query, orderBy, doc, serverTimestamp } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import {
@@ -135,6 +137,10 @@ const LiveClassCard: FC<{ liveClass: LiveClass; currentUserId?: string, examType
     const firestore = useFirestore();
     const { toast } = useToast();
     const [isRecordingDialogOpen, setIsRecordingDialogOpen] = useState(false);
+    
+    const { isTeacher } = useIsTeacher();
+    const { isAdmin } = useIsAdmin();
+    const { isSubscribed } = useIsSubscribed();
 
     const handleDelete = async () => {
         if (window.confirm('Are you sure you want to delete this class? This action cannot be undone.')) {
@@ -151,6 +157,9 @@ const LiveClassCard: FC<{ liveClass: LiveClass; currentUserId?: string, examType
     const isOwner = liveClass.teacherId === currentUserId;
     const classTime = liveClass.startTime.toDate();
     const isUpcoming = classTime > new Date();
+
+    const canAccessPaidContent = isTeacher || isAdmin || isSubscribed;
+    const isLocked = liveClass.accessLevel === 'paid' && !canAccessPaidContent;
 
     return (
         <Card className="flex flex-col shadow-lg">
@@ -189,19 +198,37 @@ const LiveClassCard: FC<{ liveClass: LiveClass; currentUserId?: string, examType
             <CardFooter className="bg-muted/50 px-6 py-4 flex justify-between items-center">
                  <div>
                     {isUpcoming ? (
-                        <Button asChild>
-                            <Link href={liveClass.meetingUrl} target="_blank">
-                                <Video className="mr-2" />
-                                Join Class
-                            </Link>
-                        </Button>
+                        isLocked ? (
+                            <Button asChild variant="secondary">
+                                <Link href="/subscription">
+                                    <Lock className="mr-2 h-4 w-4" />
+                                    Subscribe to Join
+                                </Link>
+                            </Button>
+                        ) : (
+                            <Button asChild>
+                                <Link href={liveClass.meetingUrl} target="_blank">
+                                    <Video className="mr-2" />
+                                    Join Class
+                                </Link>
+                            </Button>
+                        )
                     ) : liveClass.recordingUrl ? (
-                        <Button asChild>
-                            <Link href={liveClass.recordingUrl} target="_blank">
-                                <PlayCircle className="mr-2" />
-                                Watch Recording
-                            </Link>
-                        </Button>
+                         isLocked ? (
+                             <Button asChild variant="secondary">
+                                <Link href="/subscription">
+                                    <Lock className="mr-2 h-4 w-4" />
+                                    Subscribe to Watch
+                                </Link>
+                             </Button>
+                        ) : (
+                            <Button asChild>
+                                <Link href={liveClass.recordingUrl} target="_blank">
+                                    <PlayCircle className="mr-2" />
+                                    Watch Recording
+                                </Link>
+                            </Button>
+                        )
                     ) : (
                         <div className='text-sm text-muted-foreground'>Recording not available</div>
                     )}

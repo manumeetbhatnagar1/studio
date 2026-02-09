@@ -101,10 +101,10 @@ service cloud.firestore {
       allow update: if
           // Admins can update any part of a user's profile.
           isAdmin() ||
-          // Teachers can ONLY update a user's subscription status.
+          // Teachers can ONLY update a user's subscription status or plan.
           (isTeacher() && request.writeFields.subset(['subscriptionStatus', 'subscriptionPlanId'].toSet())) ||
-          // Users can update their own profile and subscription, but not roles.
-          (isOwner(userId) && request.writeFields.subset(['firstName', 'lastName', 'email', 'phoneNumber', 'photoURL', 'subscriptionStatus', 'subscriptionPlanId'].toSet()));
+          // Users can update their own profile, but not their role or teacher status.
+          (isOwner(userId) && !('roleId' in request.writeFields) && !('teacherStatus' in request.writeFields));
       allow delete: if isExistingOwner(userId) || isAdmin();
       
        /**

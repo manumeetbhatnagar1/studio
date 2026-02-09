@@ -47,24 +47,29 @@ export default function LoginPage() {
   const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
 
   useEffect(() => {
-    if (auth && !(window as any).recaptchaVerifier) {
-      const recaptchaContainer = document.getElementById('recaptcha-container');
-      if (recaptchaContainer) {
-        const verifier = new RecaptchaVerifier(auth, recaptchaContainer, {
-          'size': 'invisible',
-        });
-        (window as any).recaptchaVerifier = verifier;
-        verifier.render().catch((error) => {
-            console.error("reCAPTCHA render error:", error);
-            toast({
-                variant: 'destructive',
-                title: "Could not initialize login security",
-                description: "Please refresh the page and try again."
-            })
-        });
-      }
-    }
-  }, [auth, toast]);
+    if (!auth) return;
+
+    // This verifier instance is scoped to the effect
+    const verifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+      'size': 'invisible',
+    });
+
+    (window as any).recaptchaVerifier = verifier;
+    
+    verifier.render().catch((error) => {
+      console.error("reCAPTCHA render error:", error);
+      toast({
+          variant: 'destructive',
+          title: "Could not initialize login security",
+          description: "Please refresh the page and try again."
+      });
+    });
+
+    // Cleanup function to run when the component unmounts
+    return () => {
+      verifier.clear();
+    };
+  }, [auth]);
 
   const emailForm = useForm<z.infer<typeof emailFormSchema>>({
     resolver: zodResolver(emailFormSchema),

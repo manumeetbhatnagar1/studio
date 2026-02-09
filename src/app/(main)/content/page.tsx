@@ -126,11 +126,7 @@ function ContentForm({ examTypes, classes, subjects, topics, onFormFinished, con
 
   const form = useForm<z.infer<typeof contentSchema>>({
     resolver: zodResolver(contentSchema),
-    defaultValues: contentToEdit ? {
-        ...contentToEdit,
-        videoUrl: contentToEdit.videoUrl || '',
-        fileUrl: contentToEdit.fileUrl || '',
-      } : {
+    defaultValues: {
       title: '',
       description: '',
       type: 'video',
@@ -492,7 +488,7 @@ export default function ContentPage() {
               classes={classes || []}
               subjects={subjects || []}
               topics={topics || []}
-              onFinished={() => setEditingContent(null)}
+              onFormFinished={() => setEditingContent(null)}
             />
           )}
         </DialogContent>

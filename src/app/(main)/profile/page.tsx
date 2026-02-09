@@ -73,7 +73,7 @@ export default function ProfilePage() {
       form.reset({
         firstName: userProfile.firstName,
         lastName: userProfile.lastName,
-        email: userProfile.email,
+        email: user?.email || '',
         phoneNumber: userProfile.phoneNumber,
       });
       if (userProfile.photoURL) {

@@ -214,12 +214,12 @@ service cloud.firestore {
     }
 
     /**
-     * @description Learning content. Readable by any signed-in user, manageable by teachers.
+     * @description Learning content. Readable by any signed-in user, manageable by teachers or admins.
      * @path        /content/{contentId}
      */
     match /content/{contentId} {
       allow get, list: if isSignedIn();
-      allow create, update, delete: if isTeacher();
+      allow create, update, delete: if isTeacher() || isAdmin();
     }
 
     /**

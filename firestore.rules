@@ -83,6 +83,17 @@ service cloud.firestore {
              && (userDoc.data.subscriptionStatus == 'active' || userDoc.data.subscriptionStatus == 'trialing');
     }
 
+    /**
+     * Checks if a user is updating only the fields they are allowed to.
+     */
+    function isOwnerAllowedUpdate(userId) {
+      let allowedFields = [
+        'firstName', 'lastName', 'email', 'phoneNumber', 'photoURL',
+        'subscriptionPlanId', 'subscriptionStatus'
+      ].toSet();
+      return isOwner(userId) && request.writeFields.isSubset(allowedFields);
+    }
+
     // --------------------------------------------------------------------
     // User Data Rules
     // --------------------------------------------------------------------
@@ -98,13 +109,15 @@ service cloud.firestore {
       allow get: if isOwner(userId) || isTeacher() || isAdmin();
       allow list: if isSignedIn();
       allow create: if isOwner(userId) && request.resource.data.id == userId && !exists(/databases/$(database)/documents/blocked_emails/$(request.resource.data.email));
+      
       allow update: if
           // Admins can update any part of a user's profile.
           isAdmin() ||
           // Teachers can ONLY update a user's subscription status or plan.
           (isTeacher() && request.writeFields.isSubset(['subscriptionStatus', 'subscriptionPlanId'].toSet())) ||
-          // Users can update their own profile, but only if they are not changing their role or teacher status.
-          (isOwner(userId) && request.resource.data.roleId == resource.data.roleId && request.resource.data.teacherStatus == resource.data.teacherStatus);
+          // Users can update their own non-sensitive profile fields.
+          isOwnerAllowedUpdate(userId);
+
       allow delete: if isExistingOwner(userId) || isAdmin();
       
        /**
@@ -363,5 +376,3 @@ service cloud.firestore {
     }
   }
 }
-
-    

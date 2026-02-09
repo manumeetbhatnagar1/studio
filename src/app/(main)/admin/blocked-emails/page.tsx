@@ -44,7 +44,7 @@ export default function BlockedEmailsPage() {
     };
     
     const handleConfirmUnblock = async () => {
-        if (!emailToUnblock) return;
+        if (!emailToUnblock || !firestore) return;
     
         try {
             const batch = writeBatch(firestore);
@@ -69,7 +69,7 @@ export default function BlockedEmailsPage() {
     };
 
     const handleConfirmDelete = async () => {
-        if (!emailToDelete) return;
+        if (!emailToDelete || !firestore) return;
 
         try {
             const batch = writeBatch(firestore);
@@ -89,7 +89,8 @@ export default function BlockedEmailsPage() {
                 description: `All data for ${emailToDelete.id} has been permanently removed.`,
             });
         } catch (error: any) {
-            toast({ variant: 'destructive', title: 'Deletion Failed', description: error.message });
+            const errorMessage = error && typeof error === 'object' && 'message' in error ? String(error.message) : 'An unknown error occurred.';
+            toast({ variant: 'destructive', title: 'Deletion Failed', description: errorMessage });
         } finally {
             setEmailToDelete(null);
         }

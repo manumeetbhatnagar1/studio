@@ -139,6 +139,59 @@ const RoleSelector = ({ user }: { user: UserProfile }) => {
     )
 }
 
+const SubscriptionStatusSelector = ({ user }: { user: UserProfile }) => {
+    const firestore = useFirestore();
+    const { toast } = useToast();
+    const [isUpdating, setIsUpdating] = useState(false);
+
+    const handleStatusChange = async (newStatus: 'active' | 'canceled' | 'past_due' | 'trialing') => {
+        setIsUpdating(true);
+        try {
+            const batch = writeBatch(firestore);
+            
+            const userRef = doc(firestore, 'users', user.id);
+            batch.update(userRef, { subscriptionStatus: newStatus });
+
+            // Also update the subcollection if it exists, creating it if necessary
+            const userSubscriptionRef = doc(firestore, 'users', user.id, 'subscriptions', 'main');
+            batch.set(userSubscriptionRef, { status: newStatus }, { merge: true });
+
+            await batch.commit();
+
+            toast({ title: 'Subscription Updated', description: `${user.firstName}'s subscription is now ${newStatus}.` });
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Update Failed', description: error.message });
+        } finally {
+            setIsUpdating(false);
+        }
+    };
+    
+    if (user.roleId !== 'student' || !user.subscriptionPlanId) {
+        return null;
+    }
+
+    const currentStatus = user.subscriptionStatus || 'canceled';
+
+    return (
+        <Select 
+            value={currentStatus} 
+            onValueChange={handleStatusChange} 
+            disabled={isUpdating}
+        >
+            <SelectTrigger className="w-[120px]">
+                <SelectValue placeholder="Set Status"/>
+            </SelectTrigger>
+            <SelectContent>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="trialing">Trialing</SelectItem>
+                <SelectItem value="past_due">Past Due</SelectItem>
+                <SelectItem value="canceled">Canceled</SelectItem>
+            </SelectContent>
+        </Select>
+    );
+};
+
+
 export default function UserManagementPage() {
     const { isAdmin, isLoading: isAdminLoading } = useIsAdmin();
     const firestore = useFirestore();
@@ -221,7 +274,7 @@ export default function UserManagementPage() {
         if (!users || !plans) return;
         const studentData = users
             .filter(user => user.roleId === 'student')
-            .map(({ id, firstName, lastName, email, phoneNumber, roleId, subscriptionPlanId }) => ({ 
+            .map(({ id, firstName, lastName, email, phoneNumber, roleId, subscriptionPlanId, subscriptionStatus }) => ({ 
                 id, 
                 firstName, 
                 lastName, 
@@ -229,6 +282,7 @@ export default function UserManagementPage() {
                 phoneNumber, 
                 roleId,
                 subscriptionPlan: subscriptionPlanId ? (planMap[subscriptionPlanId] || 'N/A') : 'No Plan',
+                subscriptionStatus: subscriptionStatus || 'none',
              }));
         exportToExcel(studentData, 'students_export');
     };
@@ -351,8 +405,12 @@ export default function UserManagementPage() {
                                                 <TableCell>
                                                     {user.roleId === 'student' ? (
                                                         user.subscriptionPlanId && planMap[user.subscriptionPlanId] ? (
-                                                            <Badge variant={user.subscriptionStatus === 'active' ? 'default' : 'secondary'}>
+                                                            <Badge variant={
+                                                                user.subscriptionStatus === 'active' || user.subscriptionStatus === 'trialing' ? 'default' :
+                                                                user.subscriptionStatus === 'past_due' ? 'destructive' : 'secondary'
+                                                            }>
                                                                 {planMap[user.subscriptionPlanId]}
+                                                                {user.subscriptionStatus && ` - ${user.subscriptionStatus}`}
                                                             </Badge>
                                                         ) : (
                                                             <Badge variant="outline">No Plan</Badge>
@@ -364,7 +422,10 @@ export default function UserManagementPage() {
                                                         {isPendingTeacher ? (
                                                             <TeacherApprovalActions user={user} />
                                                         ) : (
-                                                            <RoleSelector user={user} />
+                                                            <>
+                                                                {user.roleId === 'student' && <SubscriptionStatusSelector user={user} />}
+                                                                <RoleSelector user={user} />
+                                                            </>
                                                         )}
                                                         <Button variant="ghost" size="icon" onClick={() => setUserToBlock(user)}>
                                                             <Trash2 className="h-4 w-4 text-destructive" />

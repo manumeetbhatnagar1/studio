@@ -15,7 +15,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase, updateDocumentNonBlocking } from '@/firebase';
-import { updateProfile, updateEmail } from 'firebase/auth';
+import { updateProfile, updateEmail, EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth';
 import { doc } from 'firebase/firestore';
 import { useState, useEffect } from 'react';
 import { LoaderCircle, User as UserIcon } from 'lucide-react';
@@ -30,6 +30,16 @@ const profileFormSchema = z.object({
   email: z.string().email(),
   phoneNumber: z.string().min(10, 'A valid phone number is required'),
 });
+
+const passwordFormSchema = z.object({
+    currentPassword: z.string().min(1, "Current password is required."),
+    newPassword: z.string().min(8, "New password must be at least 8 characters long."),
+    confirmPassword: z.string(),
+}).refine(data => data.newPassword === data.confirmPassword, {
+    message: "New passwords do not match.",
+    path: ["confirmPassword"],
+});
+
 
 type UserProfile = {
     id: string;
@@ -46,6 +56,7 @@ export default function ProfilePage() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
   const [isLoading, setIsLoading] = useState(false);
+  const [isPasswordLoading, setIsPasswordLoading] = useState(false);
   const { toast } = useToast();
   
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -67,6 +78,16 @@ export default function ProfilePage() {
       phoneNumber: '',
     },
   });
+
+  const passwordForm = useForm<z.infer<typeof passwordFormSchema>>({
+    resolver: zodResolver(passwordFormSchema),
+    defaultValues: {
+      currentPassword: '',
+      newPassword: '',
+      confirmPassword: '',
+    },
+  });
+
 
   useEffect(() => {
     if (user) {
@@ -156,6 +177,42 @@ export default function ProfilePage() {
     }
   }
 
+  async function onPasswordSubmit(values: z.infer<typeof passwordFormSchema>) {
+    setIsPasswordLoading(true);
+    const currentUser = auth.currentUser;
+
+    if (!currentUser || !currentUser.email) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Could not find user information. Please sign in again.' });
+      setIsPasswordLoading(false);
+      return;
+    }
+
+    try {
+      const credential = EmailAuthProvider.credential(currentUser.email, values.currentPassword);
+      await reauthenticateWithCredential(currentUser, credential);
+      await updatePassword(currentUser, values.newPassword);
+
+      toast({ title: 'Password Updated', description: 'Your password has been changed successfully.' });
+      passwordForm.reset();
+    } catch (error: any) {
+      let description = 'An unexpected error occurred.';
+      if (error.code === 'auth/wrong-password') {
+          description = 'The current password you entered is incorrect. Please try again.';
+      } else if (error.code === 'auth/requires-recent-login') {
+          description = 'For your security, please sign out and sign back in before changing your password.';
+      } else {
+          description = error.message;
+      }
+      toast({
+        variant: 'destructive',
+        title: 'Password Change Failed',
+        description,
+      });
+    } finally {
+      setIsPasswordLoading(false);
+    }
+  }
+
   const showLoading = isUserLoading || isProfileLoading;
   
   const getInitials = () => {
@@ -173,7 +230,7 @@ export default function ProfilePage() {
     <div className="flex flex-col h-full">
       <DashboardHeader title="My Profile" />
       <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
-        <div className="flex justify-center">
+        <div className="flex flex-col items-center gap-8">
             <Card className="w-full max-w-2xl shadow-lg">
                 <CardHeader>
                     <CardTitle className="font-headline text-2xl">Manage Your Profile</CardTitle>
@@ -285,6 +342,62 @@ export default function ProfilePage() {
                             </form>
                         </Form>
                     )}
+                </CardContent>
+            </Card>
+
+            <Card className="w-full max-w-2xl shadow-lg">
+                <CardHeader>
+                    <CardTitle>Change Password</CardTitle>
+                    <CardDescription>Update your account password here.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Form {...passwordForm}>
+                    <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="space-y-6">
+                        <FormField
+                        control={passwordForm.control}
+                        name="currentPassword"
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel>Current Password</FormLabel>
+                            <FormControl>
+                                <Input type="password" placeholder="••••••••" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                        />
+                        <FormField
+                        control={passwordForm.control}
+                        name="newPassword"
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel>New Password</FormLabel>
+                            <FormControl>
+                                <Input type="password" placeholder="••••••••" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                        />
+                        <FormField
+                        control={passwordForm.control}
+                        name="confirmPassword"
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel>Confirm New Password</FormLabel>
+                            <FormControl>
+                                <Input type="password" placeholder="••••••••" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                        />
+                        <Button type="submit" disabled={isPasswordLoading}>
+                        {isPasswordLoading && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+                        Change Password
+                        </Button>
+                    </form>
+                    </Form>
                 </CardContent>
             </Card>
         </div>

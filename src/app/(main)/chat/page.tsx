@@ -7,8 +7,8 @@ import * as z from 'zod';
 import Image from 'next/image';
 import { formatRelative } from 'date-fns';
 import type { Timestamp } from 'firebase/firestore';
-import { useUser, useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
-import { collection, query, orderBy, serverTimestamp, where } from 'firebase/firestore';
+import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, query, orderBy, serverTimestamp, where, addDoc, updateDoc } from 'firebase/firestore';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,7 +16,7 @@ import { Form, FormControl, FormField, FormItem } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { LoaderCircle, MessagesSquare, Send, User as UserIcon, MessageCircle, Paperclip, X } from 'lucide-react';
+import { LoaderCircle, MessagesSquare, Send, User as UserIcon, MessageCircle, Paperclip, X, AlertCircle } from 'lucide-react';
 import DashboardHeader from '@/components/dashboard-header';
 import { cn } from '@/lib/utils';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -34,6 +34,8 @@ type ChatMessage = {
   text?: string;
   imageUrl?: string;
   createdAt: Timestamp;
+  isUploading?: boolean;
+  uploadError?: boolean;
 };
 
 // Single message component
@@ -47,9 +49,22 @@ function Message({ message, isOwnMessage }: { message: ChatMessage; isOwnMessage
       <div className={cn('flex flex-col gap-1', isOwnMessage && 'items-end')}>
         <div className={cn('rounded-lg px-3 py-2', isOwnMessage ? 'bg-primary text-primary-foreground' : 'bg-muted')}>
             {message.imageUrl && (
-                <Link href={message.imageUrl} target="_blank" rel="noopener noreferrer">
-                    <Image src={message.imageUrl} alt="Sent image" width={200} height={200} className="rounded-md my-2 max-w-xs object-contain" />
-                </Link>
+                <div className="relative">
+                  <Link href={message.uploadError || message.isUploading ? '#' : message.imageUrl} target="_blank" rel="noopener noreferrer" className={cn(message.uploadError && 'pointer-events-none')}>
+                      <Image src={message.imageUrl} alt="Sent image" width={200} height={200} className={cn("rounded-md my-2 max-w-xs object-contain", (message.isUploading || message.uploadError) && "opacity-50")} />
+                  </Link>
+                  {message.isUploading && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-md">
+                          <LoaderCircle className="h-6 w-6 animate-spin text-white" />
+                      </div>
+                  )}
+                  {message.uploadError && (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 rounded-md text-destructive-foreground p-2 text-center">
+                          <AlertCircle className="h-6 w-6 text-red-400" />
+                          <p className="text-xs mt-1">Upload failed</p>
+                      </div>
+                  )}
+                </div>
             )}
           {message.text && <p className="text-sm">{message.text}</p>}
         </div>
@@ -114,28 +129,42 @@ function GroupChat() {
     }
     setIsUploading(true);
 
-    try {
-        let imageUrl = '';
-        if (imageFile) {
-            const storage = getStorage();
-            const filePath = `chat_images/${user.uid}-${Date.now()}-${imageFile.name}`;
-            const storageRef = ref(storage, filePath);
-            const uploadTask = await uploadBytesResumable(storageRef, imageFile);
-            imageUrl = await getDownloadURL(uploadTask.ref);
-        }
+    const tempImageFile = imageFile;
+    const tempImagePreview = imagePreview;
 
-        const messagesRef = collection(firestore, 'group_chat_messages');
-        addDocumentNonBlocking(messagesRef, { 
+    form.reset();
+    handleRemoveImage();
+
+    try {
+        const docRef = await addDoc(collection(firestore, 'group_chat_messages'), { 
             senderId: user.uid, 
             senderName: user.displayName || 'Anonymous', 
             senderPhotoUrl: user.photoURL || '', 
             text: values.text || '', 
-            imageUrl: imageUrl || '',
-            createdAt: serverTimestamp() 
+            imageUrl: tempImageFile ? tempImagePreview : '',
+            createdAt: serverTimestamp(),
+            isUploading: !!tempImageFile
         });
 
-        form.reset();
-        handleRemoveImage();
+        if (tempImageFile) {
+            const storage = getStorage();
+            const filePath = `chat_images/${user.uid}-${docRef.id}-${tempImageFile.name}`;
+            const storageRef = ref(storage, filePath);
+            const uploadTask = uploadBytesResumable(storageRef, tempImageFile);
+
+            uploadTask.on('state_changed', 
+                null,
+                (error) => {
+                    console.error("Upload failed:", error);
+                    updateDoc(docRef, { isUploading: false, uploadError: true });
+                }, 
+                () => {
+                    getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
+                        updateDoc(docRef, { imageUrl: downloadURL, isUploading: false });
+                    });
+                }
+            );
+        }
     } catch (error: any) {
         toast({
             variant: "destructive",

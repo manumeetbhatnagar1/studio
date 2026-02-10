@@ -140,7 +140,7 @@ const LiveClassCard: FC<{ liveClass: LiveClass; currentUserId?: string, examType
     
     const { isTeacher } = useIsTeacher();
     const { isAdmin } = useIsAdmin();
-    const { isSubscribed } = useIsSubscribed();
+    const { hasLiveClassAccess, isLoading } = useIsSubscribed();
 
     const handleDelete = async () => {
         if (window.confirm('Are you sure you want to delete this class? This action cannot be undone.')) {
@@ -158,8 +158,12 @@ const LiveClassCard: FC<{ liveClass: LiveClass; currentUserId?: string, examType
     const classTime = liveClass.startTime.toDate();
     const isUpcoming = classTime > new Date();
 
-    const canAccessPaidContent = isTeacher || isAdmin || isSubscribed;
+    const canAccessPaidContent = isTeacher || isAdmin || hasLiveClassAccess;
     const isLocked = liveClass.accessLevel === 'paid' && !canAccessPaidContent;
+
+    if (isLoading) {
+        return <Skeleton className="h-72 w-full" />;
+    }
 
     return (
         <Card className="flex flex-col shadow-lg">

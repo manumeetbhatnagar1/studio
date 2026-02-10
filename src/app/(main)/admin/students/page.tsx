@@ -200,6 +200,8 @@ export default function UserManagementPage() {
     const { toast } = useToast();
     const [userToBlock, setUserToBlock] = useState<UserProfile | null>(null);
     const [isBlocking, setIsBlocking] = useState(false);
+    const [userToUnblock, setUserToUnblock] = useState<UserProfile | null>(null);
+    const [isUnblocking, setIsUnblocking] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
 
     const usersQuery = useMemoFirebase(
@@ -225,8 +227,7 @@ export default function UserManagementPage() {
 
     const filteredUsers = useMemo(() => {
         if (!users) return [];
-        return users.filter(user => 
-            user.status !== 'blocked' &&
+        return users.filter(user =>
             user.email.toLowerCase().includes(searchQuery.toLowerCase())
         );
     }, [users, searchQuery]);
@@ -328,6 +329,33 @@ export default function UserManagementPage() {
         } finally {
             setIsBlocking(false);
             setUserToBlock(null);
+        }
+    };
+    
+    const handleUnblockUser = async () => {
+        if (!userToUnblock) return;
+    
+        setIsUnblocking(true);
+        try {
+            const batch = writeBatch(firestore);
+            
+            const blockedEmailRef = doc(firestore, "blocked_emails", userToUnblock.email);
+            batch.delete(blockedEmailRef);
+    
+            const userRef = doc(firestore, 'users', userToUnblock.id);
+            batch.update(userRef, { status: 'active' });
+    
+            await batch.commit();
+            
+            toast({
+                title: 'User Unblocked',
+                description: `${userToUnblock.firstName} ${userToUnblock.lastName} has been unblocked.`,
+            });
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Unblocking Failed', description: error.message });
+        } finally {
+            setIsUnblocking(false);
+            setUserToUnblock(null);
         }
     };
 
@@ -476,14 +504,18 @@ export default function UserManagementPage() {
                                                     </Badge>
                                                 </TableCell>
                                                 <TableCell>
-                                                    {user.roleId === 'teacher' && user.teacherStatus && (
-                                                         <Badge variant={
+                                                    {user.status === 'blocked' ? (
+                                                        <Badge variant="destructive">Blocked</Badge>
+                                                    ) : user.roleId === 'teacher' && user.teacherStatus ? (
+                                                        <Badge variant={
                                                             user.teacherStatus === 'pending' ? 'secondary' :
                                                             user.teacherStatus === 'approved' ? 'default' :
                                                             user.teacherStatus === 'rejected' ? 'destructive' : 'outline'
                                                         }>
                                                             {user.teacherStatus}
                                                         </Badge>
+                                                    ) : (
+                                                        <Badge variant='default'>Active</Badge>
                                                     )}
                                                 </TableCell>
                                                 <TableCell>
@@ -502,21 +534,27 @@ export default function UserManagementPage() {
                                                 </TableCell>
                                                 <TableCell className="text-right">
                                                     <div className="flex justify-end items-center gap-2">
-                                                        {isPendingTeacher ? (
-                                                            <TeacherApprovalActions user={user} />
+                                                        {user.status === 'blocked' ? (
+                                                             <Button variant="outline" size="sm" onClick={() => setUserToUnblock(user)}>Unblock</Button>
                                                         ) : (
                                                             <>
-                                                                {user.roleId === 'student' && <PlanSelector user={user} plans={plans || []} />}
-                                                                {user.roleId === 'student' && <SubscriptionStatusSelector user={user} />}
-                                                                <RoleSelector user={user} />
+                                                                {isPendingTeacher ? (
+                                                                    <TeacherApprovalActions user={user} />
+                                                                ) : (
+                                                                    <>
+                                                                        {user.roleId === 'student' && <PlanSelector user={user} plans={plans || []} />}
+                                                                        {user.roleId === 'student' && <SubscriptionStatusSelector user={user} />}
+                                                                        <RoleSelector user={user} />
+                                                                    </>
+                                                                )}
+                                                                <Button variant="ghost" size="icon" onClick={() => handlePasswordReset(user.email)} title={`Send password reset to ${user.email}`}>
+                                                                    <Mail className="h-4 w-4" />
+                                                                </Button>
+                                                                <Button variant="ghost" size="icon" onClick={() => setUserToBlock(user)}>
+                                                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                                                </Button>
                                                             </>
                                                         )}
-                                                        <Button variant="ghost" size="icon" onClick={() => handlePasswordReset(user.email)} title={`Send password reset to ${user.email}`}>
-                                                            <Mail className="h-4 w-4" />
-                                                        </Button>
-                                                        <Button variant="ghost" size="icon" onClick={() => setUserToBlock(user)}>
-                                                            <Trash2 className="h-4 w-4 text-destructive" />
-                                                        </Button>
                                                     </div>
                                                 </TableCell>
                                             </TableRow>
@@ -545,6 +583,23 @@ export default function UserManagementPage() {
                         <AlertDialogAction onClick={handleBlockUser} disabled={isBlocking} className={cn(buttonVariants({ variant: 'destructive' }))}>
                             {isBlocking && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
                             Block User
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+            <AlertDialog open={!!userToUnblock} onOpenChange={() => setUserToUnblock(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Unblock this user?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This will unblock {userToUnblock?.firstName} {userToUnblock?.lastName}. They will be able to log in again.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleUnblockUser} disabled={isUnblocking}>
+                            {isUnblocking && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+                            Unblock User
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

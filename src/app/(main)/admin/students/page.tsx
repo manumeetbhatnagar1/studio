@@ -7,7 +7,7 @@ import { useState, useMemo } from 'react';
 import DashboardHeader from '@/components/dashboard-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectSeparator } from '@/components/ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
@@ -18,6 +18,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import * as XLSX from 'xlsx';
+import { add } from 'date-fns';
 
 type UserProfile = {
     id: string;
@@ -36,6 +37,7 @@ type UserProfile = {
 type SubscriptionPlan = {
   id: string;
   name: string;
+  billingInterval: 'monthly' | 'yearly';
 }
 
 const TeacherApprovalActions = ({ user }: { user: UserProfile }) => {
@@ -118,7 +120,7 @@ const RoleSelector = ({ user }: { user: UserProfile }) => {
             
             setCurrentRole(newRole);
             toast({ title: 'Role Updated', description: `${user.firstName}'s role is now ${newRole}.` });
-        } catch (error: any) {
+        } catch (error: any) => {
             toast({ variant: 'destructive', title: 'Update Failed', description: error.message });
         } finally {
             setIsUpdating(false);
@@ -226,6 +228,72 @@ export default function UserManagementPage() {
             user.email.toLowerCase().includes(searchQuery.toLowerCase())
         );
     }, [users, searchQuery]);
+
+    const PlanSelector = ({ user, plans }: { user: UserProfile, plans: SubscriptionPlan[] }) => {
+        const firestore = useFirestore();
+        const { toast } = useToast();
+        const [isUpdating, setIsUpdating] = useState(false);
+    
+        const handlePlanChange = async (newPlanId: string) => {
+            setIsUpdating(true);
+            try {
+                const userRef = doc(firestore, 'users', user.id);
+                const userSubscriptionRef = doc(firestore, 'users', user.id, 'subscriptions', 'main');
+                const batch = writeBatch(firestore);
+    
+                if (newPlanId === 'none') {
+                    // Removing subscription
+                    batch.update(userRef, {
+                        subscriptionPlanId: null,
+                        subscriptionStatus: 'canceled',
+                    });
+                    batch.delete(userSubscriptionRef);
+                    toast({ title: 'Subscription Removed', description: `${user.firstName}'s subscription has been removed.` });
+                } else {
+                    // Adding or changing subscription
+                    const newPlan = plans.find(p => p.id === newPlanId);
+                    if (!newPlan) throw new Error("Selected plan not found.");
+    
+                    const now = new Date();
+                    const endDate = newPlan.billingInterval === 'monthly' ? add(now, { months: 1 }) : add(now, { years: 1 });
+    
+                    batch.update(userRef, {
+                        subscriptionPlanId: newPlanId,
+                        subscriptionStatus: 'active',
+                    });
+                    batch.set(userSubscriptionRef, {
+                        id: 'main',
+                        planId: newPlanId,
+                        status: 'active',
+                        currentPeriodStart: now.toISOString(),
+                        currentPeriodEnd: endDate.toISOString(),
+                    }, { merge: true });
+                    toast({ title: 'Subscription Updated', description: `${user.firstName} is now subscribed to ${newPlan.name}.` });
+                }
+                await batch.commit();
+    
+            } catch (error: any) {
+                toast({ variant: 'destructive', title: 'Update Failed', description: error.message });
+            } finally {
+                setIsUpdating(false);
+            }
+        };
+    
+        return (
+            <Select value={user.subscriptionPlanId || 'none'} onValueChange={handlePlanChange} disabled={isUpdating}>
+                <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Select a plan" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="none">No Plan</SelectItem>
+                    <SelectSeparator />
+                    {plans.map(plan => (
+                        <SelectItem key={plan.id} value={plan.id}>{plan.name}</SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+        );
+    };
 
 
     const handleBlockUser = async () => {
@@ -420,6 +488,7 @@ export default function UserManagementPage() {
                                                             <TeacherApprovalActions user={user} />
                                                         ) : (
                                                             <>
+                                                                {user.roleId === 'student' && <PlanSelector user={user} plans={plans || []} />}
                                                                 {user.roleId === 'student' && <SubscriptionStatusSelector user={user} />}
                                                                 <RoleSelector user={user} />
                                                             </>

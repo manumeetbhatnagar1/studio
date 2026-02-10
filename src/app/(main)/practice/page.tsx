@@ -108,14 +108,14 @@ type Topic = { id: string; name: string; subjectId: string; };
 type ExamType = { id: string; name: string; };
 
 
-function QuestionItem({ question, topicMap, classMap, examTypeMap, isTeacher, canViewPaidContent, onEdit, onDelete }: { question: PracticeQuestion; topicMap: Record<string, string>; classMap: Record<string, string>; examTypeMap: Record<string, string>; isTeacher: boolean; canViewPaidContent: boolean; onEdit: (question: PracticeQuestion) => void, onDelete: (questionId: string) => void }) {
+function QuestionItem({ question, topicMap, classMap, examTypeMap, isTeacher, isUnlocked, onEdit, onDelete }: { question: PracticeQuestion; topicMap: Record<string, string>; classMap: Record<string, string>; examTypeMap: Record<string, string>; isTeacher: boolean; isUnlocked: boolean; onEdit: (question: PracticeQuestion) => void, onDelete: (questionId: string) => void }) {
   const difficultyVariant = {
     'Easy': 'default',
     'Medium': 'secondary',
     'Hard': 'destructive',
   } as const;
 
-  const isLocked = question.accessLevel === 'paid' && !canViewPaidContent;
+  const isLocked = !isUnlocked;
 
   return (
     <AccordionItem value={question.id}>
@@ -131,7 +131,7 @@ function QuestionItem({ question, topicMap, classMap, examTypeMap, isTeacher, ca
                 {question.difficultyLevel}
               </Badge>
               <Badge variant="secondary">{question.questionType}</Badge>
-              {question.accessLevel === 'free' && <Badge variant="secondary">Free</Badge>}
+              {question.accessLevel === 'free' ? <Badge variant="secondary">Free</Badge> : <Badge variant="destructive">Paid</Badge>}
             </div>
           </div>
         </AccordionTrigger>
@@ -668,9 +668,9 @@ const TeacherView = ({
     topicMap,
     classMap,
     examTypeMap,
-    canViewPaidContent,
     setEditingQuestion,
     handleDeleteRequest,
+    canAccess,
     classes,
     subjects,
     topics,
@@ -921,7 +921,7 @@ const TeacherView = ({
                                                                                                 <AccordionContent className="pl-4">
                                                                                                     <Accordion type="single" collapsible className="w-full space-y-2">
                                                                                                         {t.questions.map((q: any) => (
-                                                                                                            <QuestionItem key={q.id} question={q} topicMap={topicMap} classMap={classMap} examTypeMap={examTypeMap} isTeacher={!!isTeacher} canViewPaidContent={canViewPaidContent} onEdit={setEditingQuestion} onDelete={handleDeleteRequest} />
+                                                                                                            <QuestionItem key={q.id} question={q} topicMap={topicMap} classMap={classMap} examTypeMap={examTypeMap} isTeacher={!!isTeacher} isUnlocked={canAccess(q)} onEdit={setEditingQuestion} onDelete={handleDeleteRequest} />
                                                                                                         ))}
                                                                                                     </Accordion>
                                                                                                 </AccordionContent>
@@ -1056,7 +1056,7 @@ export default function PracticePage() {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { isTeacher, isLoading: isTeacherLoading } = useIsTeacher();
-  const { isSubscribed, isLoading: isSubscribedLoading } = useIsSubscribed();
+  const { isSubscribed, subscriptionPlan, isLoading: isSubscribedLoading } = useIsSubscribed();
   const [editingQuestion, setEditingQuestion] = useState<PracticeQuestion | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [questionToDelete, setQuestionToDelete] = useState<string | null>(null);
@@ -1100,6 +1100,22 @@ export default function PracticePage() {
       return acc;
     }, {} as Record<string, string>);
   }, [examTypes]);
+
+  const canEdit = isTeacher;
+  const canAccess = (item: PracticeQuestion): boolean => {
+      if (item.accessLevel === 'free') return true;
+      if (canEdit) return true;
+      if (!isSubscribed || !subscriptionPlan) return false;
+  
+      if (subscriptionPlan.examTypeId !== item.examTypeId) return false;
+  
+      if (subscriptionPlan.topicId) return item.topicId === subscriptionPlan.topicId;
+      if (subscriptionPlan.subjectIds?.length) return item.classId === subscriptionPlan.classId && subscriptionPlan.subjectIds.includes(item.subjectId);
+      if (subscriptionPlan.classId) return item.classId === subscriptionPlan.classId;
+      if (subscriptionPlan.examTypeId) return true;
+      
+      return false;
+  };
 
   const questionTree = useMemo(() => {
     if (!examTypes || !classes || !subjects || !topics || !questions) return [];
@@ -1158,7 +1174,6 @@ export default function PracticePage() {
   }, [examTypes, classes, subjects, topics]);
 
   const isLoading = isTeacherLoading || areQuestionsLoading || areClassesLoading || areSubjectsLoading || areTopicsLoading || isSubscribedLoading || areExamTypesLoading;
-  const canViewPaidContent = isTeacher || isSubscribed;
 
   const form = useForm<z.infer<typeof questionSchema>>({
     resolver: zodResolver(questionSchema),
@@ -1228,19 +1243,6 @@ export default function PracticePage() {
       description: 'The explanation image has been added.',
     });
   };
-  
-  const SubscriptionPrompt = () => (
-    <div className="flex flex-col items-center justify-center text-center p-8 md:p-16 border-2 border-dashed rounded-lg h-full bg-amber-500/5">
-        <Lock className="w-16 h-16 text-amber-500 mb-4" />
-        <h2 className="font-headline text-2xl font-semibold text-amber-600">Practice Area Locked</h2>
-        <p className="text-amber-700/80 mt-2 max-w-md">
-            You need an active subscription to access the practice question bank. Please subscribe to unlock this feature.
-        </p>
-        <Button asChild className="mt-6 bg-amber-500 hover:bg-amber-600 text-white">
-            <Link href="/subscription">View Subscription Plans</Link>
-        </Button>
-    </div>
-  );
 
   const teacherViewProps = {
     form,
@@ -1262,9 +1264,9 @@ export default function PracticePage() {
     topicMap,
     classMap,
     examTypeMap,
-    canViewPaidContent,
     setEditingQuestion,
     handleDeleteRequest,
+    canAccess,
     classes,
     subjects,
     topics,

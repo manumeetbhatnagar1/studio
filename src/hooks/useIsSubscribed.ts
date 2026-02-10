@@ -13,9 +13,20 @@ type SubscriptionPlan = {
   id: string;
   name: string;
   numberOfLiveClasses?: number;
+  examTypeId: string;
+  classId?: string;
+  subjectIds?: string[];
+  topicId?: string;
 };
 
-export function useIsSubscribed() {
+export interface UseIsSubscribedResult {
+    isSubscribed: boolean;
+    hasLiveClassAccess: boolean;
+    subscriptionPlan: SubscriptionPlan | null;
+    isLoading: boolean;
+}
+
+export function useIsSubscribed(): UseIsSubscribedResult {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
 
@@ -48,6 +59,7 @@ export function useIsSubscribed() {
   return {
     isSubscribed,
     hasLiveClassAccess,
+    subscriptionPlan,
     isLoading: isUserLoading || isProfileLoading || isPlanLoading,
   };
 }

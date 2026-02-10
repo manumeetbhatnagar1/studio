@@ -104,7 +104,7 @@ const SubscriptionPromptDialog = ({ open, onOpenChange }: { open: boolean, onOpe
                     <Lock className="w-16 h-16 text-amber-500 mb-4" />
                     <DialogTitle className="font-headline text-2xl font-semibold text-amber-600">Premium Content Locked</DialogTitle>
                     <DialogDescription className="text-amber-700/80 mt-2 max-w-md">
-                        You need an active subscription to access this study material. Please subscribe to unlock all paid content.
+                        This content is not included in your current subscription. Please upgrade your plan to unlock it.
                     </DialogDescription>
                 </div>
             </DialogHeader>
@@ -273,12 +273,12 @@ function ContentForm({ examTypes, classes, subjects, topics, onFormFinished, con
   );
 }
 
-function ContentListItem({ contentItem, canViewPaidContent, canEdit, onEdit }: { contentItem: Content, canViewPaidContent: boolean, canEdit: boolean, onEdit: (item: Content) => void }) {
+function ContentListItem({ contentItem, isUnlocked, canEdit, onEdit }: { contentItem: Content, isUnlocked: boolean, canEdit: boolean, onEdit: (item: Content) => void }) {
   const [showSubPrompt, setShowSubPrompt] = useState(false);
   const embed = getEmbedUrl(contentItem.videoUrl);
   const difficultyVariant = { Easy: 'default', Medium: 'secondary', Hard: 'destructive' } as const;
   
-  const isLocked = contentItem.accessLevel === 'paid' && !canViewPaidContent;
+  const isLocked = !isUnlocked;
 
   const handleEditClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -294,7 +294,7 @@ function ContentListItem({ contentItem, canViewPaidContent, canEdit, onEdit }: {
             <div className="flex justify-between items-start">
                 <h3 className={cn("font-semibold", !isLocked && "group-hover:underline")}>{contentItem.title}</h3>
                  <div className="flex items-center gap-2">
-                    {contentItem.accessLevel === 'free' && <Badge variant="secondary">Free</Badge>}
+                    {contentItem.accessLevel === 'free' ? <Badge variant="secondary">Free</Badge> : <Badge variant="destructive">Paid</Badge>}
                     {canEdit && (
                       <Button variant="ghost" size="icon" onClick={handleEditClick}>
                         <Edit className="h-4 w-4" />
@@ -352,7 +352,7 @@ export default function ContentPage() {
   const firestore = useFirestore();
   const { isTeacher, isLoading: isTeacherLoading } = useIsTeacher();
   const { isAdmin, isLoading: isAdminLoading } = useIsAdmin();
-  const { isSubscribed, isLoading: isSubscribedLoading } = useIsSubscribed();
+  const { isSubscribed, subscriptionPlan, isLoading: isSubscribedLoading } = useIsSubscribed();
   const [formKey, setFormKey] = useState(0);
   const [editingContent, setEditingContent] = useState<Content | null>(null);
 
@@ -388,7 +388,21 @@ export default function ContentPage() {
   
   const isLoading = isTeacherLoading || isAdminLoading || areExamTypesLoading || areClassesLoading || areSubjectsLoading || areTopicsLoading || areContentLoading || isSubscribedLoading;
   const canEdit = isTeacher || isAdmin;
-  const canViewPaidContent = canEdit || isSubscribed;
+  
+  const canAccess = (item: Content): boolean => {
+    if (item.accessLevel === 'free') return true;
+    if (canEdit) return true;
+    if (!isSubscribed || !subscriptionPlan) return false;
+
+    if (subscriptionPlan.examTypeId !== item.examTypeId) return false;
+
+    if (subscriptionPlan.topicId) return item.topicId === subscriptionPlan.topicId;
+    if (subscriptionPlan.subjectIds?.length) return item.classId === subscriptionPlan.classId && subscriptionPlan.subjectIds.includes(item.subjectId);
+    if (subscriptionPlan.classId) return item.classId === subscriptionPlan.classId;
+    if (subscriptionPlan.examTypeId) return true;
+    
+    return false;
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -448,7 +462,7 @@ export default function ContentPage() {
                                           <AccordionTrigger className="text-sm py-2">{t.name}</AccordionTrigger>
                                           <AccordionContent className="pl-4">
                                               <div className="grid gap-4 pt-2">
-                                                {t.items.map(item => <ContentListItem key={item.id} contentItem={item} canViewPaidContent={canViewPaidContent} canEdit={canEdit} onEdit={setEditingContent} />)}
+                                                {t.items.map(item => <ContentListItem key={item.id} contentItem={item} isUnlocked={canAccess(item)} canEdit={canEdit} onEdit={setEditingContent} />)}
                                               </div>
                                           </AccordionContent>
                                         </AccordionItem>

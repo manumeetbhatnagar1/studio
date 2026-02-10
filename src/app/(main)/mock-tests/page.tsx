@@ -46,7 +46,7 @@ export default function MockTestsPage() {
   const { user } = useUser();
   const firestore = useFirestore();
   const { isTeacher, isLoading: isTeacherLoading } = useIsTeacher();
-  const { isSubscribed, isLoading: isSubscribedLoading } = useIsSubscribed();
+  const { isSubscribed, subscriptionPlan, isLoading: isSubscribedLoading } = useIsSubscribed();
   const { toast } = useToast();
   const [testToDelete, setTestToDelete] = useState<{ id: string; type: 'official' | 'custom'; title: string } | null>(null);
 
@@ -145,7 +145,8 @@ export default function MockTestsPage() {
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                 {officialTests.map(test => {
                   const isPaidTest = test.accessLevel === 'paid';
-                  const canTakeTest = !isPaidTest || isSubscribed || isTeacher;
+                  const hasAccessByPlan = isSubscribed && subscriptionPlan && subscriptionPlan.examTypeId === test.examTypeId;
+                  const canTakeTest = !isPaidTest || hasAccessByPlan || isTeacher;
                   const isUpcoming = test.startTime.toDate() > new Date();
                   const examTypeName = examTypeMap[test.examTypeId] || 'General';
 

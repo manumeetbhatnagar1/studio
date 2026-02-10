@@ -16,6 +16,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Timer, User, LoaderCircle, ArrowLeft, Check, XIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Logo } from '@/components/icons';
+import { useIsSubscribed } from '@/hooks/useIsSubscribed';
 
 enum QuestionStatus {
   NotAnswered,
@@ -41,6 +42,8 @@ type PracticeQuestion = {
   explanationImageUrls?: string[];
   difficultyLevel: 'Easy' | 'Medium' | 'Hard';
   examTypeId: string;
+  classId: string;
+  accessLevel: 'free' | 'paid';
 };
 
 type Answer = {
@@ -110,14 +113,18 @@ const QuestionExplanation: React.FC<{ question: PracticeQuestion; userAnswer: An
     );
 };
 
-const fetchPracticeQuestions = async (firestore: any, params: URLSearchParams): Promise<PracticeQuestion[]> => {
+const fetchPracticeQuestions = async (
+    firestore: any,
+    params: URLSearchParams,
+    isSubscribed: boolean,
+    subscriptionPlan: any
+): Promise<PracticeQuestion[]> => {
     const allFetchedQuestions: (Omit<PracticeQuestion, 'subject'>)[] = [];
 
     const topicsParam = params.get('topics');
     const topicIdParam = params.get('topicId');
     
     const difficultyLevel = params.get('difficultyLevel');
-    const accessLevel = params.get('accessLevel');
     
     let topicsConfig: {topicId: string, count: number}[] = [];
 
@@ -141,21 +148,40 @@ const fetchPracticeQuestions = async (firestore: any, params: URLSearchParams): 
             collection(firestore, 'practice_questions'), 
             where('topicId', '==', config.topicId)
         );
-
-        if (accessLevel) {
-            q = query(q, where('accessLevel', '==', accessLevel));
-        }
         
         const querySnapshot = await getDocs(q);
         
         let topicQuestions = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Omit<PracticeQuestion, 'subject'>));
+
+        const accessLevel = params.get('accessLevel');
+        topicQuestions = topicQuestions.filter(question => {
+            if (accessLevel && question.accessLevel !== accessLevel) {
+                return false;
+            }
+
+            if (question.accessLevel === 'free') {
+                return true;
+            }
+            
+            if (!isSubscribed || !subscriptionPlan) {
+                return false;
+            }
+            
+            if (subscriptionPlan.examTypeId !== question.examTypeId) return false;
+
+            if (subscriptionPlan.topicId) return question.topicId === subscriptionPlan.topicId;
+            if (subscriptionPlan.subjectIds?.length) return question.classId === subscriptionPlan.classId && subscriptionPlan.subjectIds.includes(question.subjectId);
+            if (subscriptionPlan.classId) return question.classId === subscriptionPlan.classId;
+            if (subscriptionPlan.examTypeId) return true;
+            
+            return false;
+        });
 
         if (difficultyLevel && difficultyLevel !== 'All') {
             topicQuestions = topicQuestions.filter(question => question.difficultyLevel === difficultyLevel);
         }
 
         const shuffled = [...topicQuestions].sort(() => 0.5 - Math.random());
-        // If count is not a positive number (i.e., from single-topic practice without count), select all questions.
         const selected = !isNaN(config.count) && config.count > 0 
             ? shuffled.slice(0, config.count) 
             : shuffled;
@@ -181,6 +207,7 @@ function PracticeSession() {
     const firestore = useFirestore();
     const searchParams = useSearchParams();
     const router = useRouter();
+    const { isSubscribed, subscriptionPlan, isLoading: isSubscribedLoading } = useIsSubscribed();
 
     const [questions, setQuestions] = useState<PracticeQuestion[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -197,10 +224,10 @@ function PracticeSession() {
 
     useEffect(() => {
         const loadTest = async () => {
-            if (!firestore || !user) return;
+            if (!firestore || !user || isSubscribedLoading) return;
             setIsLoading(true);
             try {
-                const fetchedQuestions = await fetchPracticeQuestions(firestore, searchParams);
+                const fetchedQuestions = await fetchPracticeQuestions(firestore, searchParams, isSubscribed, subscriptionPlan);
                 setQuestions(fetchedQuestions);
                 setQuestionStartTime(Date.now());
             } catch (error) {
@@ -211,7 +238,7 @@ function PracticeSession() {
             }
         };
         loadTest();
-    }, [searchParams, user, firestore]);
+    }, [searchParams, user, firestore, isSubscribed, subscriptionPlan, isSubscribedLoading]);
 
     const getQuestionStatus = useCallback((questionId: string | number) => {
         const answer = answers.get(questionId);
@@ -413,7 +440,7 @@ function PracticeSession() {
         return `${secs}s`;
     };
 
-    if (isLoading) {
+    if (isLoading || isSubscribedLoading) {
         return (
             <div className="flex h-screen w-screen items-center justify-center">
               <LoaderCircle className="h-12 w-12 animate-spin text-primary" />

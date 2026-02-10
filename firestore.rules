@@ -105,9 +105,8 @@ service cloud.firestore {
         // A teacher can update subscription fields for any user.
         (isTeacher() && request.writeFields.hasOnly(['subscriptionStatus', 'subscriptionPlanId'])) ||
         // A user can update their own profile, but cannot change their roleId or teacherStatus.
-        // We use .get() to safely handle cases where a field might not exist (e.g., teacherStatus on a student doc).
         (isOwner(userId) &&
-          request.resource.data.get('roleId', null) == resource.data.get('roleId', null) &&
+          request.resource.data.roleId == resource.data.roleId &&
           request.resource.data.get('teacherStatus', null) == resource.data.get('teacherStatus', null)
         );
 
@@ -119,8 +118,7 @@ service cloud.firestore {
        * @path        /users/{userId}/subscriptions/{subscriptionId}
        */
       match /subscriptions/{subscriptionId} {
-        allow read: if isOwner(userId) || isTeacher() || isAdmin();
-        allow write: if isOwner(userId) || isTeacher() || isAdmin();
+        allow read, write: if isOwner(userId) || isTeacher() || isAdmin();
       }
       
       /**

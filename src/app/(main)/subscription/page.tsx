@@ -30,7 +30,7 @@ const planSchema = z.object({
   name: z.string().min(3, 'Plan name must be at least 3 characters.'),
   price: z.coerce.number().min(0, 'Price must be a positive number.'),
   billingInterval: z.enum(['monthly', 'yearly']),
-  numberOfLiveClasses: z.coerce.number().int().min(0, 'Number of live classes cannot be negative.').optional(),
+  numberOfLiveClasses: z.number().int().min(0, 'Number of live classes cannot be negative.').optional(),
   examTypeId: z.string().min(1, 'You must select an exam type.'),
   classId: z.string().optional(),
   subjectIds: z.array(z.string()).optional(),
@@ -75,13 +75,12 @@ const PlanForm: FC<{
         defaultValues: planToEdit ? {
             ...planToEdit,
             subjectIds: planToEdit.subjectIds || [],
-            numberOfLiveClasses: planToEdit.numberOfLiveClasses ?? 0,
+            numberOfLiveClasses: planToEdit.numberOfLiveClasses,
             features: planToEdit.features.join('\n'),
         } : {
             name: '',
             price: 0,
             billingInterval: 'yearly',
-            numberOfLiveClasses: 0,
             examTypeId: '',
             classId: '',
             subjectIds: [],
@@ -172,7 +171,22 @@ const PlanForm: FC<{
                         <FormItem><FormLabel>Billing Interval</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="monthly">Monthly</SelectItem><SelectItem value="yearly">Yearly</SelectItem></SelectContent></Select><FormMessage /></FormItem>
                     )} />
                      <FormField control={form.control} name="numberOfLiveClasses" render={({ field }) => (
-                        <FormItem><FormLabel>Live Classes</FormLabel><FormControl><Input type="number" placeholder="e.g., 50" {...field} /></FormControl><FormMessage /></FormItem>
+                        <FormItem>
+                            <FormLabel>Live Classes (Optional)</FormLabel>
+                            <FormControl>
+                                <Input
+                                    type="number"
+                                    placeholder="e.g., 50"
+                                    {...field}
+                                    value={field.value ?? ''}
+                                    onChange={(e) => {
+                                        const value = e.target.value;
+                                        field.onChange(value === '' ? undefined : parseInt(value, 10));
+                                    }}
+                                />
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
                     )} />
                  </div>
                  <div className="space-y-2 rounded-md border p-4">
@@ -496,5 +510,3 @@ export default function SubscriptionPage() {
     </div>
   );
 }
-
-    

@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import Link from 'next/link';
@@ -1105,30 +1106,35 @@ export default function PracticePage() {
   const canEdit = isTeacher;
   const canAccess = (item: PracticeQuestion): boolean => {
     if (item.accessLevel === 'free') return true;
-    if (canEdit) return true;
+    if (canEdit) return true; // Teachers/Admins have full access
     if (!isSubscribed || !subscriptionPlan) return false;
 
-    // 1. Plan must match the content's exam type
+    // The plan must at least match the exam type.
     if (subscriptionPlan.examTypeId !== item.examTypeId) {
         return false;
     }
 
-    // 2. If plan is for a specific class, content must be in that class
-    if (subscriptionPlan.classId && subscriptionPlan.classId !== item.classId) {
-        return false;
+    // If plan is scoped to a specific topic, it's the most granular check.
+    if (subscriptionPlan.topicId) {
+        // A topic-specific plan requires the content to be in that exact topic.
+        return subscriptionPlan.topicId === item.topicId;
     }
 
-    // 3. If plan is for specific subjects, content must be in one of those subjects
-    if (subscriptionPlan.subjectIds && subscriptionPlan.subjectIds.length > 0 && !subscriptionPlan.subjectIds.includes(item.subjectId)) {
-        return false;
+    // If plan is scoped to specific subjects (within a class).
+    if (subscriptionPlan.subjectIds && subscriptionPlan.subjectIds.length > 0) {
+        // It must be within the plan's class AND one of the plan's subjects.
+        return subscriptionPlan.classId === item.classId && 
+               subscriptionPlan.subjectIds.includes(item.subjectId);
     }
 
-    // 4. If plan is for a specific topic, content must be that topic
-    if (subscriptionPlan.topicId && subscriptionPlan.topicId !== item.topicId) {
-        return false;
+    // If plan is scoped to a specific class.
+    if (subscriptionPlan.classId) {
+        // It grants access to all content within that class.
+        return subscriptionPlan.classId === item.classId;
     }
 
-    // 5. If all the plan's scopes are met, grant access
+    // If none of the more specific scopes are on the plan, and we've reached here,
+    // it means the plan covers the entire exam type. Access is granted.
     return true;
   };
 

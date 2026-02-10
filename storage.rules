@@ -1,0 +1,10 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Chat images are readable by anyone but only writable by authenticated users.
+    match /chat_images/{imageId} {
+      allow read;
+      allow write: if request.auth != null;
+    }
+  }
+}

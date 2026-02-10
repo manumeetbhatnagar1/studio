@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, FC } from 'react';
+import { useEffect, useMemo, useRef, FC, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -9,21 +9,21 @@ import { useParams } from 'next/navigation';
 import type { Timestamp } from 'firebase/firestore';
 import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
 import { collection, query, orderBy, serverTimestamp, doc } from 'firebase/firestore';
+import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Send, ArrowLeft } from 'lucide-react';
+import { Send, ArrowLeft, Paperclip, X, LoaderCircle } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import Image from 'next/image';
 
 // Zod schema for the chat message form
-const chatMessageSchema = z.object({
-  text: z.string().min(1, 'Message cannot be empty.').max(500, 'Message is too long.'),
-});
+const chatMessageSchema = z.object({ text: z.string().max(500, 'Message is too long.').optional() });
 
 // Type for a chat message document
 type ChatMessage = {
@@ -31,7 +31,8 @@ type ChatMessage = {
   senderId: string;
   senderName: string;
   senderPhotoUrl?: string;
-  text: string;
+  text?: string;
+  imageUrl?: string;
   createdAt: Timestamp;
 };
 
@@ -50,7 +51,12 @@ function Message({ message, isOwnMessage }: { message: ChatMessage; isOwnMessage
       </Avatar>
       <div className={cn('flex flex-col gap-1', isOwnMessage && 'items-end')}>
         <div className={cn('rounded-lg px-3 py-2', isOwnMessage ? 'bg-primary text-primary-foreground' : 'bg-muted')}>
-          <p className="text-sm">{message.text}</p>
+          {message.imageUrl && (
+              <Link href={message.imageUrl} target="_blank" rel="noopener noreferrer">
+                  <Image src={message.imageUrl} alt="Sent image" width={200} height={200} className="rounded-md my-2 max-w-xs object-contain" />
+              </Link>
+          )}
+          {message.text && <p className="text-sm">{message.text}</p>}
         </div>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <span className="font-medium">{isOwnMessage ? 'You' : message.senderName}</span>
@@ -103,6 +109,11 @@ export default function DirectChatPage() {
   const chatId = params.chatId as string;
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const { toast } = useToast();
+  
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   const form = useForm<z.infer<typeof chatMessageSchema>>({
     resolver: zodResolver(chatMessageSchema),
@@ -125,25 +136,64 @@ export default function DirectChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if(file.size > 5 * 1024 * 1024) { // 5MB limit
+        toast({ variant: 'destructive', title: 'File too large', description: 'Please select an image smaller than 5MB.' });
+        return;
+      }
+      setImageFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => setImagePreview(reader.result as string);
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setImageFile(null);
+    setImagePreview(null);
+    if(imageInputRef.current) imageInputRef.current.value = '';
+  }
+
   async function onSubmit(values: z.infer<typeof chatMessageSchema>) {
     if (!user || !firestore || !chatId) return;
+     if (!values.text && !imageFile) {
+        toast({ variant: 'destructive', title: 'Cannot send an empty message.' });
+        return;
+    }
+    setIsUploading(true);
 
     try {
+        let imageUrl = '';
+        if (imageFile) {
+            const storage = getStorage();
+            const filePath = `chat_images/${user.uid}-${Date.now()}-${imageFile.name}`;
+            const storageRef = ref(storage, filePath);
+            const uploadTask = await uploadBytesResumable(storageRef, imageFile);
+            imageUrl = await getDownloadURL(uploadTask.ref);
+        }
+
       const messagesRef = collection(firestore, 'direct_messages', chatId, 'messages');
-      await addDocumentNonBlocking(messagesRef, {
+      addDocumentNonBlocking(messagesRef, {
         senderId: user.uid,
         senderName: user.displayName || 'Anonymous',
         senderPhotoUrl: user.photoURL || '',
-        text: values.text,
+        text: values.text || '',
+        imageUrl: imageUrl || '',
         createdAt: serverTimestamp(),
       });
+      
       form.reset();
+      handleRemoveImage();
     } catch (error: any) {
         toast({
             variant: 'destructive',
             title: 'Failed to send message',
             description: error.message || 'An error occurred while sending your message.',
         });
+    } finally {
+        setIsUploading(false);
     }
   }
 
@@ -168,21 +218,30 @@ export default function DirectChatPage() {
       </div>
       <div className="sticky bottom-0 bg-background border-t p-4">
         <div className="max-w-4xl mx-auto">
+            {imagePreview && (
+              <div className="relative w-24 h-24 mb-2">
+                <Image src={imagePreview} alt="Preview" fill className="rounded-md object-cover" />
+                <Button size="icon" variant="destructive" className="absolute -top-2 -right-2 h-6 w-6 rounded-full" onClick={handleRemoveImage} disabled={isUploading}><X className="h-4 w-4" /></Button>
+              </div>
+            )}
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="flex items-center gap-2">
+                <Button type="button" variant="ghost" size="icon" onClick={() => imageInputRef.current?.click()} disabled={isUploading}><Paperclip className="h-5 w-5" /></Button>
+                <Input type="file" accept="image/*" ref={imageInputRef} className="hidden" onChange={handleImageChange} disabled={isUploading} />
               <FormField
                 control={form.control}
                 name="text"
                 render={({ field }) => (
                   <FormItem className="flex-1">
                     <FormControl>
-                      <Input placeholder="Type a message..." autoComplete="off" {...field} />
+                      <Input placeholder="Type a message..." autoComplete="off" {...field} disabled={isUploading} />
                     </FormControl>
                   </FormItem>
                 )}
               />
-              <Button type="submit" disabled={form.formState.isSubmitting}>
-                <Send className="h-4 w-4" /><span className="sr-only">Send</span>
+              <Button type="submit" disabled={isUploading || form.formState.isSubmitting}>
+                {isUploading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                <span className="sr-only">Send</span>
               </Button>
             </form>
           </Form>

@@ -394,14 +394,28 @@ export default function ContentPage() {
     if (canEdit) return true;
     if (!isSubscribed || !subscriptionPlan) return false;
 
-    if (subscriptionPlan.examTypeId !== item.examTypeId) return false;
+    // 1. Plan must match the content's exam type
+    if (subscriptionPlan.examTypeId !== item.examTypeId) {
+        return false;
+    }
 
-    if (subscriptionPlan.topicId) return item.topicId === subscriptionPlan.topicId;
-    if (subscriptionPlan.subjectIds?.length) return item.classId === subscriptionPlan.classId && subscriptionPlan.subjectIds.includes(item.subjectId);
-    if (subscriptionPlan.classId) return item.classId === subscriptionPlan.classId;
-    if (subscriptionPlan.examTypeId) return true;
-    
-    return false;
+    // 2. If plan is for a specific class, content must be in that class
+    if (subscriptionPlan.classId && subscriptionPlan.classId !== item.classId) {
+        return false;
+    }
+
+    // 3. If plan is for specific subjects, content must be in one of those subjects
+    if (subscriptionPlan.subjectIds && subscriptionPlan.subjectIds.length > 0 && !subscriptionPlan.subjectIds.includes(item.subjectId)) {
+        return false;
+    }
+
+    // 4. If plan is for a specific topic, content must be that topic
+    if (subscriptionPlan.topicId && subscriptionPlan.topicId !== item.topicId) {
+        return false;
+    }
+
+    // 5. If all the plan's scopes are met, grant access
+    return true;
   };
 
   return (

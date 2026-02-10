@@ -95,7 +95,7 @@ service cloud.firestore {
      * @principle   Enforces strict data ownership and privacy, with elevated privileges for admins.
      */
     match /users/{userId} {
-      allow get: if isOwner(userId) || isTeacher() || isAdmin();
+      allow get: if isSignedIn();
       allow list: if isSignedIn();
       allow create: if isOwner(userId) && request.resource.data.id == userId && !exists(/databases/$(database)/documents/blocked_emails/$(request.resource.data.email));
       

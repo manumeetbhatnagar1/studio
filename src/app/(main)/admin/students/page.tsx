@@ -29,7 +29,14 @@ type UserProfile = {
     photoURL?: string;
     teacherStatus?: 'pending' | 'approved' | 'rejected';
     status?: 'active' | 'blocked';
+    subscriptionPlanId?: string;
+    subscriptionStatus?: 'active' | 'canceled' | 'past_due' | 'trialing';
 };
+
+type SubscriptionPlan = {
+  id: string;
+  name: string;
+}
 
 const TeacherApprovalActions = ({ user }: { user: UserProfile }) => {
     const firestore = useFirestore();
@@ -147,6 +154,20 @@ export default function UserManagementPage() {
 
     const { data: users, isLoading: areUsersLoading } = useCollection<UserProfile>(usersQuery);
 
+    const plansQuery = useMemoFirebase(
+        () => firestore ? query(collection(firestore, 'subscription_plans')) : null,
+        [firestore]
+    );
+    const { data: plans, isLoading: arePlansLoading } = useCollection<SubscriptionPlan>(plansQuery);
+
+    const planMap = useMemo(() => {
+        if (!plans) return {};
+        return plans.reduce((acc, plan) => {
+            acc[plan.id] = plan.name;
+            return acc;
+        }, {} as Record<string, string>);
+    }, [plans]);
+
     const filteredUsers = useMemo(() => {
         if (!users) return [];
         return users.filter(user => 
@@ -197,10 +218,18 @@ export default function UserManagementPage() {
     };
 
     const handleExportStudents = () => {
-        if (!users) return;
+        if (!users || !plans) return;
         const studentData = users
             .filter(user => user.roleId === 'student')
-            .map(({ id, firstName, lastName, email, phoneNumber, roleId }) => ({ id, firstName, lastName, email, phoneNumber, roleId }));
+            .map(({ id, firstName, lastName, email, phoneNumber, roleId, subscriptionPlanId }) => ({ 
+                id, 
+                firstName, 
+                lastName, 
+                email, 
+                phoneNumber, 
+                roleId,
+                subscriptionPlan: subscriptionPlanId ? (planMap[subscriptionPlanId] || 'N/A') : 'No Plan',
+             }));
         exportToExcel(studentData, 'students_export');
     };
 
@@ -212,8 +241,9 @@ export default function UserManagementPage() {
         exportToExcel(teacherData, 'teachers_export');
     };
 
+    const isLoading = isAdminLoading || areUsersLoading || arePlansLoading;
 
-    if (isAdminLoading) {
+    if (isLoading) {
         return <div className="p-8"><Skeleton className="h-48 w-full" /></div>
     }
 
@@ -267,6 +297,7 @@ export default function UserManagementPage() {
                                     <TableHead>Phone Number</TableHead>
                                     <TableHead>Role</TableHead>
                                     <TableHead>Status</TableHead>
+                                    <TableHead>Subscription</TableHead>
                                     <TableHead className="text-right">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -277,6 +308,7 @@ export default function UserManagementPage() {
                                             <TableCell><Skeleton className="h-10 w-48" /></TableCell>
                                             <TableCell><Skeleton className="h-10 w-64" /></TableCell>
                                             <TableCell><Skeleton className="h-10 w-32" /></TableCell>
+                                            <TableCell><Skeleton className="h-10 w-24" /></TableCell>
                                             <TableCell><Skeleton className="h-10 w-24" /></TableCell>
                                             <TableCell><Skeleton className="h-10 w-24" /></TableCell>
                                             <TableCell className="text-right"><Skeleton className="h-10 w-32 ml-auto" /></TableCell>
@@ -316,6 +348,17 @@ export default function UserManagementPage() {
                                                         </Badge>
                                                     )}
                                                 </TableCell>
+                                                <TableCell>
+                                                    {user.roleId === 'student' ? (
+                                                        user.subscriptionPlanId && planMap[user.subscriptionPlanId] ? (
+                                                            <Badge variant={user.subscriptionStatus === 'active' ? 'default' : 'secondary'}>
+                                                                {planMap[user.subscriptionPlanId]}
+                                                            </Badge>
+                                                        ) : (
+                                                            <Badge variant="outline">No Plan</Badge>
+                                                        )
+                                                    ) : null}
+                                                </TableCell>
                                                 <TableCell className="text-right">
                                                     <div className="flex justify-end items-center gap-2">
                                                         {isPendingTeacher ? (
@@ -333,7 +376,7 @@ export default function UserManagementPage() {
                                     })
                                 ) : (
                                     <TableRow>
-                                        <TableCell colSpan={6} className="text-center h-24">No users found.</TableCell>
+                                        <TableCell colSpan={7} className="text-center h-24">No users found.</TableCell>
                                     </TableRow>
                                 )}
                             </TableBody>

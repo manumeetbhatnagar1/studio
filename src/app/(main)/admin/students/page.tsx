@@ -1,8 +1,9 @@
 'use client';
 
 import { useIsAdmin } from '@/hooks/useIsAdmin';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useAuth, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, doc, writeBatch } from 'firebase/firestore';
+import { sendPasswordResetEmail } from 'firebase/auth';
 import { useState, useMemo } from 'react';
 import DashboardHeader from '@/components/dashboard-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,7 +13,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
-import { User, Shield, AlertTriangle, Trash2, LoaderCircle } from 'lucide-react';
+import { User, Shield, AlertTriangle, Trash2, LoaderCircle, Mail } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
@@ -194,6 +195,7 @@ const SubscriptionStatusSelector = ({ user }: { user: UserProfile }) => {
 
 export default function UserManagementPage() {
     const { isAdmin, isLoading: isAdminLoading } = useIsAdmin();
+    const auth = useAuth();
     const firestore = useFirestore();
     const { toast } = useToast();
     const [userToBlock, setUserToBlock] = useState<UserProfile | null>(null);
@@ -360,6 +362,22 @@ export default function UserManagementPage() {
             .map(({ id, firstName, lastName, email, phoneNumber, roleId, teacherStatus }) => ({ id, firstName, lastName, email, phoneNumber, roleId, teacherStatus }));
         exportToExcel(teacherData, 'teachers_export');
     };
+    
+    const handlePasswordReset = async (email: string) => {
+        try {
+            await sendPasswordResetEmail(auth, email);
+            toast({
+                title: 'Password Reset Email Sent',
+                description: `A password reset link has been sent to ${email}.`,
+            });
+        } catch (error: any) {
+            toast({
+                variant: 'destructive',
+                title: 'Failed to Send Reset Email',
+                description: error.message,
+            });
+        }
+    };
 
     const isLoading = isAdminLoading || areUsersLoading || arePlansLoading;
 
@@ -493,6 +511,9 @@ export default function UserManagementPage() {
                                                                 <RoleSelector user={user} />
                                                             </>
                                                         )}
+                                                        <Button variant="ghost" size="icon" onClick={() => handlePasswordReset(user.email)} title={`Send password reset to ${user.email}`}>
+                                                            <Mail className="h-4 w-4" />
+                                                        </Button>
                                                         <Button variant="ghost" size="icon" onClick={() => setUserToBlock(user)}>
                                                             <Trash2 className="h-4 w-4 text-destructive" />
                                                         </Button>

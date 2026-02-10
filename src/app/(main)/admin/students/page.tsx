@@ -120,7 +120,7 @@ const RoleSelector = ({ user }: { user: UserProfile }) => {
             
             setCurrentRole(newRole);
             toast({ title: 'Role Updated', description: `${user.firstName}'s role is now ${newRole}.` });
-        } catch (error: any) => {
+        } catch (error: any) {
             toast({ variant: 'destructive', title: 'Update Failed', description: error.message });
         } finally {
             setIsUpdating(false);

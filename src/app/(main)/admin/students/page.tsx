@@ -144,7 +144,7 @@ const SubscriptionStatusSelector = ({ user }: { user: UserProfile }) => {
     const { toast } = useToast();
     const [isUpdating, setIsUpdating] = useState(false);
 
-    const handleStatusChange = async (newStatus: 'active' | 'canceled' | 'past_due' | 'trialing') => {
+    const handleStatusChange = async (newStatus: 'active' | 'canceled') => {
         setIsUpdating(true);
         try {
             const batch = writeBatch(firestore);
@@ -158,7 +158,7 @@ const SubscriptionStatusSelector = ({ user }: { user: UserProfile }) => {
 
             await batch.commit();
 
-            toast({ title: 'Subscription Updated', description: `${user.firstName}'s subscription is now ${newStatus}.` });
+            toast({ title: 'Subscription Updated', description: `${user.firstName}'s subscription is now ${newStatus === 'active' ? 'Active' : 'Inactive'}.` });
         } catch (error: any) {
             toast({ variant: 'destructive', title: 'Update Failed', description: error.message });
         } finally {
@@ -170,7 +170,7 @@ const SubscriptionStatusSelector = ({ user }: { user: UserProfile }) => {
         return null;
     }
 
-    const currentStatus = user.subscriptionStatus || 'canceled';
+    const currentStatus = (user.subscriptionStatus === 'active' || user.subscriptionStatus === 'trialing') ? 'active' : 'canceled';
 
     return (
         <Select 
@@ -183,9 +183,7 @@ const SubscriptionStatusSelector = ({ user }: { user: UserProfile }) => {
             </SelectTrigger>
             <SelectContent>
                 <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="trialing">Trialing</SelectItem>
-                <SelectItem value="past_due">Past Due</SelectItem>
-                <SelectItem value="canceled">Canceled</SelectItem>
+                <SelectItem value="canceled">Inactive</SelectItem>
             </SelectContent>
         </Select>
     );
@@ -406,11 +404,10 @@ export default function UserManagementPage() {
                                                     {user.roleId === 'student' ? (
                                                         user.subscriptionPlanId && planMap[user.subscriptionPlanId] ? (
                                                             <Badge variant={
-                                                                user.subscriptionStatus === 'active' || user.subscriptionStatus === 'trialing' ? 'default' :
-                                                                user.subscriptionStatus === 'past_due' ? 'destructive' : 'secondary'
+                                                                user.subscriptionStatus === 'active' || user.subscriptionStatus === 'trialing' ? 'default' : 'secondary'
                                                             }>
                                                                 {planMap[user.subscriptionPlanId]}
-                                                                {user.subscriptionStatus && ` - ${user.subscriptionStatus}`}
+                                                                {user.subscriptionStatus && ` - ${user.subscriptionStatus === 'active' || user.subscriptionStatus === 'trialing' ? 'Active' : 'Inactive'}`}
                                                             </Badge>
                                                         ) : (
                                                             <Badge variant="outline">No Plan</Badge>

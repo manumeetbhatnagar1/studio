@@ -36,6 +36,15 @@ export function GoogleAuthHandler() {
             const userDocSnap = await getDoc(userDocRef);
     
             if (userDocSnap.exists()) {
+                const [firstName, ...lastName] = user.displayName?.split(' ') || ['', ''];
+                const updatedData = {
+                    firstName: firstName || userDocSnap.data().firstName,
+                    lastName: lastName.join(' ') || userDocSnap.data().lastName,
+                    email: user.email,
+                    photoURL: user.photoURL,
+                };
+                setDocumentNonBlocking(userDocRef, updatedData, { merge: true });
+
                 toast({
                     title: 'Login Successful',
                     description: `Welcome back, ${user.displayName}!`,
@@ -73,6 +82,7 @@ export function GoogleAuthHandler() {
                 photoURL: newUser.photoURL,
                 phoneNumber: newUser.phoneNumber || '',
                 roleId: role,
+                status: 'active',
             };
             
             if (role === 'teacher') {

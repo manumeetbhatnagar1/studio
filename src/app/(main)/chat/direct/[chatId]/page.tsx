@@ -239,40 +239,36 @@ export default function DirectChatPage() {
     
     setIsSubmitting(true);
     const attachedFile = file;
-
-    form.reset();
-    handleRemoveFile();
     
-    const messageData: any = {
-      senderId: user.uid,
-      senderName: user.displayName || 'Anonymous',
-      senderPhotoUrl: user.photoURL || '',
-      createdAt: serverTimestamp(),
-      text: values.text || '',
-    };
-
     try {
-      const collectionRef = collection(firestore, 'direct_messages', chatId, 'messages');
-      let messageRef = await addDoc(collectionRef, messageData);
-      
-      if (attachedFile) {
-          const filePath = `chat_files/${messageRef.id}/${attachedFile.name}`;
-          const storageRef = ref(storage, filePath);
-    
-          const uploadResult = await uploadBytes(storageRef, attachedFile);
-          const downloadURL = await getDownloadURL(uploadResult.ref);
-    
-          const updateData: any = {
-              fileUrl: downloadURL,
-              fileName: attachedFile.name,
-              fileType: attachedFile.type,
-          };
-          if (attachedFile.type.startsWith('image/')) {
-              updateData.imageUrl = downloadURL;
-          }
-          
-          await updateDoc(messageRef, updateData);
-      }
+        const collectionRef = collection(firestore, 'direct_messages', chatId, 'messages');
+        const messageData: any = {
+            senderId: user.uid,
+            senderName: user.displayName || 'Anonymous',
+            senderPhotoUrl: user.photoURL || '',
+            createdAt: serverTimestamp(),
+            text: values.text || '',
+        };
+
+        if (attachedFile) {
+            const sanitizedFileName = attachedFile.name.replace(/[#\[\]*?]/g, '_');
+            const filePath = `chat_files/${chatId}/${Date.now()}_${sanitizedFileName}`;
+            const storageRef = ref(storage, filePath);
+            
+            const uploadResult = await uploadBytes(storageRef, attachedFile);
+            const downloadURL = await getDownloadURL(uploadResult.ref);
+
+            messageData.fileUrl = downloadURL;
+            messageData.fileName = attachedFile.name;
+            messageData.fileType = attachedFile.type;
+            if (attachedFile.type.startsWith('image/')) {
+                messageData.imageUrl = downloadURL;
+            }
+        }
+        
+        await addDoc(collectionRef, messageData);
+        form.reset();
+        handleRemoveFile();
 
     } catch (error: any) {
         console.error("Failed to send message or upload file:", error);

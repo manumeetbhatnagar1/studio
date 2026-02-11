@@ -134,26 +134,26 @@ const AskDoubtForm: FC<{ setOpen: (open: boolean) => void }> = ({ setOpen }) => 
     setIsSubmitting(true);
     
     try {
-        let attachmentUrls: Attachment[] = [];
-        if (files.length > 0) {
-            const uploadPromises = files.map(async (file) => {
-                const storageRef = ref(storage, `doubt_attachments/${user.uid}_${Date.now()}_${file.name}`);
-                const snapshot = await uploadBytes(storageRef, file);
-                const downloadURL = await getDownloadURL(snapshot.ref);
-                return { name: file.name, type: file.type, url: downloadURL };
-            });
-            attachmentUrls = await Promise.all(uploadPromises);
-        }
-
-        const newDoubtData = {
+        const newDoubtData: any = {
             ...values,
             studentId: user.uid,
             studentName: user.displayName || 'Anonymous Student',
             studentPhotoUrl: user.photoURL || '',
             status: 'open' as const,
             createdAt: serverTimestamp(),
-            questionAttachments: attachmentUrls,
+            questionAttachments: [],
         };
+
+        if (files.length > 0) {
+            const uploadPromises = files.map(async (file) => {
+                const sanitizedFileName = file.name.replace(/[#\[\]*?]/g, '_');
+                const storageRef = ref(storage, `doubt_attachments/${user.uid}_${Date.now()}_${sanitizedFileName}`);
+                const snapshot = await uploadBytes(storageRef, file);
+                const downloadURL = await getDownloadURL(snapshot.ref);
+                return { name: file.name, type: file.type, url: downloadURL };
+            });
+            newDoubtData.questionAttachments = await Promise.all(uploadPromises);
+        }
 
         const doubtsRef = collection(firestore, 'doubts');
         await addDocumentNonBlocking(doubtsRef, newDoubtData);
@@ -217,25 +217,25 @@ const AnswerForm: FC<{ doubt: Doubt }> = ({ doubt }) => {
     setIsSubmitting(true);
 
     try {
-        let attachmentUrls: Attachment[] = [];
-        if (files.length > 0) {
-            const uploadPromises = files.map(async (file) => {
-                const storageRef = ref(storage, `doubt_attachments/${doubt.id}_${user.uid}_${Date.now()}_${file.name}`);
-                const snapshot = await uploadBytes(storageRef, file);
-                const downloadURL = await getDownloadURL(snapshot.ref);
-                return { name: file.name, type: file.type, url: downloadURL };
-            });
-            attachmentUrls = await Promise.all(uploadPromises);
-        }
-
-        const answerData = {
+        const answerData: any = {
             answer,
             status: 'answered' as const,
             teacherId: user.uid,
             teacherName: user.displayName || 'Expert Teacher',
             teacherPhotoUrl: user.photoURL || '',
-            answerAttachments: attachmentUrls,
+            answerAttachments: [],
         };
+        
+        if (files.length > 0) {
+            const uploadPromises = files.map(async (file) => {
+                const sanitizedFileName = file.name.replace(/[#\[\]*?]/g, '_');
+                const storageRef = ref(storage, `doubt_attachments/${doubt.id}_${user.uid}_${Date.now()}_${sanitizedFileName}`);
+                const snapshot = await uploadBytes(storageRef, file);
+                const downloadURL = await getDownloadURL(snapshot.ref);
+                return { name: file.name, type: file.type, url: downloadURL };
+            });
+            answerData.answerAttachments = await Promise.all(uploadPromises);
+        }
         
         const doubtRef = doc(firestore, 'doubts', doubt.id);
         await updateDocumentNonBlocking(doubtRef, answerData);

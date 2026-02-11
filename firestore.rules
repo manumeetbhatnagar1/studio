@@ -303,7 +303,7 @@ service cloud.firestore {
     match /group_chat_messages/{messageId} {
       allow read, list: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.senderId == request.auth.uid;
-      allow update: if request.auth.uid == resource.data.senderId && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['imageUrl', 'isUploading', 'uploadError']);
+      allow update: if false;
       allow delete: if false;
     }
 
@@ -314,7 +314,7 @@ service cloud.firestore {
     match /direct_messages/{chatId}/messages/{messageId} {
       allow list, get: if isSignedIn() && request.auth.uid in chatId.split('_');
       allow create: if isSignedIn() && request.auth.uid in chatId.split('_') && request.resource.data.senderId == request.auth.uid;
-      allow update: if request.auth.uid == resource.data.senderId && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['imageUrl', 'isUploading', 'uploadError']);
+      allow update: if false;
       allow delete: if false;
     }
 
@@ -369,3 +369,5 @@ service cloud.firestore {
     }
   }
 }
+
+    

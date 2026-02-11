@@ -8,15 +8,14 @@ import { formatRelative } from 'date-fns';
 import { useParams } from 'next/navigation';
 import type { Timestamp } from 'firebase/firestore';
 import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, serverTimestamp, doc, addDoc, updateDoc } from 'firebase/firestore';
+import { collection, query, orderBy, serverTimestamp, doc, addDoc } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Send, ArrowLeft, Paperclip, X, LoaderCircle, Download, AlertCircle } from 'lucide-react';
+import { Send, ArrowLeft, Paperclip, X, LoaderCircle, Download } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -33,8 +32,6 @@ type ChatMessage = {
   senderPhotoUrl?: string;
   text?: string;
   imageUrl?: string | null;
-  isUploading?: boolean;
-  uploadError?: string | null;
   createdAt: Timestamp;
 };
 
@@ -45,8 +42,6 @@ type UserProfile = {
 
 // Component for a single message
 function Message({ message, isOwnMessage, toast }: { message: ChatMessage; isOwnMessage: boolean; toast: ReturnType<typeof useToast>['toast'] }) {
-  const isUploading = !!message.isUploading;
-  const uploadError = message.uploadError;
 
   const handleDownload = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -91,26 +86,13 @@ function Message({ message, isOwnMessage, toast }: { message: ChatMessage; isOwn
                   <Link href={message.imageUrl} target="_blank" rel="noopener noreferrer">
                       <Image src={message.imageUrl} alt="Sent image" width={200} height={200} className="rounded-md my-2 object-contain" />
                   </Link>
-                  {isUploading && (
-                      <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-md">
-                          <LoaderCircle className="w-6 h-6 text-white animate-spin" />
-                      </div>
-                  )}
-                  {uploadError && (
-                      <div className="absolute inset-0 bg-red-900/80 flex flex-col items-center justify-center rounded-md text-white p-2 text-center">
-                          <AlertCircle className="w-6 h-6 mb-1" />
-                          <p className="text-xs font-bold">Upload Failed</p>
-                      </div>
-                  )}
-                  {!isUploading && !uploadError && (
-                    <button
-                        onClick={handleDownload}
-                        className="absolute top-2 right-2 p-1.5 bg-gray-900/50 text-white rounded-full hover:bg-gray-900/80 transition-colors"
-                        aria-label="Download image"
-                    >
-                        <Download className="h-4 w-4" />
-                    </button>
-                  )}
+                  <button
+                    onClick={handleDownload}
+                    className="absolute top-2 right-2 p-1.5 bg-gray-900/50 text-white rounded-full hover:bg-gray-900/80 transition-colors"
+                    aria-label="Download image"
+                >
+                    <Download className="h-4 w-4" />
+                </button>
               </div>
           )}
           {message.text && <p className="text-sm">{message.text}</p>}
@@ -170,7 +152,7 @@ export default function DirectChatPage() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const imageInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
 
   const form = useForm<z.infer<typeof chatMessageSchema>>({
     resolver: zodResolver(chatMessageSchema),
@@ -221,45 +203,30 @@ export default function DirectChatPage() {
     }
     
     setIsSubmitting(true);
-    const currentImageFile = imageFile;
-    const currentImagePreview = imagePreview;
-
-    form.reset();
-    handleRemoveImage();
-
+    
     try {
-      const messageData: any = {
+      let downloadURL: string | null = null;
+      if (imageFile) {
+          const storage = getStorage();
+          const filePath = `chat_images/${user.uid}-${Date.now()}-${imageFile.name}`;
+          const storageRef = ref(storage, filePath);
+          const uploadResult = await uploadBytes(storageRef, imageFile);
+          downloadURL = await getDownloadURL(uploadResult.ref);
+      }
+
+      const messageData = {
         senderId: user.uid,
         senderName: user.displayName || 'Anonymous',
         senderPhotoUrl: user.photoURL || '',
         text: values.text || '',
-        imageUrl: currentImageFile ? currentImagePreview : null,
-        isUploading: !!currentImageFile,
-        uploadError: null,
+        imageUrl: downloadURL,
         createdAt: serverTimestamp(),
       };
-      const docRef = await addDoc(collection(firestore, 'direct_messages', chatId, 'messages'), messageData);
-      setIsSubmitting(false);
 
-      if (currentImageFile) {
-          const storage = getStorage();
-          const filePath = `chat_images/${user.uid}-${Date.now()}-${currentImageFile.name}`;
-          const storageRef = ref(storage, filePath);
-          
-          uploadBytes(storageRef, currentImageFile).then(async (uploadResult) => {
-              const downloadURL = await getDownloadURL(uploadResult.ref);
-              await updateDoc(docRef, {
-                  imageUrl: downloadURL,
-                  isUploading: false
-              });
-          }).catch(async (error) => {
-              console.error("Upload failed: ", error);
-              await updateDoc(docRef, {
-                  isUploading: false,
-                  uploadError: "Upload failed"
-              });
-          });
-      }
+      await addDoc(collection(firestore, 'direct_messages', chatId, 'messages'), messageData);
+      
+      form.reset();
+      handleRemoveImage();
       
     } catch (error: any) {
         toast({
@@ -267,6 +234,7 @@ export default function DirectChatPage() {
             title: 'Failed to send message',
             description: error.message,
         });
+    } finally {
         setIsSubmitting(false);
     }
   }
@@ -324,3 +292,5 @@ export default function DirectChatPage() {
     </div>
   );
 }
+
+    

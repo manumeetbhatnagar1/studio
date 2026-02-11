@@ -35,7 +35,7 @@ export function GoogleAuthHandler() {
             const userDocRef = doc(firestore, 'users', user.uid);
             const userDocSnap = await getDoc(userDocRef);
 
-            const isDesignatedAdmin = user.email?.toLowerCase() === 'manumeet.bhatnagar1@gmail.com';
+            const isDesignatedAdmin = user.email?.toLowerCase() === 'dcamclassesiit@gmail.com';
     
             if (userDocSnap.exists()) {
                 // Existing user: Update their info and check for admin promotion
@@ -108,7 +108,7 @@ export function GoogleAuthHandler() {
             }
 
              // Special admin logic for the designated admin email
-            if (newUser.email?.toLowerCase() === 'manumeet.bhatnagar1@gmail.com') {
+            if (newUser.email?.toLowerCase() === 'dcamclassesiit@gmail.com') {
                 userData.roleId = 'admin';
                 userData.teacherStatus = 'approved';
                 

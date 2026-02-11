@@ -76,7 +76,7 @@ service cloud.firestore {
      * This provides a bootstrap mechanism for the first admin account.
      */
     function isDesignatedAdmin() {
-      return request.auth.token.email == 'manumeet.bhatnagar1@gmail.com';
+      return request.auth.token.email == 'dcamclassesiit@gmail.com';
     }
     
     /**

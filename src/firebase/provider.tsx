@@ -98,7 +98,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
   
   useEffect(() => {
     const ensureAdminRoleExists = async () => {
-      if (user && user.email === 'manumeet.bhatnagar1@gmail.com' && firestore) {
+      if (user && user.email === 'dcamclassesiit@gmail.com' && firestore) {
         const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
         const adminDoc = await getDoc(adminRoleRef);
         if (!adminDoc.exists()) {

@@ -660,7 +660,33 @@
         "teacherId": { "type": "string", "description": "Reference to the assigned teacher User." },
         "topicId": { "type": "string", "description": "Reference to the relevant Topic." },
         "question": { "type": "string", "description": "The student's question." },
+        "questionAttachments": {
+          "type": "array",
+          "description": "Files attached to the student's question.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "type": { "type": "string" },
+              "url": { "type": "string", "format": "uri" }
+            },
+            "required": ["name", "type", "url"]
+          }
+        },
         "answer": { "type": "string", "description": "The teacher's answer." },
+        "answerAttachments": {
+          "type": "array",
+          "description": "Files attached to the teacher's answer.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "type": { "type": "string" },
+              "url": { "type": "string", "format": "uri" }
+            },
+            "required": ["name", "type", "url"]
+          }
+        },
         "status": { "type": "string", "enum": ["open", "answered", "closed"], "description": "The status of the doubt." },
         "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp of when the doubt was created." }
       },

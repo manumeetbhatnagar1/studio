@@ -1,13 +1,14 @@
 'use client';
 
-import { useState, useMemo, FC } from 'react';
+import { useState, useMemo, FC, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { formatDistanceToNow } from 'date-fns';
-import { useUser, useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, updateDocumentNonBlocking, useStorage } from '@/firebase';
 import { useIsTeacher } from '@/hooks/useIsTeacher';
 import { collection, query, orderBy, serverTimestamp, doc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import DashboardHeader from '@/components/dashboard-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,7 +21,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { PlusCircle, LoaderCircle, MessageSquare, User, HelpCircle, CheckCircle } from 'lucide-react';
+import { PlusCircle, LoaderCircle, MessageSquare, User, HelpCircle, CheckCircle, Paperclip, X, FileText, Download } from 'lucide-react';
 import type { Timestamp } from 'firebase/firestore';
 import { Input } from '@/components/ui/input';
 
@@ -35,7 +36,9 @@ type Doubt = {
   teacherPhotoUrl?: string;
   topicId: string;
   question: string;
+  questionAttachments?: { name: string; url: string; type: string; }[];
   answer?: string;
+  answerAttachments?: { name: string; url: string; type: string; }[];
   status: 'open' | 'answered' | 'closed';
   createdAt: Timestamp;
 };
@@ -46,36 +49,121 @@ const doubtSchema = z.object({
   question: z.string().min(20, 'Your question must be at least 20 characters long.'),
 });
 
+const FileInput: FC<{ files: File[], onFilesChange: (files: File[]) => void, disabled: boolean }> = ({ files, onFilesChange, disabled }) => {
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const selectedFiles = Array.from(e.target.files || []);
+        if (selectedFiles.length > 0) {
+            onFilesChange([...files, ...selectedFiles].slice(0, 5)); // Limit to 5 files
+        }
+    };
+
+    const handleRemoveFile = (index: number) => {
+        onFilesChange(files.filter((_, i) => i !== index));
+    };
+
+    return (
+        <div className="space-y-2">
+            <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={disabled || files.length >= 5}>
+                <Paperclip className="mr-2 h-4 w-4" />
+                Attach Files (Max 5)
+            </Button>
+            <Input type="file" ref={fileInputRef} className="hidden" onChange={handleFileChange} multiple disabled={disabled} />
+            <div className="space-y-2">
+                {files.map((file, index) => (
+                    <div key={index} className="flex items-center justify-between p-2 text-sm rounded-md bg-muted">
+                        <span className="truncate">{file.name}</span>
+                        <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleRemoveFile(index)} disabled={disabled}>
+                            <X className="h-4 w-4" />
+                        </Button>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+const AttachmentDisplay: FC<{ attachments: {name: string, url: string, type: string}[] | undefined, title: string }> = ({ attachments, title }) => {
+    if (!attachments || attachments.length === 0) return null;
+    
+    return (
+        <div className="mt-4 space-y-2">
+            <h5 className="font-semibold text-sm">{title}</h5>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {attachments.map((file, index) => {
+                    return (
+                        <a key={index} href={file.url} target="_blank" rel="noopener noreferrer" className="block p-2 rounded-md border hover:bg-muted">
+                            <div className="flex items-center gap-2">
+                                <FileText className="h-5 w-5 text-muted-foreground" />
+                                <span className="text-sm font-medium truncate flex-1">{file.name}</span>
+                                <Download className="h-4 w-4 text-muted-foreground" />
+                            </div>
+                        </a>
+                    )
+                })}
+            </div>
+        </div>
+    )
+}
+
 // Component for the "Ask a Doubt" form
 const AskDoubtForm: FC<{ setOpen: (open: boolean) => void }> = ({ setOpen }) => {
   const { user } = useUser();
   const firestore = useFirestore();
+  const storage = useStorage();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [files, setFiles] = useState<File[]>([]);
 
   const form = useForm<z.infer<typeof doubtSchema>>({
     resolver: zodResolver(doubtSchema),
     defaultValues: { topicId: '', question: '' },
   });
 
-  function onSubmit(values: z.infer<typeof doubtSchema>) {
+  async function onSubmit(values: z.infer<typeof doubtSchema>) {
     if (!user) return;
     setIsSubmitting(true);
     
-    const doubtsRef = collection(firestore, 'doubts');
-    addDocumentNonBlocking(doubtsRef, {
-      ...values,
-      studentId: user.uid,
-      studentName: user.displayName || 'Anonymous Student',
-      studentPhotoUrl: user.photoURL || '',
-      status: 'open',
-      createdAt: serverTimestamp(),
-    });
+    try {
+        let attachmentUrls: any[] = [];
+        if (files.length > 0) {
+            for (const file of files) {
+                const storageRef = ref(storage, `doubt_attachments/${Date.now()}_${file.name}`);
+                const uploadResult = await uploadBytes(storageRef, file);
+                const downloadURL = await getDownloadURL(uploadResult.ref);
+                attachmentUrls.push({
+                    name: file.name,
+                    type: file.type,
+                    url: downloadURL,
+                });
+            }
+        }
 
-    toast({ title: 'Doubt Submitted!', description: 'An expert will answer your question soon.' });
-    form.reset();
-    setOpen(false);
-    setIsSubmitting(false);
+        const doubtsRef = collection(firestore, 'doubts');
+        await addDocumentNonBlocking(doubtsRef, {
+            ...values,
+            studentId: user.uid,
+            studentName: user.displayName || 'Anonymous Student',
+            studentPhotoUrl: user.photoURL || '',
+            status: 'open',
+            createdAt: serverTimestamp(),
+            questionAttachments: attachmentUrls,
+        });
+
+        toast({ title: 'Doubt Submitted!', description: 'An expert will answer your question soon.' });
+        form.reset();
+        setFiles([]);
+        setOpen(false);
+    } catch (error: any) {
+        toast({
+            variant: 'destructive',
+            title: 'Submission Failed',
+            description: error.message || 'Could not submit your doubt. Please try again.',
+        });
+    } finally {
+        setIsSubmitting(false);
+    }
   }
 
   return (
@@ -97,6 +185,7 @@ const AskDoubtForm: FC<{ setOpen: (open: boolean) => void }> = ({ setOpen }) => 
             <FormMessage />
           </FormItem>
         )} />
+        <FileInput files={files} onFilesChange={setFiles} disabled={isSubmitting} />
         <Button type="submit" disabled={isSubmitting}>
           {isSubmitting ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> Submitting...</> : <>Submit Doubt</>}
         </Button>
@@ -109,26 +198,56 @@ const AskDoubtForm: FC<{ setOpen: (open: boolean) => void }> = ({ setOpen }) => 
 const AnswerForm: FC<{ doubt: Doubt }> = ({ doubt }) => {
   const { user } = useUser();
   const firestore = useFirestore();
+  const storage = useStorage();
   const { toast } = useToast();
   const [answer, setAnswer] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [files, setFiles] = useState<File[]>([]);
   
-  const handleAnswerSubmit = () => {
+  async function handleAnswerSubmit() {
     if (!user || answer.trim().length < 20) {
         toast({ variant: 'destructive', title: 'Answer is too short', description: 'Please provide a detailed answer.' });
         return;
     }
     setIsSubmitting(true);
-    const doubtRef = doc(firestore, 'doubts', doubt.id);
-    updateDocumentNonBlocking(doubtRef, {
-      answer: answer,
-      status: 'answered',
-      teacherId: user.uid,
-      teacherName: user.displayName || 'Expert Teacher',
-      teacherPhotoUrl: user.photoURL || '',
-    });
-    toast({ title: 'Answer Submitted!', description: 'The student has been notified.' });
-    setIsSubmitting(false);
+    
+    try {
+        let attachmentUrls: any[] = [];
+        if (files.length > 0) {
+            for (const file of files) {
+                const storageRef = ref(storage, `doubt_attachments/${Date.now()}_${file.name}`);
+                const uploadResult = await uploadBytes(storageRef, file);
+                const downloadURL = await getDownloadURL(uploadResult.ref);
+                attachmentUrls.push({
+                    name: file.name,
+                    type: file.type,
+                    url: downloadURL,
+                });
+            }
+        }
+
+        const doubtRef = doc(firestore, 'doubts', doubt.id);
+        await updateDocumentNonBlocking(doubtRef, {
+            answer: answer,
+            status: 'answered',
+            teacherId: user.uid,
+            teacherName: user.displayName || 'Expert Teacher',
+            teacherPhotoUrl: user.photoURL || '',
+            answerAttachments: attachmentUrls,
+        });
+
+        toast({ title: 'Answer Submitted!', description: 'The student has been notified.' });
+        setFiles([]);
+        setAnswer('');
+    } catch(error: any) {
+        toast({
+            variant: 'destructive',
+            title: 'Submission Failed',
+            description: error.message || 'Could not submit your answer. Please try again.',
+        });
+    } finally {
+        setIsSubmitting(false);
+    }
   }
 
   return (
@@ -139,7 +258,9 @@ const AnswerForm: FC<{ doubt: Doubt }> = ({ doubt }) => {
             onChange={(e) => setAnswer(e.target.value)}
             placeholder="Type your detailed answer here..."
             rows={5}
+            disabled={isSubmitting}
         />
+        <FileInput files={files} onFilesChange={setFiles} disabled={isSubmitting} />
         <Button onClick={handleAnswerSubmit} disabled={isSubmitting}>
             {isSubmitting ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> Posting...</> : <>Post Answer</>}
         </Button>
@@ -210,9 +331,10 @@ export default function DoubtsPage() {
                     </AccordionTrigger>
                     <AccordionContent className="p-4 pt-0">
                        <div className="prose prose-sm max-w-none border-t pt-4">
+                            <AttachmentDisplay attachments={doubt.questionAttachments} title="Question Attachments" />
                            {doubt.answer ? (
                             <>
-                                <div className="flex items-center gap-2 mb-2">
+                                <div className="flex items-center gap-2 mb-2 mt-4">
                                     <Avatar className="h-8 w-8"><AvatarImage src={doubt.teacherPhotoUrl} /><AvatarFallback>T</AvatarFallback></Avatar>
                                     <div>
                                         <p className="font-semibold">{doubt.teacherName || 'Expert Teacher'}</p>
@@ -220,11 +342,12 @@ export default function DoubtsPage() {
                                     </div>
                                 </div>
                                 <p>{doubt.answer}</p>
+                                <AttachmentDisplay attachments={doubt.answerAttachments} title="Answer Attachments" />
                             </>
                            ) : isTeacher ? (
                                <AnswerForm doubt={doubt} />
                            ) : (
-                               <p className="italic text-muted-foreground">An expert is looking into your question. Please check back later for an answer.</p>
+                               <p className="italic text-muted-foreground mt-4">An expert is looking into your question. Please check back later for an answer.</p>
                            )}
                        </div>
                     </AccordionContent>

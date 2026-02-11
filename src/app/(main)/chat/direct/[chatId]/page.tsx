@@ -8,7 +8,7 @@ import { formatRelative } from 'date-fns';
 import { useParams } from 'next/navigation';
 import type { Timestamp } from 'firebase/firestore';
 import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, serverTimestamp, doc, addDoc, updateDoc } from 'firebase/firestore';
+import { collection, query, orderBy, serverTimestamp, doc, addDoc } from 'firebase/firestore';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -16,7 +16,7 @@ import { Form, FormControl, FormField, FormItem } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Send, ArrowLeft, Paperclip, X, LoaderCircle, AlertCircle, Download } from 'lucide-react';
+import { Send, ArrowLeft, Paperclip, X, LoaderCircle, Download } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -34,8 +34,6 @@ type ChatMessage = {
   text?: string;
   imageUrl?: string;
   createdAt: Timestamp;
-  isUploading?: boolean;
-  uploadError?: boolean;
 };
 
 type UserProfile = {
@@ -86,29 +84,16 @@ function Message({ message, isOwnMessage, toast }: { message: ChatMessage; isOwn
         <div className={cn('rounded-lg px-3 py-2', isOwnMessage ? 'bg-primary text-primary-foreground' : 'bg-muted')}>
           {message.imageUrl && (
               <div className="relative group">
-                  <Link href={message.uploadError || message.isUploading ? '#' : message.imageUrl} target="_blank" rel="noopener noreferrer" className={cn(message.uploadError && 'pointer-events-none')}>
-                      <Image src={message.imageUrl} alt="Sent image" width={200} height={200} className={cn("rounded-md my-2 max-w-xs object-contain", (message.isUploading || message.uploadError) && "opacity-50")} />
+                  <Link href={message.imageUrl} target="_blank" rel="noopener noreferrer">
+                      <Image src={message.imageUrl} alt="Sent image" width={200} height={200} className="rounded-md my-2 max-w-xs object-contain" />
                   </Link>
-                  {message.isUploading && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-md">
-                          <LoaderCircle className="h-6 w-6 animate-spin text-white" />
-                      </div>
-                  )}
-                  {message.uploadError && (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 rounded-md text-destructive-foreground p-2 text-center">
-                          <AlertCircle className="h-6 w-6 text-red-400" />
-                          <p className="text-xs mt-1">Upload failed</p>
-                      </div>
-                  )}
-                  {!message.isUploading && !message.uploadError && (
-                    <button
-                        onClick={handleDownload}
-                        className="absolute top-2 right-2 p-1.5 bg-gray-900/50 text-white rounded-full hover:bg-gray-900/80 transition-colors"
-                        aria-label="Download image"
-                    >
-                        <Download className="h-4 w-4" />
-                    </button>
-                  )}
+                  <button
+                      onClick={handleDownload}
+                      className="absolute top-2 right-2 p-1.5 bg-gray-900/50 text-white rounded-full hover:bg-gray-900/80 transition-colors"
+                      aria-label="Download image"
+                  >
+                      <Download className="h-4 w-4" />
+                  </button>
               </div>
           )}
           {message.text && <p className="text-sm">{message.text}</p>}
@@ -167,7 +152,7 @@ export default function DirectChatPage() {
   
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
   const form = useForm<z.infer<typeof chatMessageSchema>>({
@@ -185,7 +170,7 @@ export default function DirectChatPage() {
     [firestore, chatId]
   );
   
-  const { data: messages, isLoading } = useCollection<ChatMessage>(messagesQuery);
+  const { data: messages, isLoading: areMessagesLoading } = useCollection<ChatMessage>(messagesQuery);
   
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -217,55 +202,29 @@ export default function DirectChatPage() {
         toast({ variant: 'destructive', title: 'Cannot send an empty message.' });
         return;
     }
-    setIsUploading(true);
-
-    const tempImageFile = imageFile;
-    const tempImagePreview = imagePreview;
-
-    form.reset();
-    handleRemoveImage();
+    setIsLoading(true);
 
     try {
-      const messagesRef = collection(firestore, 'direct_messages', chatId, 'messages');
-      const docRef = await addDoc(messagesRef, {
+      let imageUrl = '';
+      if (imageFile) {
+          const storage = getStorage();
+          const filePath = `chat_images/${user.uid}-${Date.now()}-${imageFile.name}`;
+          const storageRef = ref(storage, filePath);
+          const uploadTask = await uploadBytesResumable(storageRef, imageFile);
+          imageUrl = await getDownloadURL(uploadTask.ref);
+      }
+
+      await addDoc(collection(firestore, 'direct_messages', chatId, 'messages'), {
         senderId: user.uid,
         senderName: user.displayName || 'Anonymous',
         senderPhotoUrl: user.photoURL || '',
         text: values.text || '',
-        imageUrl: tempImageFile ? tempImagePreview : '',
+        imageUrl: imageUrl,
         createdAt: serverTimestamp(),
-        isUploading: !!tempImageFile,
       });
-
-      if (tempImageFile) {
-        const storage = getStorage();
-        const filePath = `chat_images/${user.uid}-${docRef.id}-${tempImageFile.name}`;
-        const storageRef = ref(storage, filePath);
-        const uploadTask = uploadBytesResumable(storageRef, tempImageFile);
-
-        uploadTask.on('state_changed',
-          (snapshot) => {
-            // Optional: handle progress updates
-          },
-          (error) => {
-            console.error("Upload failed:", error);
-            // Don't await, let it run in background.
-            updateDoc(docRef, { isUploading: false, uploadError: true });
-          },
-          () => {
-            getDownloadURL(uploadTask.snapshot.ref)
-              .then((downloadURL) => {
-                // This promise must be handled
-                return updateDoc(docRef, { imageUrl: downloadURL, isUploading: false });
-              })
-              .catch((error) => {
-                console.error("Error updating document with final URL:", error);
-                // If either getDownloadURL or updateDoc fails, mark the message as errored.
-                updateDoc(docRef, { isUploading: false, uploadError: true });
-              });
-          }
-        );
-      }
+      
+      form.reset();
+      handleRemoveImage();
       
     } catch (error: any) {
         toast({
@@ -274,7 +233,7 @@ export default function DirectChatPage() {
             description: error.message || 'An error occurred while sending your message.',
         });
     } finally {
-        setIsUploading(false);
+        setIsLoading(false);
     }
   }
 
@@ -283,7 +242,7 @@ export default function DirectChatPage() {
       <DirectChatPageHeader otherUserId={otherUserId} />
       <div className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
         <div className="space-y-4 max-w-4xl mx-auto">
-          {isLoading ? (
+          {areMessagesLoading ? (
             <div className="space-y-4">
               <Skeleton className="h-16 w-full" /><Skeleton className="h-16 w-full" />
             </div>
@@ -302,26 +261,26 @@ export default function DirectChatPage() {
             {imagePreview && (
               <div className="relative w-24 h-24 mb-2">
                 <Image src={imagePreview} alt="Preview" fill className="rounded-md object-cover" />
-                <Button size="icon" variant="destructive" className="absolute -top-2 -right-2 h-6 w-6 rounded-full" onClick={handleRemoveImage} disabled={isUploading}><X className="h-4 w-4" /></Button>
+                <Button size="icon" variant="destructive" className="absolute -top-2 -right-2 h-6 w-6 rounded-full" onClick={handleRemoveImage} disabled={isLoading}><X className="h-4 w-4" /></Button>
               </div>
             )}
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="flex items-center gap-2">
-                <Button type="button" variant="ghost" size="icon" onClick={() => imageInputRef.current?.click()} disabled={isUploading}><Paperclip className="h-5 w-5" /></Button>
-                <Input type="file" accept="image/*" ref={imageInputRef} className="hidden" onChange={handleImageChange} disabled={isUploading} />
+                <Button type="button" variant="ghost" size="icon" onClick={() => imageInputRef.current?.click()} disabled={isLoading}><Paperclip className="h-5 w-5" /></Button>
+                <Input type="file" accept="image/*" ref={imageInputRef} className="hidden" onChange={handleImageChange} disabled={isLoading} />
               <FormField
                 control={form.control}
                 name="text"
                 render={({ field }) => (
                   <FormItem className="flex-1">
                     <FormControl>
-                      <Input placeholder="Type a message..." autoComplete="off" {...field} disabled={isUploading} />
+                      <Input placeholder="Type a message..." autoComplete="off" {...field} disabled={isLoading} />
                     </FormControl>
                   </FormItem>
                 )}
               />
-              <Button type="submit" disabled={isUploading || form.formState.isSubmitting}>
-                {isUploading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              <Button type="submit" disabled={isLoading || form.formState.isSubmitting}>
+                {isLoading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 <span className="sr-only">Send</span>
               </Button>
             </form>

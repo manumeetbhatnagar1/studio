@@ -8,7 +8,7 @@ import Image from 'next/image';
 import { formatRelative } from 'date-fns';
 import type { Timestamp } from 'firebase/firestore';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, serverTimestamp, where, addDoc } from 'firebase/firestore';
+import { collection, query, orderBy, serverTimestamp, where, addDoc, updateDoc } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,7 +16,7 @@ import { Form, FormControl, FormField, FormItem } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { LoaderCircle, MessagesSquare, Send, User as UserIcon, MessageCircle, Paperclip, X, Download } from 'lucide-react';
+import { LoaderCircle, MessagesSquare, Send, User as UserIcon, MessageCircle, Paperclip, X, Download, AlertCircle } from 'lucide-react';
 import DashboardHeader from '@/components/dashboard-header';
 import { cn } from '@/lib/utils';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -32,12 +32,16 @@ type ChatMessage = {
   senderName: string;
   senderPhotoUrl?: string;
   text?: string;
-  imageUrl?: string;
+  imageUrl?: string | null;
+  isUploading?: boolean;
+  uploadError?: string | null;
   createdAt: Timestamp;
 };
 
 // Single message component
 function Message({ message, isOwnMessage, toast }: { message: ChatMessage; isOwnMessage: boolean; toast: ReturnType<typeof useToast>['toast'] }) {
+  const isUploading = !!message.isUploading;
+  const uploadError = message.uploadError;
 
   const handleDownload = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -78,17 +82,30 @@ function Message({ message, isOwnMessage, toast }: { message: ChatMessage; isOwn
       <div className={cn('flex flex-col gap-1', isOwnMessage && 'items-end')}>
         <div className={cn('rounded-lg px-3 py-2', isOwnMessage ? 'bg-primary text-primary-foreground' : 'bg-muted')}>
             {message.imageUrl && (
-                <div className="relative group">
+                <div className="relative group max-w-xs">
                   <Link href={message.imageUrl} target="_blank" rel="noopener noreferrer">
-                      <Image src={message.imageUrl} alt="Sent image" width={200} height={200} className="rounded-md my-2 max-w-xs object-contain" />
+                      <Image src={message.imageUrl} alt="Sent image" width={200} height={200} className="rounded-md my-2 object-contain" />
                   </Link>
-                  <button
-                      onClick={handleDownload}
-                      className="absolute top-2 right-2 p-1.5 bg-gray-900/50 text-white rounded-full hover:bg-gray-900/80 transition-colors"
-                      aria-label="Download image"
-                  >
-                      <Download className="h-4 w-4" />
-                  </button>
+                  {isUploading && (
+                      <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-md">
+                          <LoaderCircle className="w-6 h-6 text-white animate-spin" />
+                      </div>
+                  )}
+                  {uploadError && (
+                      <div className="absolute inset-0 bg-red-900/80 flex flex-col items-center justify-center rounded-md text-white p-2 text-center">
+                          <AlertCircle className="w-6 h-6 mb-1" />
+                          <p className="text-xs font-bold">Upload Failed</p>
+                      </div>
+                  )}
+                  {!isUploading && !uploadError && (
+                    <button
+                        onClick={handleDownload}
+                        className="absolute top-2 right-2 p-1.5 bg-gray-900/50 text-white rounded-full hover:bg-gray-900/80 transition-colors"
+                        aria-label="Download image"
+                    >
+                        <Download className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
             )}
           {message.text && <p className="text-sm">{message.text}</p>}
@@ -111,7 +128,7 @@ function GroupChat() {
   
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
   const form = useForm<z.infer<typeof chatMessageSchema>>({
@@ -152,38 +169,54 @@ function GroupChat() {
         toast({ variant: 'destructive', title: 'Cannot send an empty message.' });
         return;
     }
-    setIsLoading(true);
+    
+    setIsSubmitting(true);
+    const currentImageFile = imageFile;
+    const currentImagePreview = imagePreview;
 
+    form.reset();
+    handleRemoveImage();
+    
     try {
-        let imageUrl = '';
-        if (imageFile) {
-            const storage = getStorage();
-            const filePath = `chat_images/${user.uid}-${Date.now()}-${imageFile.name}`;
-            const storageRef = ref(storage, filePath);
-            const uploadResult = await uploadBytes(storageRef, imageFile);
-            imageUrl = await getDownloadURL(uploadResult.ref);
-        }
-
-        await addDoc(collection(firestore, 'group_chat_messages'), { 
+        const messageData: any = { 
             senderId: user.uid, 
             senderName: user.displayName || 'Anonymous', 
             senderPhotoUrl: user.photoURL || '', 
             text: values.text || '', 
-            imageUrl: imageUrl,
             createdAt: serverTimestamp(),
-        });
-        
-        form.reset();
-        handleRemoveImage();
+            imageUrl: currentImageFile ? currentImagePreview : null,
+            isUploading: !!currentImageFile,
+            uploadError: null
+        };
+        const docRef = await addDoc(collection(firestore, 'group_chat_messages'), messageData);
+        setIsSubmitting(false);
 
+        if (currentImageFile) {
+            const storage = getStorage();
+            const filePath = `chat_images/${user.uid}-${Date.now()}-${currentImageFile.name}`;
+            const storageRef = ref(storage, filePath);
+
+            uploadBytes(storageRef, currentImageFile).then(async (uploadResult) => {
+                const downloadURL = await getDownloadURL(uploadResult.ref);
+                await updateDoc(docRef, {
+                    imageUrl: downloadURL,
+                    isUploading: false
+                });
+            }).catch(async (error) => {
+                console.error("Upload failed: ", error);
+                await updateDoc(docRef, {
+                    isUploading: false,
+                    uploadError: "Upload failed"
+                });
+            });
+        }
     } catch (error: any) {
         toast({
             variant: "destructive",
             title: "Failed to send message",
-            description: error.message || 'An error occurred while sending your message.',
+            description: error.message,
         });
-    } finally {
-        setIsLoading(false);
+        setIsSubmitting(false);
     }
   }
 
@@ -207,16 +240,16 @@ function GroupChat() {
         {imagePreview && (
           <div className="relative w-24 h-24 mb-2">
             <Image src={imagePreview} alt="Preview" fill className="rounded-md object-cover" />
-            <Button size="icon" variant="destructive" className="absolute -top-2 -right-2 h-6 w-6 rounded-full" onClick={handleRemoveImage} disabled={isLoading}><X className="h-4 w-4" /></Button>
+            <Button size="icon" variant="destructive" className="absolute -top-2 -right-2 h-6 w-6 rounded-full" onClick={handleRemoveImage} disabled={isSubmitting}><X className="h-4 w-4" /></Button>
           </div>
         )}
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="flex items-center gap-2">
-            <Button type="button" variant="ghost" size="icon" onClick={() => imageInputRef.current?.click()} disabled={isLoading}><Paperclip className="h-5 w-5" /></Button>
-            <Input type="file" accept="image/*" ref={imageInputRef} className="hidden" onChange={handleImageChange} disabled={isLoading} />
-            <FormField control={form.control} name="text" render={({ field }) => (<FormItem className="flex-1"><FormControl><Input placeholder="Type a message..." autoComplete="off" {...field} disabled={isLoading} /></FormControl></FormItem>)} />
-            <Button type="submit" disabled={isLoading || form.formState.isSubmitting}>
-              {isLoading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            <Button type="button" variant="ghost" size="icon" onClick={() => imageInputRef.current?.click()} disabled={isSubmitting}><Paperclip className="h-5 w-5" /></Button>
+            <Input type="file" accept="image/*" ref={imageInputRef} className="hidden" onChange={handleImageChange} disabled={isSubmitting} />
+            <FormField control={form.control} name="text" render={({ field }) => (<FormItem className="flex-1"><FormControl><Input placeholder="Type a message..." autoComplete="off" {...field} disabled={isSubmitting} /></FormControl></FormItem>)} />
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               <span className="sr-only">Send</span>
             </Button>
           </form>

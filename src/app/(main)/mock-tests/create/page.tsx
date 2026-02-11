@@ -1,6 +1,6 @@
 'use client';
 
-import { useForm } from 'react-hook-form';
+import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,7 @@ import DashboardHeader from '@/components/dashboard-header';
 import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, useUser } from '@/firebase';
 import { collection, query, orderBy, serverTimestamp } from 'firebase/firestore';
 import { useState, useMemo } from 'react';
-import { LoaderCircle } from 'lucide-react';
+import { LoaderCircle, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useRouter } from 'next/navigation';
@@ -21,7 +21,7 @@ import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
 
 
 type Question = { id: string; questionText: string; classId: string; subjectId: string; topicId: string; accessLevel: 'free' | 'paid', examTypeId: string, difficultyLevel: 'Easy' | 'Medium' | 'Hard' };
@@ -29,6 +29,12 @@ type Class = { id: string; name: string; examTypeId: string };
 type Subject = { id: string; name: string; classId: string };
 type Topic = { id: string; name: string; subjectId: string };
 type ExamType = { id: string; name: string; };
+
+const topicConfigSchema = z.object({
+  topicId: z.string(),
+  topicName: z.string(),
+  count: z.coerce.number().min(1, "Must be > 0"),
+});
 
 const formSchema = z.object({
   title: z.string().min(5, 'Test title must be at least 5 characters long.'),
@@ -38,6 +44,7 @@ const formSchema = z.object({
   negativeMarksPerQuestion: z.coerce.number().min(0, 'Negative marks cannot be negative.'),
   examTypeId: z.string().optional(),
   difficultyLevel: z.enum(['Easy', 'Medium', 'Hard', 'All']),
+  topicsConfig: z.array(topicConfigSchema).min(1, 'Please select at least one topic.'),
 });
 
 
@@ -48,8 +55,7 @@ export default function CreateCustomTestPage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { isSubscribed, isLoading: isSubscribedLoading } = useIsSubscribed();
-  const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
-
+  
   // Data fetching
   const classesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'classes'), orderBy('name')) : null, [firestore]);
   const subjectsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'subjects'), orderBy('name')) : null, [firestore]);
@@ -73,10 +79,16 @@ export default function CreateCustomTestPage() {
       negativeMarksPerQuestion: 1,
       examTypeId: '',
       difficultyLevel: 'All',
+      topicsConfig: [],
     },
   });
 
-  const { watch } = form;
+  const { control, watch } = form;
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: "topicsConfig"
+  });
+  
   const accessLevelFilter = watch('accessLevel');
   const examTypeIdFilter = watch('examTypeId');
   const difficultyLevelFilter = watch('difficultyLevel');
@@ -100,34 +112,55 @@ export default function CreateCustomTestPage() {
     })).filter(c => c.subjects.length > 0);
   }, [classes, subjects, topics, examTypeIdFilter]);
 
-  const filteredQuestions = useMemo(() => {
-    if (!allQuestions) return [];
-    return allQuestions.filter(q => {
-      if (!selectedTopics.includes(q.topicId)) return false;
-      if (q.accessLevel !== accessLevelFilter) return false;
-      if (examTypeIdFilter && q.examTypeId !== examTypeIdFilter) return false;
-      if (difficultyLevelFilter !== 'All' && q.difficultyLevel !== difficultyLevelFilter) return false;
-      return true;
-    });
-  }, [allQuestions, selectedTopics, accessLevelFilter, examTypeIdFilter, difficultyLevelFilter]);
-
-
   async function onSubmit(values: z.infer<typeof formSchema>) {
     if(!user) return;
     
-    if (filteredQuestions.length === 0) {
+    setIsSubmitting(true);
+    
+    const finalQuestionIds: string[] = [];
+    let questionSelectionError = false;
+
+    const availableQuestions = (allQuestions || []).filter(q => {
+        if (q.accessLevel !== values.accessLevel) return false;
+        if (values.examTypeId && q.examTypeId !== values.examTypeId) return false;
+        if (values.difficultyLevel !== 'All' && q.difficultyLevel !== values.difficultyLevel) return false;
+        return true;
+    });
+
+    for (const config of values.topicsConfig) {
+        const topicQuestions = availableQuestions.filter(q => q.topicId === config.topicId);
+        
+        if (topicQuestions.length < config.count) {
+            toast({
+                variant: 'destructive',
+                title: 'Not Enough Questions',
+                description: `Topic "${config.topicName}" only has ${topicQuestions.length} questions for your filters, but you requested ${config.count}.`,
+            });
+            questionSelectionError = true;
+            break; 
+        }
+
+        const shuffled = [...topicQuestions].sort(() => 0.5 - Math.random());
+        const selected = shuffled.slice(0, config.count);
+        finalQuestionIds.push(...selected.map(q => q.id));
+    }
+
+    if (questionSelectionError) {
+        setIsSubmitting(false);
+        return;
+    }
+    
+    if (finalQuestionIds.length === 0) {
       toast({
         variant: 'destructive',
         title: 'No Questions Found',
-        description: 'Your selection and filters did not match any questions. Please adjust your criteria.',
+        description: 'Your topic selection and filters did not yield any questions. Please adjust your criteria.',
       });
+      setIsSubmitting(false);
       return;
     }
-    
-    setIsSubmitting(true);
 
     try {
-      const questionIds = filteredQuestions.map(q => q.id);
       const customTestsRef = collection(firestore, 'users', user.uid, 'custom_tests');
       
       await addDocumentNonBlocking(customTestsRef, {
@@ -136,7 +169,7 @@ export default function CreateCustomTestPage() {
           accessLevel: values.accessLevel,
           examTypeId: values.examTypeId || null,
           config: {
-              questionIds,
+              questionIds: finalQuestionIds,
               duration: values.duration,
               marksPerQuestion: values.marksPerQuestion,
               negativeMarksPerQuestion: values.negativeMarksPerQuestion,
@@ -146,7 +179,7 @@ export default function CreateCustomTestPage() {
       
       toast({
         title: 'Custom Test Created!',
-        description: `${values.title} has been saved with ${questionIds.length} questions.`,
+        description: `${values.title} has been saved with ${finalQuestionIds.length} questions.`,
       });
       router.push('/mock-tests');
     } catch (error: any) {
@@ -160,9 +193,14 @@ export default function CreateCustomTestPage() {
     }
   }
   
-  const handleTopicToggle = (topicId: string, isChecked: boolean) => {
-    setSelectedTopics(prev => isChecked ? [...prev, topicId] : prev.filter(id => id !== topicId));
-  }
+  const handleTopicToggle = (topic: { id: string; name: string }, isChecked: boolean) => {
+    const index = fields.findIndex(field => field.topicId === topic.id);
+    if (isChecked && index === -1) {
+        append({ topicId: topic.id, topicName: topic.name, count: 5 });
+    } else if (!isChecked && index !== -1) {
+        remove(index);
+    }
+  };
 
   const isLoading = areSubjectsLoading || isSubscribedLoading || areClassesLoading || areTopicsLoading || areQuestionsLoading || areExamTypesLoading;
 
@@ -223,10 +261,58 @@ export default function CreateCustomTestPage() {
                         </div>
                     </div>
                     
+                    <div className="space-y-4">
+                        <FormLabel className="text-lg font-semibold">Selected Topics & Question Count</FormLabel>
+                        {fields.length > 0 ? (
+                            <Card>
+                                <CardContent className="p-4 space-y-4 max-h-60 overflow-y-auto">
+                                    {fields.map((field, index) => (
+                                    <div key={field.id} className="flex items-center justify-between gap-4 p-2 rounded-md bg-muted/50">
+                                        <span className="font-medium text-sm flex-1">{field.topicName}</span>
+                                        <div className="flex items-center gap-2">
+                                        <Label htmlFor={`topicsConfig.${index}.count`} className="text-sm">Questions:</Label>
+                                        <FormField
+                                            control={form.control}
+                                            name={`topicsConfig.${index}.count`}
+                                            render={({ field: countField }) => (
+                                            <FormItem>
+                                                <FormControl>
+                                                    <Input
+                                                        id={`topicsConfig.${index}.count`}
+                                                        type="number"
+                                                        min="1"
+                                                        className="w-20 h-8"
+                                                        {...countField}
+                                                    />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                            )}
+                                        />
+                                        </div>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => remove(index)}>
+                                        <X className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                    ))}
+                                </CardContent>
+                                <CardFooter>
+                                    <p className="text-sm text-muted-foreground">
+                                    Total questions: {form.watch('topicsConfig').reduce((acc, curr) => acc + (Number(curr.count) || 0), 0)}
+                                    </p>
+                                </CardFooter>
+                            </Card>
+                        ) : (
+                            <div className="text-sm text-muted-foreground text-center p-4 border border-dashed rounded-md">
+                            Select topics from the curriculum below.
+                            </div>
+                        )}
+                        <FormField control={form.control} name="topicsConfig" render={() => <FormItem><FormMessage /></FormItem>} />
+                    </div>
+
                     {/* Topic Selector */}
                     <div className="space-y-4">
-                        <FormLabel className="text-lg font-semibold">Select Topics</FormLabel>
-                        <FormDescription>Choose one or more topics to include in your test.</FormDescription>
+                        <FormLabel className="text-lg font-semibold">Select Topics from Curriculum</FormLabel>
                         <Card>
                             <CardContent className='p-4 max-h-96 overflow-y-auto'>
                                 <Accordion type="multiple" className="w-full">
@@ -242,7 +328,7 @@ export default function CreateCustomTestPage() {
                                                     <div className="space-y-2">
                                                         {s.topics.map(t => (
                                                             <div key={t.id} className="flex items-center space-x-2">
-                                                                <Checkbox id={t.id} onCheckedChange={(checked) => handleTopicToggle(t.id, !!checked)} checked={selectedTopics.includes(t.id)}/>
+                                                                <Checkbox id={t.id} onCheckedChange={(checked) => handleTopicToggle(t, !!checked)} checked={fields.some(f => f.topicId === t.id)}/>
                                                                 <label htmlFor={t.id} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">{t.name}</label>
                                                             </div>
                                                         ))}
@@ -256,9 +342,6 @@ export default function CreateCustomTestPage() {
                                     ))}
                                 </Accordion>
                             </CardContent>
-                            <CardFooter>
-                                <Badge>Selected Questions: {filteredQuestions.length}</Badge>
-                            </CardFooter>
                         </Card>
                     </div>
 

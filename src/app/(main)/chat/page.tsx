@@ -8,7 +8,7 @@ import Image from 'next/image';
 import { formatRelative } from 'date-fns';
 import type { Timestamp } from 'firebase/firestore';
 import { useUser, useFirestore, useCollection, useMemoFirebase, useStorage } from '@/firebase';
-import { collection, query, orderBy, serverTimestamp, where, addDoc } from 'firebase/firestore';
+import { collection, query, orderBy, serverTimestamp, where, addDoc, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,7 +16,7 @@ import { Form, FormControl, FormField, FormItem } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { LoaderCircle, MessagesSquare, Send, User as UserIcon, MessageCircle, Paperclip, X, Download } from 'lucide-react';
+import { LoaderCircle, MessagesSquare, Send, User as UserIcon, MessageCircle, Paperclip, X, Download, AlertTriangle } from 'lucide-react';
 import DashboardHeader from '@/components/dashboard-header';
 import { cn } from '@/lib/utils';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -26,6 +26,7 @@ import { useToast } from '@/hooks/use-toast';
 
 // Chat message schema and type
 const chatMessageSchema = z.object({ text: z.string().max(500, 'Message is too long.').optional() });
+
 type ChatMessage = {
   id: string;
   senderId: string;
@@ -34,6 +35,8 @@ type ChatMessage = {
   text?: string;
   imageUrl?: string;
   createdAt: Timestamp;
+  isUploading?: boolean;
+  uploadError?: string;
 };
 
 // Single message component
@@ -89,6 +92,17 @@ function Message({ message, isOwnMessage, toast }: { message: ChatMessage; isOwn
                         <Download className="h-4 w-4" />
                     </button>
                 </div>
+            )}
+             {message.isUploading && (
+              <div className="w-48 h-32 flex items-center justify-center bg-secondary rounded-md my-2">
+                <LoaderCircle className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            )}
+            {message.uploadError && (
+              <div className="w-48 h-32 flex flex-col items-center justify-center bg-destructive/20 text-destructive-foreground rounded-md my-2 p-2 text-center">
+                <AlertTriangle className="h-6 w-6 mb-2" />
+                <p className="text-xs font-semibold">{message.uploadError}</p>
+              </div>
             )}
           {message.text && <p className="text-sm">{message.text}</p>}
         </div>
@@ -147,46 +161,58 @@ function GroupChat() {
   }
 
   async function onSubmit(values: z.infer<typeof chatMessageSchema>) {
-    if (!user || !firestore) return;
+    if (!user || !firestore || !storage) return;
     if (!values.text && !imageFile) {
         toast({ variant: 'destructive', title: 'Cannot send an empty message.' });
         return;
     }
-    
+
     setIsSubmitting(true);
+    const currentImageFile = imageFile;
+
+    // Reset form immediately for a snappy UI
+    form.reset();
+    handleRemoveImage();
+
+    const messageData: any = { 
+        senderId: user.uid, 
+        senderName: user.displayName || 'Anonymous', 
+        senderPhotoUrl: user.photoURL || '', 
+        createdAt: serverTimestamp(),
+        text: values.text || '',
+    };
     
+    if (currentImageFile) {
+        messageData.isUploading = true;
+    }
+
     try {
-      let downloadURL: string | null = null;
-      if (imageFile) {
-          const filePath = `chat_images/${user.uid}-${Date.now()}-${imageFile.name}`;
-          const storageRef = ref(storage, filePath);
-          const uploadResult = await uploadBytes(storageRef, imageFile);
-          downloadURL = await getDownloadURL(uploadResult.ref);
-      }
+        const messageRef = await addDoc(collection(firestore, 'group_chat_messages'), messageData);
+        
+        if (currentImageFile) {
+            const filePath = `chat_images/${messageRef.id}-${currentImageFile.name}`;
+            const storageRef = ref(storage, filePath);
 
-      const messageData: any = { 
-          senderId: user.uid, 
-          senderName: user.displayName || 'Anonymous', 
-          senderPhotoUrl: user.photoURL || '', 
-          createdAt: serverTimestamp(),
-      };
-      if (values.text) {
-        messageData.text = values.text;
-      }
-      if (downloadURL) {
-        messageData.imageUrl = downloadURL;
-      }
-
-      await addDoc(collection(firestore, 'group_chat_messages'), messageData);
-      
-      form.reset();
-      handleRemoveImage();
+            uploadBytes(storageRef, currentImageFile).then(async (uploadResult) => {
+                const downloadURL = await getDownloadURL(uploadResult.ref);
+                await updateDoc(messageRef, {
+                    imageUrl: downloadURL,
+                    isUploading: false,
+                });
+            }).catch(async (error) => {
+                console.error("Upload failed:", error);
+                await updateDoc(messageRef, {
+                    isUploading: false,
+                    uploadError: 'Upload failed',
+                });
+            });
+        }
     } catch (error: any) {
         console.error("Failed to send message:", error);
         toast({
             variant: "destructive",
             title: "Failed to send message",
-            description: error.message,
+            description: "Could not create the message document. Please try again.",
         });
     } finally {
         setIsSubmitting(false);

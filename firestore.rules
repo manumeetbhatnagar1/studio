@@ -167,8 +167,7 @@ service cloud.firestore {
      * @path        /roles_admin/{userId}
      */
     match /roles_admin/{userId} {
-      allow get, list: if isSignedIn();
-      // Allow self-creation for bootstrapping the first admin.
+      allow get, list: if isOwner(userId) || isAdmin();
       allow create: if isOwner(userId) || isAdmin();
       allow update: if isAdmin();
       allow delete: if isAdmin();
@@ -180,7 +179,7 @@ service cloud.firestore {
      * @path        /roles_teacher/{userId}
      */
     match /roles_teacher/{userId} {
-      allow get, list: if isSignedIn();
+      allow get, list: if isOwner(userId) || isAdmin();
       allow create: if isOwner(userId) || isAdmin();
       allow update: if false;
       allow delete: if isAdmin();
@@ -286,7 +285,7 @@ service cloud.firestore {
      * @path        /doubts/{doubtId}
      */
     match /doubts/{doubtId} {
-      allow get, list: if isSignedIn();
+      allow read, list: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.studentId == request.auth.uid;
       allow update: if resource != null && (isOwner(resource.data.studentId) || isTeacher());
       allow delete: if resource != null && isOwner(resource.data.studentId);

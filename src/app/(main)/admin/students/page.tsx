@@ -113,6 +113,8 @@ const RoleSelector = ({ user }: { user: UserProfile }) => {
                 batch.set(teacherRoleRef, { createdAt: new Date().toISOString() });
                 batch.delete(adminRoleRef);
             } else if (newRole === 'admin') {
+                roleUpdate.teacherStatus = 'approved';
+                batch.set(teacherRoleRef, { createdAt: new Date().toISOString() });
                 batch.set(adminRoleRef, { createdAt: new Date().toISOString() });
             }
             

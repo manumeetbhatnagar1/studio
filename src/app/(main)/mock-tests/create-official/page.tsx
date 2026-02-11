@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import DashboardHeader from '@/components/dashboard-header';
 import { useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
 import { collection, query, orderBy } from 'firebase/firestore';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { LoaderCircle, PlusCircle, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -23,6 +23,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescri
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useIsAdmin } from '@/hooks/useIsAdmin';
+import { useIsTeacher } from '@/hooks/useIsTeacher';
 
 type Question = { id: string; questionText: string; classId: string; subjectId: string; topicId: string; accessLevel: 'free' | 'paid' };
 type Class = { id: string; name: string };
@@ -61,6 +63,8 @@ export default function CreateOfficialMockTestPage() {
   const { toast } = useToast();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { isTeacher, isLoading: isTeacherLoading } = useIsTeacher();
+  const { isAdmin, isLoading: isAdminLoading } = useIsAdmin();
 
   // Data fetching for filters and questions
   const classesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'classes'), orderBy('name')) : null, [firestore]);
@@ -95,6 +99,16 @@ export default function CreateOfficialMockTestPage() {
 
   const selectedQuestionIds = form.watch('questionIds');
   const subjectConfigs = form.watch('subjectConfigs');
+  
+  const isAuthorized = isTeacher || isAdmin;
+  const isAuthLoading = isTeacherLoading || isAdminLoading;
+
+  useEffect(() => {
+    if (!isAuthLoading && !isAuthorized) {
+        toast({ variant: 'destructive', title: 'Unauthorized', description: 'You do not have permission to create official tests.' });
+        router.push('/mock-tests');
+    }
+  }, [isAuthLoading, isAuthorized, router, toast]);
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsSubmitting(true);
@@ -130,13 +144,27 @@ export default function CreateOfficialMockTestPage() {
     }
   }
 
-  const isLoading = areSubjectsLoading || areClassesLoading || areTopicsLoading || areQuestionsLoading || areExamTypesLoading;
+  const isLoading = areSubjectsLoading || areClassesLoading || areTopicsLoading || areQuestionsLoading || areExamTypesLoading || isAuthLoading;
   
   const availableSubjects = useMemo(() => {
     const selectedSubjectIds = subjectConfigs.map(c => c.subjectId);
     return (subjects || []).filter(s => !selectedSubjectIds.includes(s.id));
   }, [subjects, subjectConfigs]);
 
+  if (isAuthLoading) {
+      return (
+          <div className="flex flex-col h-full">
+              <DashboardHeader title="Create an Official Mock Test" />
+              <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
+                  <Skeleton className="h-64 w-full" />
+              </main>
+          </div>
+      );
+  }
+
+  if (!isAuthorized) {
+      return null;
+  }
 
   return (
     <div className="flex flex-col h-full">

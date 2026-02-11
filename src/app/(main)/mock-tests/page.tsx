@@ -12,6 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useState, useMemo } from "react";
 import { formatDistanceToNow, format } from "date-fns";
 import { useIsTeacher } from "@/hooks/useIsTeacher";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { useIsSubscribed } from "@/hooks/useIsSubscribed";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -47,6 +48,7 @@ export default function MockTestsPage() {
   const { user } = useUser();
   const firestore = useFirestore();
   const { isTeacher, isLoading: isTeacherLoading } = useIsTeacher();
+  const { isAdmin, isLoading: isAdminLoading } = useIsAdmin();
   const { isSubscribed, subscriptionPlan, isLoading: isSubscribedLoading } = useIsSubscribed();
   const { toast } = useToast();
   const [testToDelete, setTestToDelete] = useState<{ id: string; type: 'official' | 'custom'; title: string } | null>(null);
@@ -81,7 +83,7 @@ export default function MockTestsPage() {
   const totalQuestions = (test: CustomTest | OfficialTest) => test.config.questionIds?.length || 0;
   const totalDuration = (test: CustomTest | OfficialTest) => test.config.duration || 0;
   
-  const isLoading = areCustomTestsLoading || isTeacherLoading || areOfficialTestsLoading || isSubscribedLoading || areExamTypesLoading;
+  const isLoading = areCustomTestsLoading || isTeacherLoading || areOfficialTestsLoading || isSubscribedLoading || areExamTypesLoading || isAdminLoading;
 
   const handleDeleteRequest = (id: string, type: 'official' | 'custom', title: string) => {
     setTestToDelete({ id, type, title });
@@ -122,7 +124,7 @@ export default function MockTestsPage() {
         <div className="flex justify-between items-center mb-6">
             <h2 className="font-headline text-2xl font-semibold">Available Mock Tests</h2>
             <div className='flex gap-2'>
-              {isTeacher && (
+              {(isTeacher || isAdmin) && (
                  <Button asChild>
                     <Link href="/mock-tests/create-official"><PlusCircle className="mr-2"/>Create Official Test</Link>
                 </Button>
@@ -147,7 +149,7 @@ export default function MockTestsPage() {
                 {officialTests.map(test => {
                   const isPaidTest = test.accessLevel === 'paid';
                   const hasAccessByPlan = isSubscribed && subscriptionPlan && subscriptionPlan.examTypeId === test.examTypeId;
-                  const canTakeTest = !isPaidTest || hasAccessByPlan || isTeacher;
+                  const canTakeTest = !isPaidTest || hasAccessByPlan || isTeacher || isAdmin;
                   const isUpcoming = test.startTime.toDate() > new Date();
                   const examTypeName = examTypeMap[test.examTypeId] || 'General';
 
@@ -188,7 +190,7 @@ export default function MockTestsPage() {
                                     </Link>
                                 </Button>
                           )}
-                          {isTeacher && (
+                          {(isTeacher || isAdmin) && (
                               <div className="flex justify-end gap-2 border-t pt-2 mt-2">
                                   <Button asChild variant="ghost" size="sm">
                                       <Link href={`/mock-tests/edit-official/${test.id}`}>
@@ -208,7 +210,7 @@ export default function MockTestsPage() {
             ) : (
                 <Card className="flex flex-col items-center justify-center text-center p-8 border-2 border-dashed rounded-lg bg-muted/50">
                     <h3 className="font-semibold">No official tests have been scheduled.</h3>
-                    {isTeacher ? <p className="text-sm text-muted-foreground">Click "Create Official Test" to add one.</p> : <p className="text-sm text-muted-foreground">Please check back later.</p>}
+                    {(isTeacher || isAdmin) ? <p className="text-sm text-muted-foreground">Click "Create Official Test" to add one.</p> : <p className="text-sm text-muted-foreground">Please check back later.</p>}
                 </Card>
             )}
           </div>

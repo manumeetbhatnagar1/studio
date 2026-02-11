@@ -1,4 +1,3 @@
-
 /**
  * This Firestore Security Ruleset is designed for the DCAM Classes application.
  *
@@ -251,16 +250,16 @@ service cloud.firestore {
      */
     match /practice_questions/{practiceQuestionId} {
       allow get, list: if isSignedIn();
-      allow create, update, delete: if isTeacher();
+      allow create, update, delete: if isTeacher() || isAdmin();
     }
 
     /**
-     * @description Mock tests. Readable by anyone signed in, manageable by teachers.
+     * @description Mock tests. Readable by anyone signed in, manageable by teachers or admins.
      * @path        /mock_tests/{mockTestId}
      */
     match /mock_tests/{mockTestId} {
       allow get, list: if isSignedIn();
-      allow create, update, delete: if isTeacher();
+      allow create, update, delete: if isTeacher() || isAdmin();
     }
 
     // --------------------------------------------------------------------
@@ -369,4 +368,3 @@ service cloud.firestore {
     }
   }
 }
-

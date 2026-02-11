@@ -243,22 +243,27 @@ export default function DirectChatPage() {
         const storageRef = ref(storage, filePath);
         const uploadTask = uploadBytesResumable(storageRef, tempImageFile);
 
-        uploadTask.on('state_changed', 
-            (snapshot) => {
-              // Optional: handle progress updates
-            },
-            (error) => {
-                console.error("Upload failed:", error);
+        uploadTask.on('state_changed',
+          (snapshot) => {
+            // Optional: handle progress updates
+          },
+          (error) => {
+            console.error("Upload failed:", error);
+            // Don't await, let it run in background.
+            updateDoc(docRef, { isUploading: false, uploadError: true });
+          },
+          () => {
+            getDownloadURL(uploadTask.snapshot.ref)
+              .then((downloadURL) => {
+                // This promise must be handled
+                return updateDoc(docRef, { imageUrl: downloadURL, isUploading: false });
+              })
+              .catch((error) => {
+                console.error("Error updating document with final URL:", error);
+                // If either getDownloadURL or updateDoc fails, mark the message as errored.
                 updateDoc(docRef, { isUploading: false, uploadError: true });
-            }, 
-            () => {
-                getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
-                    updateDoc(docRef, { imageUrl: downloadURL, isUploading: false });
-                }).catch(error => {
-                    console.error("Error getting download URL:", error);
-                    updateDoc(docRef, { isUploading: false, uploadError: true });
-                });
-            }
+              });
+          }
         );
       }
       

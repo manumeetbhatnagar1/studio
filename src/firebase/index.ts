@@ -17,11 +17,12 @@ export function initializeFirebase() {
 }
 
 export function getSdks(firebaseApp: FirebaseApp) {
+  const storageBucket = firebaseConfig.storageBucket;
   return {
     firebaseApp,
     auth: getAuth(firebaseApp),
     firestore: getFirestore(firebaseApp),
-    storage: getStorage(firebaseApp)
+    storage: getStorage(firebaseApp, storageBucket ? `gs://${storageBucket}` : undefined),
   };
 }
 

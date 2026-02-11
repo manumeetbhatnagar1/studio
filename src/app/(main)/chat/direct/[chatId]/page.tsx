@@ -7,8 +7,8 @@ import * as z from 'zod';
 import { formatRelative } from 'date-fns';
 import { useParams } from 'next/navigation';
 import type { Timestamp } from 'firebase/firestore';
-import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, serverTimestamp, doc, addDoc, updateDoc } from 'firebase/firestore';
+import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase, updateDocumentNonBlocking } from '@/firebase';
+import { collection, query, orderBy, serverTimestamp, doc, addDoc } from 'firebase/firestore';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -207,11 +207,11 @@ export default function DirectChatPage() {
             null,
             (error) => {
                 console.error("Upload failed:", error);
-                updateDoc(docRef, { isUploading: false, uploadError: true });
+                updateDocumentNonBlocking(docRef, { isUploading: false, uploadError: true });
             }, 
             () => {
                 getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
-                    updateDoc(docRef, { imageUrl: downloadURL, isUploading: false });
+                    updateDocumentNonBlocking(docRef, { imageUrl: downloadURL, isUploading: false });
                 });
             }
         );

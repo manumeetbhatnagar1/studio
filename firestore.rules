@@ -303,7 +303,7 @@ service cloud.firestore {
     match /group_chat_messages/{messageId} {
       allow read, list: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.senderId == request.auth.uid;
-      allow update: if isOwner(resource.data.senderId);
+      allow update: if isOwner(resource.data.senderId) && request.resource.data.senderId == resource.data.senderId;
       allow delete: if false;
     }
 
@@ -314,7 +314,7 @@ service cloud.firestore {
     match /direct_messages/{chatId}/messages/{messageId} {
       allow list, get: if isSignedIn() && request.auth.uid in chatId.split('_');
       allow create: if isSignedIn() && request.auth.uid in chatId.split('_') && request.resource.data.senderId == request.auth.uid;
-      allow update: if isOwner(resource.data.senderId);
+      allow update: if isOwner(resource.data.senderId) && request.resource.data.senderId == resource.data.senderId;
       allow delete: if false;
     }
 

@@ -7,8 +7,8 @@ import * as z from 'zod';
 import Image from 'next/image';
 import { formatRelative } from 'date-fns';
 import type { Timestamp } from 'firebase/firestore';
-import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, serverTimestamp, where, addDoc, updateDoc } from 'firebase/firestore';
+import { useUser, useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking } from '@/firebase';
+import { collection, query, orderBy, serverTimestamp, where, addDoc } from 'firebase/firestore';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -156,11 +156,11 @@ function GroupChat() {
                 null,
                 (error) => {
                     console.error("Upload failed:", error);
-                    updateDoc(docRef, { isUploading: false, uploadError: true });
+                    updateDocumentNonBlocking(docRef, { isUploading: false, uploadError: true });
                 }, 
                 () => {
                     getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
-                        updateDoc(docRef, { imageUrl: downloadURL, isUploading: false });
+                        updateDocumentNonBlocking(docRef, { imageUrl: downloadURL, isUploading: false });
                     });
                 }
             );

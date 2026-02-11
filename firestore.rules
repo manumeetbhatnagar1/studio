@@ -177,7 +177,8 @@ service cloud.firestore {
      * @path        /roles_admin/{userId}
      */
      match /roles_admin/{userId} {
-        allow read: if isSignedIn();
+        allow get: if isSignedIn();
+        allow list: if false;
         allow write: if isAdmin() || (isDesignatedAdmin() && isOwner(userId));
     }
 
@@ -187,7 +188,8 @@ service cloud.firestore {
      * @path        /roles_teacher/{userId}
      */
     match /roles_teacher/{userId} {
-        allow read: if isSignedIn();
+        allow get: if isSignedIn();
+        allow list: if false;
         allow write: if isAdmin() || (isDesignatedAdmin() && isOwner(userId));
     }
     

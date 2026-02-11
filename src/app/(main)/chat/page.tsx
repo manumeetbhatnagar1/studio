@@ -7,8 +7,8 @@ import * as z from 'zod';
 import Image from 'next/image';
 import { formatRelative } from 'date-fns';
 import type { Timestamp } from 'firebase/firestore';
-import { useUser, useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking } from '@/firebase';
-import { collection, query, orderBy, serverTimestamp, where, addDoc } from 'firebase/firestore';
+import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, query, orderBy, serverTimestamp, where, addDoc, updateDoc, doc } from 'firebase/firestore';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -193,14 +193,19 @@ function GroupChat() {
             const uploadTask = uploadBytesResumable(storageRef, tempImageFile);
 
             uploadTask.on('state_changed', 
-                null,
+                (snapshot) => {
+                    // Optional: handle progress updates
+                },
                 (error) => {
                     console.error("Upload failed:", error);
-                    updateDocumentNonBlocking(docRef, { isUploading: false, uploadError: true });
+                    updateDoc(docRef, { isUploading: false, uploadError: true });
                 }, 
                 () => {
                     getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
-                        updateDocumentNonBlocking(docRef, { imageUrl: downloadURL, isUploading: false });
+                        updateDoc(docRef, { imageUrl: downloadURL, isUploading: false });
+                    }).catch(error => {
+                        console.error("Error getting download URL:", error);
+                        updateDoc(docRef, { isUploading: false, uploadError: true });
                     });
                 }
             );

@@ -7,8 +7,8 @@ import * as z from 'zod';
 import { formatRelative } from 'date-fns';
 import { useParams } from 'next/navigation';
 import type { Timestamp } from 'firebase/firestore';
-import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase, updateDocumentNonBlocking } from '@/firebase';
-import { collection, query, orderBy, serverTimestamp, doc, addDoc } from 'firebase/firestore';
+import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase } from '@/firebase';
+import { collection, query, orderBy, serverTimestamp, doc, addDoc, updateDoc } from 'firebase/firestore';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -244,14 +244,19 @@ export default function DirectChatPage() {
         const uploadTask = uploadBytesResumable(storageRef, tempImageFile);
 
         uploadTask.on('state_changed', 
-            null,
+            (snapshot) => {
+              // Optional: handle progress updates
+            },
             (error) => {
                 console.error("Upload failed:", error);
-                updateDocumentNonBlocking(docRef, { isUploading: false, uploadError: true });
+                updateDoc(docRef, { isUploading: false, uploadError: true });
             }, 
             () => {
                 getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
-                    updateDocumentNonBlocking(docRef, { imageUrl: downloadURL, isUploading: false });
+                    updateDoc(docRef, { imageUrl: downloadURL, isUploading: false });
+                }).catch(error => {
+                    console.error("Error getting download URL:", error);
+                    updateDoc(docRef, { isUploading: false, uploadError: true });
                 });
             }
         );

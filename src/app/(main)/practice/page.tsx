@@ -33,6 +33,7 @@ import { useRouter } from 'next/navigation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
 
 
 const baseSchema = z.object({
@@ -45,6 +46,7 @@ const baseSchema = z.object({
     difficultyLevel: z.enum(['Easy', 'Medium', 'Hard']),
     examTypeId: z.string().min(1, 'Exam Type is required.'),
     accessLevel: z.enum(['free', 'paid']),
+    isForOfficialTest: z.boolean().default(false),
 });
 
 const mcqSchema = baseSchema.extend({
@@ -103,6 +105,7 @@ type PracticeQuestion = {
   correctAnswer?: string;
   numericalAnswer?: number;
   accessLevel: 'free' | 'paid';
+  isForOfficialTest?: boolean;
 };
 type Class = { id: string; name: string; examTypeId: string; };
 type Subject = { id: string; name: string; classId: string; };
@@ -134,6 +137,7 @@ function QuestionItem({ question, topicMap, classMap, examTypeMap, isTeacher, is
               </Badge>
               <Badge variant="secondary">{question.questionType}</Badge>
               {question.accessLevel === 'free' ? <Badge variant="secondary">Free</Badge> : <Badge variant="destructive">Paid</Badge>}
+              {question.isForOfficialTest && <Badge variant="outline" className='border-amber-500 text-amber-500'>Official</Badge>}
             </div>
           </div>
         </AccordionTrigger>
@@ -306,6 +310,15 @@ const EditQuestionForm: FC<{
     return (
         <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 max-h-[70vh] overflow-y-auto p-2">
+                <FormField control={form.control} name="isForOfficialTest" render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                        <div className="space-y-0.5">
+                            <FormLabel>Official Test Question</FormLabel>
+                            <FormDescription>Mark this question as curated for official mock tests.</FormDescription>
+                        </div>
+                        <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                    </FormItem>
+                )} />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <FormField control={form.control} name="questionType" render={({ field }) => (
                         <FormItem className="space-y-3"><FormLabel>Question Type</FormLabel>
@@ -747,6 +760,15 @@ const TeacherView = ({
                         {isLoading ? (<Skeleton className="h-64 w-full" />) : (
                             <Form {...form}>
                                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                                    <FormField control={control} name="isForOfficialTest" render={({ field }) => (
+                                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                                            <div className="space-y-0.5">
+                                                <FormLabel>Official Test Question</FormLabel>
+                                                <FormDescription>Mark this question as curated for official mock tests.</FormDescription>
+                                            </div>
+                                            <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                                        </FormItem>
+                                    )} />
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <FormField control={control} name="questionType" render={({ field }) => (
                                             <FormItem className="space-y-3"><FormLabel>Question Type</FormLabel>
@@ -1211,6 +1233,7 @@ export default function PracticePage() {
         imageUrls: [],
         explanationImageUrls: [],
         accessLevel: 'free',
+        isForOfficialTest: false,
     },
   });
 

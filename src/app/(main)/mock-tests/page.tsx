@@ -127,6 +127,13 @@ export default function MockTestsPage() {
               <Button asChild variant="outline">
                   <Link href="/mock-tests/create"><PlusCircle className="mr-2"/>Create Custom Test</Link>
               </Button>
+               {(isTeacher || isAdmin) && (
+                <Button asChild>
+                    <Link href="/mock-tests/create-official">
+                        <PlusCircle className="mr-2"/> Create Official Test
+                    </Link>
+                </Button>
+            )}
             </div>
         </div>
 
@@ -187,6 +194,11 @@ export default function MockTestsPage() {
                           )}
                           {(isTeacher || isAdmin) && (
                               <div className="flex justify-end gap-2 border-t pt-2 mt-2">
+                                   <Button asChild variant="ghost" size="sm">
+                                      <Link href={`/mock-tests/edit-official/${test.id}`}>
+                                          <Edit className="mr-2 h-4 w-4" /> Edit
+                                      </Link>
+                                  </Button>
                                   <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => handleDeleteRequest(test.id, 'official', test.title)}>
                                       <Trash2 className="mr-2 h-4 w-4" /> Delete
                                   </Button>

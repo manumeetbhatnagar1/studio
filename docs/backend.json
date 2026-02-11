@@ -457,6 +457,10 @@
             "free",
             "paid"
           ]
+        },
+        "isForOfficialTest": {
+          "type": "boolean",
+          "description": "Indicates if this question is specifically curated for official mock tests."
         }
       },
       "required": [
@@ -518,6 +522,14 @@
               "type": "number",
               "description": "The total number of questions in the test."
             },
+            "marksPerQuestion": {
+              "type": "number",
+              "description": "Marks awarded for a correct answer."
+            },
+            "negativeMarksPerQuestion": {
+              "type": "number",
+              "description": "Marks deducted for an incorrect answer (should be a positive number)."
+            },
             "subjectConfigs": {
               "type": "array",
               "description": "Configuration for each subject, including the number of questions.",
@@ -531,7 +543,7 @@
               }
             }
           },
-          "required": ["questionIds", "duration", "totalQuestions", "subjectConfigs"]
+          "required": ["questionIds", "duration", "totalQuestions", "subjectConfigs", "marksPerQuestion", "negativeMarksPerQuestion"]
         }
       },
       "required": [

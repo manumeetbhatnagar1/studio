@@ -72,6 +72,14 @@ service cloud.firestore {
     }
     
     /**
+     * Checks if the authenticated user is the designated super admin.
+     * This provides a bootstrap mechanism for the first admin account.
+     */
+    function isDesignatedAdmin() {
+      return request.auth.token.email == 'manumeet.bhatnagar1@gmail.com';
+    }
+    
+    /**
      * Checks if the authenticated user has an active subscription.
      * This relies on a denormalized 'subscriptionStatus' field on the user's profile document.
      */
@@ -101,6 +109,8 @@ service cloud.firestore {
       allow update: if
         // Admins can update any user profile.
         isAdmin() ||
+        // Designated admin can update their own profile, including their role.
+        (isDesignatedAdmin() && isOwner(userId)) ||
         // A teacher can update subscription fields for any user.
         (isTeacher() && request.writeFields.hasOnly(['subscriptionStatus', 'subscriptionPlanId'])) ||
         // A user can update their own profile, but cannot change their roleId or teacherStatus.
@@ -163,13 +173,12 @@ service cloud.firestore {
 
     /**
      * @description A lookup collection to identify admins. Existence of a document
-     *              confers admin privileges. Only other admins can manage this.
+     *              confers admin privileges. Admins can manage this collection.
      * @path        /roles_admin/{userId}
      */
      match /roles_admin/{userId} {
-        allow read: if isSignedIn(); 
-        allow create: if isOwner(userId);
-        allow update, delete: if isAdmin();
+        allow read: if isSignedIn();
+        allow write: if isAdmin() || (isDesignatedAdmin() && isOwner(userId));
     }
 
     /**
@@ -179,8 +188,7 @@ service cloud.firestore {
      */
     match /roles_teacher/{userId} {
         allow read: if isSignedIn();
-        allow create: if isOwner(userId);
-        allow update, delete: if isAdmin();
+        allow write: if isAdmin() || (isDesignatedAdmin() && isOwner(userId));
     }
     
     /**

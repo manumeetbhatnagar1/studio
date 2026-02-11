@@ -202,57 +202,28 @@ function GroupChat() {
         text: values.text || '',
     };
     
-    if (attachedFile) {
-        messageData.isUploading = true;
-        messageData.fileName = attachedFile.name;
-        messageData.fileType = attachedFile.type;
-    }
-
-    let messageRef;
-
     try {
-      messageRef = await addDoc(collection(firestore, 'group_chat_messages'), messageData);
+      let messageRef = await addDoc(collection(firestore, 'group_chat_messages'), messageData);
       
-      if (!attachedFile) {
-        setIsSubmitting(false);
-        return;
+      if (attachedFile) {
+          const filePath = `chat_files/${messageRef.id}/${attachedFile.name}`;
+          const storageRef = ref(storage, filePath);
+          const uploadResult = await uploadBytes(storageRef, attachedFile);
+          const downloadURL = await getDownloadURL(uploadResult.ref);
+
+          const updateData: any = { fileUrl: downloadURL, fileName: attachedFile.name, fileType: attachedFile.type };
+          if (attachedFile.type.startsWith('image/')) {
+              updateData.imageUrl = downloadURL;
+          }
+          await updateDoc(messageRef, updateData);
       }
-
-      const filePath = `chat_files/${messageRef.id}/${attachedFile.name}`;
-      const storageRef = ref(storage, filePath);
-
-      const uploadResult = await uploadBytes(storageRef, attachedFile);
-      const downloadURL = await getDownloadURL(uploadResult.ref);
-
-      const updateData: any = {
-          isUploading: false,
-          uploadError: null,
-          fileUrl: downloadURL,
-      };
-      if (attachedFile.type.startsWith('image/')) {
-          updateData.imageUrl = downloadURL;
-      }
-      
-      await updateDoc(messageRef, updateData);
-
     } catch (error: any) {
         console.error("Failed to send message or upload file:", error);
-        if (messageRef) {
-            try {
-                await updateDoc(messageRef, {
-                    isUploading: false,
-                    uploadError: 'Upload failed. Please try again.',
-                });
-            } catch (updateError) {
-                console.error("Failed to update message with error state:", updateError);
-            }
-        } else {
-             toast({
-                variant: "destructive",
-                title: "Failed to send message",
-                description: "Could not create the message document. Please try again.",
-            });
-        }
+        toast({
+            variant: "destructive",
+            title: "Failed to send message",
+            description: error.message || "Could not send the message. Please try again.",
+        });
     } finally {
         setIsSubmitting(false);
     }

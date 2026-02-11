@@ -458,9 +458,12 @@
             "paid"
           ]
         },
-        "isForOfficialTest": {
-          "type": "boolean",
-          "description": "Indicates if this question is specifically curated for official mock tests."
+        "tags": {
+          "type": "array",
+          "description": "Tags for categorizing questions (e.g., 'official-test', 'jee-main-2024').",
+          "items": {
+            "type": "string"
+          }
         }
       },
       "required": [

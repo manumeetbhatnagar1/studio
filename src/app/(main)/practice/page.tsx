@@ -33,8 +33,6 @@ import { useRouter } from 'next/navigation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Switch } from '@/components/ui/switch';
-
 
 const baseSchema = z.object({
     questionText: z.string().min(10, 'Question must be at least 10 characters.'),
@@ -46,7 +44,7 @@ const baseSchema = z.object({
     difficultyLevel: z.enum(['Easy', 'Medium', 'Hard']),
     examTypeId: z.string().min(1, 'Exam Type is required.'),
     accessLevel: z.enum(['free', 'paid']),
-    isForOfficialTest: z.boolean().default(false),
+    tags: z.string().optional(),
 });
 
 const mcqSchema = baseSchema.extend({
@@ -105,7 +103,7 @@ type PracticeQuestion = {
   correctAnswer?: string;
   numericalAnswer?: number;
   accessLevel: 'free' | 'paid';
-  isForOfficialTest?: boolean;
+  tags?: string[];
 };
 type Class = { id: string; name: string; examTypeId: string; };
 type Subject = { id: string; name: string; classId: string; };
@@ -137,7 +135,9 @@ function QuestionItem({ question, topicMap, classMap, examTypeMap, isTeacher, is
               </Badge>
               <Badge variant="secondary">{question.questionType}</Badge>
               {question.accessLevel === 'free' ? <Badge variant="secondary">Free</Badge> : <Badge variant="destructive">Paid</Badge>}
-              {question.isForOfficialTest && <Badge variant="outline" className='border-amber-500 text-amber-500'>Official</Badge>}
+              {question.tags?.map(tag => (
+                <Badge key={tag} variant="outline" className='border-amber-500 text-amber-500'>{tag}</Badge>
+              ))}
             </div>
           </div>
         </AccordionTrigger>
@@ -252,7 +252,8 @@ const EditQuestionForm: FC<{
       const initialSubject = subjects.find(s => s.id === initialTopic?.subjectId);
       const initialClass = classes.find(c => c.id === initialSubject?.classId);
       const initialExamTypeId = initialClass?.examTypeId || '';
-      form.reset({ ...questionToEdit, examTypeId: initialExamTypeId, classId: initialClass?.id || '' });
+      const initialTags = questionToEdit.tags ? questionToEdit.tags.join(', ') : '';
+      form.reset({ ...questionToEdit, examTypeId: initialExamTypeId, classId: initialClass?.id || '', tags: initialTags });
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [questionToEdit]);
 
@@ -298,7 +299,14 @@ const EditQuestionForm: FC<{
         setIsSubmitting(true);
         const questionRef = doc(firestore, 'practice_questions', questionToEdit.id);
         
-        updateDocumentNonBlocking(questionRef, values);
+        const dataToUpdate: any = { ...values };
+        if (dataToUpdate.tags && typeof dataToUpdate.tags === 'string') {
+            dataToUpdate.tags = dataToUpdate.tags.split(',').map(t => t.trim()).filter(Boolean);
+        } else {
+            dataToUpdate.tags = [];
+        }
+
+        updateDocumentNonBlocking(questionRef, dataToUpdate);
         toast({
           title: 'Question Updated!',
           description: 'The practice question has been successfully updated.',
@@ -310,13 +318,12 @@ const EditQuestionForm: FC<{
     return (
         <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 max-h-[70vh] overflow-y-auto p-2">
-                <FormField control={form.control} name="isForOfficialTest" render={({ field }) => (
-                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                        <div className="space-y-0.5">
-                            <FormLabel>Official Test Question</FormLabel>
-                            <FormDescription>Mark this question as curated for official mock tests.</FormDescription>
-                        </div>
-                        <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                <FormField control={form.control} name="tags" render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Tags</FormLabel>
+                        <FormDescription>Separate tags with commas (e.g., official, jee-main, important)</FormDescription>
+                        <FormControl><Input placeholder="e.g., official-test, hard" {...field} /></FormControl>
+                        <FormMessage />
                     </FormItem>
                 )} />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -760,13 +767,12 @@ const TeacherView = ({
                         {isLoading ? (<Skeleton className="h-64 w-full" />) : (
                             <Form {...form}>
                                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                                    <FormField control={control} name="isForOfficialTest" render={({ field }) => (
-                                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                                            <div className="space-y-0.5">
-                                                <FormLabel>Official Test Question</FormLabel>
-                                                <FormDescription>Mark this question as curated for official mock tests.</FormDescription>
-                                            </div>
-                                            <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                                    <FormField control={control} name="tags" render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Tags</FormLabel>
+                                            <FormDescription>Separate tags with commas (e.g., official, jee-main, important)</FormDescription>
+                                            <FormControl><Input placeholder="e.g., official-test, hard" {...field} /></FormControl>
+                                            <FormMessage />
                                         </FormItem>
                                     )} />
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1233,7 +1239,7 @@ export default function PracticePage() {
         imageUrls: [],
         explanationImageUrls: [],
         accessLevel: 'free',
-        isForOfficialTest: false,
+        tags: '',
     },
   });
 
@@ -1245,7 +1251,14 @@ export default function PracticePage() {
     setIsSubmitting(true);
     const questionsRef = collection(firestore, 'practice_questions');
     
-    addDocumentNonBlocking(questionsRef, values);
+    const data: any = { ...values };
+    if (data.tags && typeof data.tags === 'string') {
+        data.tags = data.tags.split(',').map((t: string) => t.trim()).filter(Boolean);
+    } else {
+        data.tags = [];
+    }
+    
+    addDocumentNonBlocking(questionsRef, data);
     toast({
       title: 'Question Added!',
       description: 'The new practice question has been saved.',
@@ -1362,3 +1375,4 @@ export default function PracticePage() {
     </div>
   );
 }
+

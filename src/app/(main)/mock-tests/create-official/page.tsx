@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useForm, useFieldArray } from 'react-hook-form';
@@ -23,7 +24,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { format } from 'date-fns';
 
-type PracticeQuestion = { id: string; subjectId: string; examTypeId: string; accessLevel: 'free' | 'paid', isForOfficialTest?: boolean; };
+type PracticeQuestion = { id: string; subjectId: string; examTypeId: string; accessLevel: 'free' | 'paid', tags?: string[]; };
 type ExamType = { id: string; name: string; };
 type Subject = { id: string; name: string; };
 
@@ -41,6 +42,7 @@ const formSchema = z.object({
   marksPerQuestion: z.coerce.number().min(0, 'Marks cannot be negative.'),
   negativeMarksPerQuestion: z.coerce.number().min(0, 'Negative marks cannot be negative.'),
   examTypeId: z.string().min(1, 'Please select an exam type.'),
+  officialTag: z.string().min(1, 'Please provide a tag to filter questions.'),
   subjectConfigs: z.array(subjectConfigSchema).min(1, 'Please select at least one subject configuration.'),
 });
 
@@ -52,16 +54,7 @@ export default function CreateOfficialTestPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { isTeacher, isLoading: isTeacherLoading } = useIsTeacher();
   const { isAdmin, isLoading: isAdminLoading } = useIsAdmin();
-
-  // Data fetching
-  const subjectsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'subjects'), orderBy('name')) : null, [firestore]);
-  const questionsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'practice_questions'), where('isForOfficialTest', '==', true)) : null, [firestore]);
-  const examTypesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'exam_types'), orderBy('name')) : null, [firestore]);
   
-  const { data: allSubjects, isLoading: areSubjectsLoading } = useCollection<Subject>(subjectsQuery);
-  const { data: officialQuestions, isLoading: areQuestionsLoading } = useCollection<PracticeQuestion>(questionsQuery);
-  const { data: examTypes, isLoading: areExamTypesLoading } = useCollection<ExamType>(examTypesQuery);
-
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -71,6 +64,7 @@ export default function CreateOfficialTestPage() {
       marksPerQuestion: 4,
       negativeMarksPerQuestion: 1,
       examTypeId: '',
+      officialTag: 'official-test',
       subjectConfigs: [],
     },
   });
@@ -82,6 +76,22 @@ export default function CreateOfficialTestPage() {
   });
 
   const selectedExamTypeId = watch('examTypeId');
+  const officialTag = watch('officialTag');
+
+  const subjectsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'subjects'), orderBy('name')) : null, [firestore]);
+  const questionsQuery = useMemoFirebase(() => {
+      if (!firestore || !officialTag) return null;
+      return query(
+          collection(firestore, 'practice_questions'),
+          where('tags', 'array-contains', officialTag)
+      );
+  }, [firestore, officialTag]);
+  const examTypesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'exam_types'), orderBy('name')) : null, [firestore]);
+  
+  const { data: allSubjects, isLoading: areSubjectsLoading } = useCollection<Subject>(subjectsQuery);
+  const { data: officialQuestions, isLoading: areQuestionsLoading } = useCollection<PracticeQuestion>(questionsQuery);
+  const { data: examTypes, isLoading: areExamTypesLoading } = useCollection<ExamType>(examTypesQuery);
+
 
   useEffect(() => {
     // Reset subject configs when exam type changes
@@ -222,6 +232,14 @@ export default function CreateOfficialTestPage() {
                                 <FormItem><FormLabel className="font-semibold">Exam Type</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select Exam Type" /></SelectTrigger></FormControl><SelectContent>{(examTypes || []).map(et => <SelectItem key={et.id} value={et.id}>{et.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
                            )} />
                        </div>
+                       <FormField control={form.control} name="officialTag" render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="font-semibold">Official Question Tag</FormLabel>
+                                <FormDescription>Enter the tag used to identify questions for this test.</FormDescription>
+                                <FormControl><Input placeholder="e.g., official-test" {...field} /></FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )} />
                   </div>
 
                   {/* Scoring and Duration */}

@@ -16,7 +16,7 @@ import { Form, FormControl, FormField, FormItem } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Send, ArrowLeft, Paperclip, X, LoaderCircle, AlertCircle } from 'lucide-react';
+import { Send, ArrowLeft, Paperclip, X, LoaderCircle, AlertCircle, Download } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -44,7 +44,38 @@ type UserProfile = {
 }
 
 // Component for a single message
-function Message({ message, isOwnMessage }: { message: ChatMessage; isOwnMessage: boolean }) {
+function Message({ message, isOwnMessage, toast }: { message: ChatMessage; isOwnMessage: boolean; toast: ReturnType<typeof useToast>['toast'] }) {
+
+  const handleDownload = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!message.imageUrl) return;
+
+    try {
+        toast({ title: 'Downloading...', description: 'Your image download has started.' });
+        const response = await fetch(message.imageUrl);
+        if (!response.ok) throw new Error('Network response was not ok.');
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const filename = message.imageUrl.split('/').pop()?.split('?')[0]?.split('%2F').pop()?.replace(/%20/g, ' ') || 'download';
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+    } catch (error) {
+        console.error("Download failed:", error);
+        toast({
+            variant: "destructive",
+            title: "Download failed",
+            description: "Could not download the image. Please try opening it in a new tab and saving from there.",
+        });
+    }
+  };
+
   return (
     <div className={cn('flex items-start gap-3', isOwnMessage && 'flex-row-reverse')}>
       <Avatar className="h-8 w-8">
@@ -54,7 +85,7 @@ function Message({ message, isOwnMessage }: { message: ChatMessage; isOwnMessage
       <div className={cn('flex flex-col gap-1', isOwnMessage && 'items-end')}>
         <div className={cn('rounded-lg px-3 py-2', isOwnMessage ? 'bg-primary text-primary-foreground' : 'bg-muted')}>
           {message.imageUrl && (
-              <div className="relative">
+              <div className="relative group">
                   <Link href={message.uploadError || message.isUploading ? '#' : message.imageUrl} target="_blank" rel="noopener noreferrer" className={cn(message.uploadError && 'pointer-events-none')}>
                       <Image src={message.imageUrl} alt="Sent image" width={200} height={200} className={cn("rounded-md my-2 max-w-xs object-contain", (message.isUploading || message.uploadError) && "opacity-50")} />
                   </Link>
@@ -68,6 +99,15 @@ function Message({ message, isOwnMessage }: { message: ChatMessage; isOwnMessage
                           <AlertCircle className="h-6 w-6 text-red-400" />
                           <p className="text-xs mt-1">Upload failed</p>
                       </div>
+                  )}
+                  {!message.isUploading && !message.uploadError && (
+                    <button
+                        onClick={handleDownload}
+                        className="absolute top-2 right-2 p-1.5 bg-gray-900/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                        aria-label="Download image"
+                    >
+                        <Download className="h-4 w-4" />
+                    </button>
                   )}
               </div>
           )}
@@ -238,7 +278,7 @@ export default function DirectChatPage() {
               <Skeleton className="h-16 w-full" /><Skeleton className="h-16 w-full" />
             </div>
           ) : messages && messages.length > 0 ? (
-            messages.map(msg => <Message key={msg.id} message={msg} isOwnMessage={msg.senderId === user?.uid} />)
+            messages.map(msg => <Message key={msg.id} message={msg} isOwnMessage={msg.senderId === user?.uid} toast={toast} />)
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-muted-foreground pt-16">
               <p>This is the beginning of your conversation.</p>

@@ -681,11 +681,14 @@
           "items": {
             "type": "object",
             "properties": {
+              "id": { "type": "string", "description": "A unique identifier for the attachment within the doubt document." },
               "name": { "type": "string" },
               "type": { "type": "string" },
-              "url": { "type": "string", "format": "uri" }
+              "url": { "type": "string", "format": "uri" },
+              "isUploading": { "type": "boolean" },
+              "uploadError": { "type": "string" }
             },
-            "required": ["name", "type", "url"]
+            "required": ["id", "name", "type"]
           }
         },
         "answer": { "type": "string", "description": "The teacher's answer." },
@@ -693,13 +696,16 @@
           "type": "array",
           "description": "Files attached to the teacher's answer.",
           "items": {
-            "type": "object",
+             "type": "object",
             "properties": {
+              "id": { "type": "string", "description": "A unique identifier for the attachment within the doubt document." },
               "name": { "type": "string" },
               "type": { "type": "string" },
-              "url": { "type": "string", "format": "uri" }
+              "url": { "type": "string", "format": "uri" },
+              "isUploading": { "type": "boolean" },
+              "uploadError": { "type": "string" }
             },
-            "required": ["name", "type", "url"]
+            "required": ["id", "name", "type"]
           }
         },
         "status": { "type": "string", "enum": ["open", "answered", "closed"], "description": "The status of the doubt." },

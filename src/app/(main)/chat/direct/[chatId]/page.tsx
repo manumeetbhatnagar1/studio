@@ -103,7 +103,7 @@ function Message({ message, isOwnMessage, toast }: { message: ChatMessage; isOwn
                   {!message.isUploading && !message.uploadError && (
                     <button
                         onClick={handleDownload}
-                        className="absolute top-2 right-2 p-1.5 bg-gray-900/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="absolute top-2 right-2 p-1.5 bg-gray-900/50 text-white rounded-full hover:bg-gray-900/80 transition-colors"
                         aria-label="Download image"
                     >
                         <Download className="h-4 w-4" />

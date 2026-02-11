@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth, useFirestore, setDocumentNonBlocking } from '@/firebase';
+import { useAuth, useFirestore } from '@/firebase';
 import { GoogleAuthProvider, signInWithPopup, type User } from 'firebase/auth';
 import { doc, getDoc, writeBatch } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -34,23 +34,41 @@ export function GoogleAuthHandler() {
     
             const userDocRef = doc(firestore, 'users', user.uid);
             const userDocSnap = await getDoc(userDocRef);
+
+            const isDesignatedAdmin = user.email?.toLowerCase() === 'manumeet.bhatnagar1@gmail.com';
     
             if (userDocSnap.exists()) {
+                // Existing user: Update their info and check for admin promotion
+                const batch = writeBatch(firestore);
                 const [firstName, ...lastName] = user.displayName?.split(' ') || ['', ''];
-                const updatedData = {
+                
+                const updatedData: any = {
                     firstName: firstName || userDocSnap.data().firstName,
                     lastName: lastName.join(' ') || userDocSnap.data().lastName,
                     email: user.email,
                     photoURL: user.photoURL,
                 };
-                setDocumentNonBlocking(userDocRef, updatedData, { merge: true });
+
+                if (isDesignatedAdmin) {
+                    updatedData.roleId = 'admin';
+                    updatedData.teacherStatus = 'approved';
+                    const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
+                    const teacherRoleRef = doc(firestore, 'roles_teacher', user.uid);
+                    batch.set(adminRoleRef, { createdAt: new Date().toISOString() }, { merge: true });
+                    batch.set(teacherRoleRef, { createdAt: new Date().toISOString() }, { merge: true });
+                }
+
+                batch.update(userDocRef, updatedData);
+                await batch.commit();
 
                 toast({
                     title: 'Login Successful',
                     description: `Welcome back, ${user.displayName}!`,
                 });
                 router.push('/dashboard');
+
             } else {
+                // New user: Trigger the role selection dialog
                 setNewUser(user);
             }
         } catch (error: any) {

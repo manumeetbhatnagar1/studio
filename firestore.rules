@@ -60,7 +60,7 @@ service cloud.firestore {
      * This is a performant check that costs one read operation.
      */
     function isTeacher() {
-      return exists(/databases/$(database)/documents/roles_teacher/$(request.auth.uid));
+      return get(/databases/$(database)/documents/roles_teacher/$(request.auth.uid)) != null;
     }
 
     /**
@@ -68,7 +68,7 @@ service cloud.firestore {
      * This is determined by the existence of a document in the /roles_admin collection.
      */
     function isAdmin() {
-      return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+      return get(/databases/$(database)/documents/roles_admin/$(request.auth.uid)) != null;
     }
     
     /**
@@ -167,11 +167,8 @@ service cloud.firestore {
      * @path        /roles_admin/{userId}
      */
      match /roles_admin/{userId} {
-        // Any signed-in user can check for roles to enable client-side logic.
         allow read: if isSignedIn(); 
-        // Only an admin can make another user an admin.
-        // A user can also be made an admin during special registration flows.
-        allow create: if isAdmin() || isOwner(userId);
+        allow create: if isOwner(userId);
         allow update, delete: if isAdmin();
     }
 
@@ -181,11 +178,8 @@ service cloud.firestore {
      * @path        /roles_teacher/{userId}
      */
     match /roles_teacher/{userId} {
-        // Any signed-in user can check for roles to enable client-side logic.
         allow read: if isSignedIn();
-        // An admin can make any user a teacher.
-        // A user can be made a teacher during registration.
-        allow create: if isAdmin() || isOwner(userId);
+        allow create: if isOwner(userId);
         allow update, delete: if isAdmin();
     }
     

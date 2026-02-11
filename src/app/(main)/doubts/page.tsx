@@ -8,7 +8,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { useUser, useFirestore, useCollection, useMemoFirebase, useStorage } from '@/firebase';
 import { useIsTeacher } from '@/hooks/useIsTeacher';
 import { collection, query, orderBy, serverTimestamp, doc, addDoc, updateDoc, getDoc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytesResumable, getDownloadURL, type UploadTaskSnapshot, type StorageReference } from 'firebase/storage';
 import DashboardHeader from '@/components/dashboard-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -57,6 +57,28 @@ const doubtSchema = z.object({
   topicId: z.string().min(1, 'Please enter a topic.'),
   question: z.string().min(20, 'Your question must be at least 20 characters long.'),
 });
+function getUploadErrorMessage(error: any) {
+    const code = error?.code as string | undefined;
+    if (code === 'storage/unauthorized') return 'Permission denied by Storage rules';
+    if (code === 'storage/canceled') return 'Upload canceled';
+    if (code === 'storage/quota-exceeded') return 'Storage quota exceeded';
+    if (code === 'storage/retry-limit-exceeded') return 'Network retry limit exceeded';
+    if (typeof error?.message === 'string' && error.message.includes('timed out')) return 'Upload timed out. Check network and try again.';
+    if (typeof error?.message === 'string' && error.message.trim().length > 0) return error.message;
+    return 'Upload failed';
+}
+function uploadFileWithTimeout(storageRef: StorageReference, file: File): Promise<UploadTaskSnapshot> {
+    const task = uploadBytesResumable(storageRef, file);
+
+    return new Promise<UploadTaskSnapshot>((resolve, reject) => {
+        task.on(
+            'state_changed',
+            undefined,
+            (error) => reject(error),
+            () => resolve(task.snapshot)
+        );
+    });
+}
 
 const FileInput: FC<{ files: File[], onFilesChange: (files: File[]) => void, disabled: boolean }> = ({ files, onFilesChange, disabled }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -133,7 +155,7 @@ const AttachmentDisplay: FC<{ attachments: Attachment[] | undefined, title: stri
         <div className="mt-4 space-y-2">
             <h5 className="font-semibold text-sm">{title}</h5>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {attachments.map((file) => <AttachmentItem key={file.id} attachment={file} />)}
+                {attachments.map((file, index) => <AttachmentItem key={file.id || file.url || `${file.name}-${index}`} attachment={file} />)}
             </div>
         </div>
     )
@@ -154,7 +176,10 @@ const AskDoubtForm: FC<{ setOpen: (open: boolean) => void }> = ({ setOpen }) => 
   });
 
   async function onSubmit(values: z.infer<typeof doubtSchema>) {
-    if (!user) return;
+    if (!user || !firestore || !storage) {
+        toast({ variant: 'destructive', title: 'Service unavailable', description: 'Please refresh and try again.' });
+        return;
+    }
     setIsSubmitting(true);
     
     const attachmentPlaceholders = files.map((file, index) => ({
@@ -182,22 +207,21 @@ const AskDoubtForm: FC<{ setOpen: (open: boolean) => void }> = ({ setOpen }) => 
         form.reset();
         setFiles([]);
         setOpen(false);
-        setIsSubmitting(false);
 
-        // Start background uploads
-        files.forEach(async (file, index) => {
+        // Upload attachments
+        await Promise.all(files.map(async (file, index) => {
             const placeholderId = attachmentPlaceholders[index].id;
             try {
                 const sanitizedFileName = file.name.replace(/[#\[\]*?]/g, '_');
                 const storageRef = ref(storage, `doubt_attachments/${docRef.id}/${user.uid}_${Date.now()}_${sanitizedFileName}`);
-                const snapshot = await uploadBytes(storageRef, file);
+                const snapshot = await uploadFileWithTimeout(storageRef, file);
                 const downloadURL = await getDownloadURL(snapshot.ref);
 
                 const currentDoc = await getDoc(docRef);
                 if (currentDoc.exists()) {
                     const currentAttachments = currentDoc.data().questionAttachments || [];
-                    const updatedAttachments = currentAttachments.map((att: Attachment) => 
-                        att.id === placeholderId 
+                    const updatedAttachments = currentAttachments.map((att: Attachment) =>
+                        att.id === placeholderId
                         ? { ...att, url: downloadURL, isUploading: false }
                         : att
                     );
@@ -209,14 +233,16 @@ const AskDoubtForm: FC<{ setOpen: (open: boolean) => void }> = ({ setOpen }) => 
                     const currentAttachments = currentDoc.data().questionAttachments || [];
                     const updatedAttachments = currentAttachments.map((att: Attachment) =>
                         att.id === placeholderId
-                        ? { ...att, isUploading: false, uploadError: 'Upload failed' }
+                        ? { ...att, isUploading: false, uploadError: getUploadErrorMessage(uploadError) }
                         : att
                     );
                     await updateDoc(docRef, { questionAttachments: updatedAttachments });
                 }
                 console.error("File upload failed:", uploadError);
             }
-        });
+        }));
+
+        setIsSubmitting(false);
 
     } catch (error: any) {
         console.error("Failed to submit doubt:", error);
@@ -264,7 +290,11 @@ const AnswerForm: FC<{ doubt: Doubt }> = ({ doubt }) => {
   const [files, setFiles] = useState<File[]>([]);
   
   async function handleAnswerSubmit() {
-    if (!user || answer.trim().length < 10) {
+    if (!user || !firestore || !storage) {
+        toast({ variant: 'destructive', title: 'Service unavailable', description: 'Please refresh and try again.' });
+        return;
+    }
+    if (answer.trim().length < 10) {
         toast({ variant: 'destructive', title: 'Answer is too short', description: 'Please provide a detailed answer of at least 10 characters.' });
         return;
     }
@@ -293,22 +323,21 @@ const AnswerForm: FC<{ doubt: Doubt }> = ({ doubt }) => {
         toast({ title: 'Answer Submitted!', description: 'The student has been notified and files are uploading.' });
         setAnswer('');
         setFiles([]);
-        setIsSubmitting(false);
 
-        // Start background uploads
-        files.forEach(async (file, index) => {
+        // Upload attachments
+        await Promise.all(files.map(async (file, index) => {
             const placeholderId = attachmentPlaceholders[index].id;
             try {
                 const sanitizedFileName = file.name.replace(/[#\[\]*?]/g, '_');
                 const storageRef = ref(storage, `doubt_attachments/${doubt.id}/${user.uid}_${Date.now()}_${sanitizedFileName}`);
-                const snapshot = await uploadBytes(storageRef, file);
+                const snapshot = await uploadFileWithTimeout(storageRef, file);
                 const downloadURL = await getDownloadURL(snapshot.ref);
 
                 const currentDoc = await getDoc(doubtRef);
                 if (currentDoc.exists()) {
                     const currentAttachments = currentDoc.data().answerAttachments || [];
-                    const updatedAttachments = currentAttachments.map((att: Attachment) => 
-                        att.id === placeholderId 
+                    const updatedAttachments = currentAttachments.map((att: Attachment) =>
+                        att.id === placeholderId
                         ? { ...att, url: downloadURL, isUploading: false }
                         : att
                     );
@@ -320,14 +349,16 @@ const AnswerForm: FC<{ doubt: Doubt }> = ({ doubt }) => {
                     const currentAttachments = currentDoc.data().answerAttachments || [];
                     const updatedAttachments = currentAttachments.map((att: Attachment) =>
                         att.id === placeholderId
-                        ? { ...att, isUploading: false, uploadError: 'Upload failed' }
+                        ? { ...att, isUploading: false, uploadError: getUploadErrorMessage(uploadError) }
                         : att
                     );
                     await updateDoc(doubtRef, { answerAttachments: updatedAttachments });
                 }
                 console.error("Answer file upload failed:", uploadError);
             }
-        });
+        }));
+
+        setIsSubmitting(false);
 
     } catch (error: any) {
         console.error("Failed to submit answer:", error);
@@ -361,7 +392,7 @@ export default function DoubtsPage() {
   const firestore = useFirestore();
   const [isFormOpen, setIsFormOpen] = useState(false);
 
-  const doubtsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'doubts'), orderBy('createdAt', 'desc')) : null, [firestore]);
+  const doubtsQuery = useMemoFirebase(() => (firestore && user) ? query(collection(firestore, 'doubts'), orderBy('createdAt', 'desc')) : null, [firestore, user]);
 
   const { data: doubts, isLoading: areDoubtsLoading } = useCollection<Doubt>(doubtsQuery);
 
@@ -485,3 +516,13 @@ export default function DoubtsPage() {
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+

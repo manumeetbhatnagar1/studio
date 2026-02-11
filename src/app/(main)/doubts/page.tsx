@@ -7,7 +7,7 @@ import * as z from 'zod';
 import { formatDistanceToNow } from 'date-fns';
 import { useUser, useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking, updateDocumentNonBlocking, useStorage } from '@/firebase';
 import { useIsTeacher } from '@/hooks/useIsTeacher';
-import { collection, query, orderBy, serverTimestamp, doc } from 'firebase/firestore';
+import { collection, query, orderBy, serverTimestamp, doc, addDoc, runTransaction } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import DashboardHeader from '@/components/dashboard-header';
 import { Button } from '@/components/ui/button';
@@ -21,11 +21,19 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { PlusCircle, LoaderCircle, MessageSquare, User, HelpCircle, CheckCircle, Paperclip, X, FileText, Download } from 'lucide-react';
+import { PlusCircle, LoaderCircle, MessageSquare, User, HelpCircle, CheckCircle, Paperclip, X, FileText, Download, AlertCircle } from 'lucide-react';
 import type { Timestamp } from 'firebase/firestore';
 import { Input } from '@/components/ui/input';
 
 // Data types
+type Attachment = {
+    name: string;
+    url: string;
+    type: string;
+    isUploading?: boolean;
+    uploadError?: string | null;
+}
+
 type Doubt = {
   id: string;
   studentId: string;
@@ -36,9 +44,9 @@ type Doubt = {
   teacherPhotoUrl?: string;
   topicId: string;
   question: string;
-  questionAttachments?: { name: string; url: string; type: string; }[];
+  questionAttachments?: Attachment[];
   answer?: string;
-  answerAttachments?: { name: string; url: string; type: string; }[];
+  answerAttachments?: Attachment[];
   status: 'open' | 'answered' | 'closed';
   createdAt: Timestamp;
 };
@@ -84,24 +92,42 @@ const FileInput: FC<{ files: File[], onFilesChange: (files: File[]) => void, dis
     );
 };
 
-const AttachmentDisplay: FC<{ attachments: {name: string, url: string, type: string}[] | undefined, title: string }> = ({ attachments, title }) => {
+const AttachmentItem: FC<{ attachment: Attachment }> = ({ attachment }) => {
+    if (attachment.isUploading) {
+        return (
+            <div className="flex items-center gap-2 p-2 rounded-md border bg-muted/50">
+                <LoaderCircle className="h-5 w-5 text-muted-foreground animate-spin" />
+                <span className="text-sm font-medium truncate flex-1">{attachment.name}</span>
+            </div>
+        );
+    }
+    if (attachment.uploadError) {
+        return (
+             <div className="flex items-center gap-2 p-2 rounded-md border bg-destructive/10 text-destructive">
+                <AlertCircle className="h-5 w-5" />
+                <span className="text-sm font-medium truncate flex-1">{attachment.name} - {attachment.uploadError}</span>
+            </div>
+        );
+    }
+    return (
+        <a href={attachment.url} target="_blank" rel="noopener noreferrer" className="block p-2 rounded-md border hover:bg-muted">
+            <div className="flex items-center gap-2">
+                <FileText className="h-5 w-5 text-muted-foreground" />
+                <span className="text-sm font-medium truncate flex-1">{attachment.name}</span>
+                <Download className="h-4 w-4 text-muted-foreground" />
+            </div>
+        </a>
+    )
+}
+
+const AttachmentDisplay: FC<{ attachments: Attachment[] | undefined, title: string }> = ({ attachments, title }) => {
     if (!attachments || attachments.length === 0) return null;
     
     return (
         <div className="mt-4 space-y-2">
             <h5 className="font-semibold text-sm">{title}</h5>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {attachments.map((file, index) => {
-                    return (
-                        <a key={index} href={file.url} target="_blank" rel="noopener noreferrer" className="block p-2 rounded-md border hover:bg-muted">
-                            <div className="flex items-center gap-2">
-                                <FileText className="h-5 w-5 text-muted-foreground" />
-                                <span className="text-sm font-medium truncate flex-1">{file.name}</span>
-                                <Download className="h-4 w-4 text-muted-foreground" />
-                            </div>
-                        </a>
-                    )
-                })}
+                {attachments.map((file, index) => <AttachmentItem key={index} attachment={file} />)}
             </div>
         </div>
     )
@@ -121,49 +147,73 @@ const AskDoubtForm: FC<{ setOpen: (open: boolean) => void }> = ({ setOpen }) => 
     defaultValues: { topicId: '', question: '' },
   });
 
-  async function onSubmit(values: z.infer<typeof doubtSchema>) {
+  async function handleBackgroundUpload(doubtData: any, filesToUpload: File[]) {
+    let docRef;
+    try {
+        const doubtsRef = collection(firestore, 'doubts');
+        docRef = await addDoc(doubtsRef, doubtData);
+
+        const uploadPromises = filesToUpload.map(file => {
+            const storageRef = ref(storage, `doubt_attachments/${docRef?.id}/${file.name}`);
+            return uploadBytes(storageRef, file).then(snapshot => getDownloadURL(snapshot.ref));
+        });
+
+        const downloadURLs = await Promise.all(uploadPromises);
+
+        const finalAttachments = doubtData.questionAttachments.map((stub: any, index: number) => ({
+            name: stub.name,
+            type: stub.type,
+            url: downloadURLs[index],
+            isUploading: false,
+            uploadError: null,
+        }));
+
+        await updateDoc(docRef, { questionAttachments: finalAttachments });
+
+    } catch (error: any) {
+        console.error("Doubt attachment upload failed:", error);
+        toast({ variant: 'destructive', title: 'Attachment Error', description: 'Some files failed to upload.' });
+        if (docRef) {
+             const errorAttachments = doubtData.questionAttachments.map((stub: any) => ({
+                ...stub,
+                isUploading: false,
+                uploadError: 'Upload Failed',
+            }));
+            await updateDoc(docRef, { questionAttachments: errorAttachments });
+        }
+    }
+  }
+
+  function onSubmit(values: z.infer<typeof doubtSchema>) {
     if (!user) return;
     setIsSubmitting(true);
     
-    try {
-        let attachmentUrls: any[] = [];
-        if (files.length > 0) {
-            for (const file of files) {
-                const storageRef = ref(storage, `doubt_attachments/${Date.now()}_${file.name}`);
-                const uploadResult = await uploadBytes(storageRef, file);
-                const downloadURL = await getDownloadURL(uploadResult.ref);
-                attachmentUrls.push({
-                    name: file.name,
-                    type: file.type,
-                    url: downloadURL,
-                });
-            }
-        }
+    const attachmentStubs = files.map(file => ({
+        name: file.name,
+        type: file.type,
+        url: '',
+        isUploading: true,
+        uploadError: null,
+    }));
 
-        const doubtsRef = collection(firestore, 'doubts');
-        await addDocumentNonBlocking(doubtsRef, {
-            ...values,
-            studentId: user.uid,
-            studentName: user.displayName || 'Anonymous Student',
-            studentPhotoUrl: user.photoURL || '',
-            status: 'open',
-            createdAt: serverTimestamp(),
-            questionAttachments: attachmentUrls,
-        });
+    const newDoubtData = {
+        ...values,
+        studentId: user.uid,
+        studentName: user.displayName || 'Anonymous Student',
+        studentPhotoUrl: user.photoURL || '',
+        status: 'open' as const,
+        createdAt: serverTimestamp(),
+        questionAttachments: attachmentStubs,
+    };
 
-        toast({ title: 'Doubt Submitted!', description: 'An expert will answer your question soon.' });
-        form.reset();
-        setFiles([]);
-        setOpen(false);
-    } catch (error: any) {
-        toast({
-            variant: 'destructive',
-            title: 'Submission Failed',
-            description: error.message || 'Could not submit your doubt. Please try again.',
-        });
-    } finally {
-        setIsSubmitting(false);
-    }
+    setOpen(false);
+    form.reset();
+    setFiles([]);
+    
+    handleBackgroundUpload(newDoubtData, files);
+    
+    toast({ title: 'Doubt Submitted!', description: 'Your attachments are uploading in the background.' });
+    setIsSubmitting(false);
   }
 
   return (
@@ -204,50 +254,71 @@ const AnswerForm: FC<{ doubt: Doubt }> = ({ doubt }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   
+  async function handleBackgroundAnswerUpload(doubtRef: any, answerData: any, filesToUpload: File[]) {
+      try {
+          const uploadPromises = filesToUpload.map(file => {
+              const storageRef = ref(storage, `doubt_attachments/${doubt.id}/${file.name}`);
+              return uploadBytes(storageRef, file).then(snapshot => getDownloadURL(snapshot.ref));
+          });
+
+          const downloadURLs = await Promise.all(uploadPromises);
+
+          const finalAttachments = answerData.answerAttachments.map((stub: any, index: number) => ({
+              ...stub,
+              isUploading: false,
+              url: downloadURLs[index],
+          }));
+
+          await updateDoc(doubtRef, { answerAttachments: finalAttachments });
+
+      } catch (error: any) {
+          console.error("Answer attachment upload failed:", error);
+          toast({ variant: 'destructive', title: 'Attachment Error', description: 'Some answer files failed to upload.' });
+          const errorAttachments = answerData.answerAttachments.map((stub: any) => ({
+              ...stub,
+              isUploading: false,
+              uploadError: 'Upload Failed',
+          }));
+          await updateDoc(doubtRef, { answerAttachments: errorAttachments });
+      }
+  }
+
   async function handleAnswerSubmit() {
     if (!user || answer.trim().length < 20) {
         toast({ variant: 'destructive', title: 'Answer is too short', description: 'Please provide a detailed answer.' });
         return;
     }
     setIsSubmitting(true);
+
+    const attachmentStubs = files.map(file => ({
+        name: file.name,
+        type: file.type,
+        url: '',
+        isUploading: true,
+        uploadError: null,
+    }));
     
-    try {
-        let attachmentUrls: any[] = [];
-        if (files.length > 0) {
-            for (const file of files) {
-                const storageRef = ref(storage, `doubt_attachments/${Date.now()}_${file.name}`);
-                const uploadResult = await uploadBytes(storageRef, file);
-                const downloadURL = await getDownloadURL(uploadResult.ref);
-                attachmentUrls.push({
-                    name: file.name,
-                    type: file.type,
-                    url: downloadURL,
-                });
-            }
-        }
+    const answerData = {
+        answer,
+        status: 'answered' as const,
+        teacherId: user.uid,
+        teacherName: user.displayName || 'Expert Teacher',
+        teacherPhotoUrl: user.photoURL || '',
+        answerAttachments: attachmentStubs,
+    };
+    
+    const doubtRef = doc(firestore, 'doubts', doubt.id);
+    await updateDocumentNonBlocking(doubtRef, answerData);
 
-        const doubtRef = doc(firestore, 'doubts', doubt.id);
-        await updateDocumentNonBlocking(doubtRef, {
-            answer: answer,
-            status: 'answered',
-            teacherId: user.uid,
-            teacherName: user.displayName || 'Expert Teacher',
-            teacherPhotoUrl: user.photoURL || '',
-            answerAttachments: attachmentUrls,
-        });
+    toast({ title: 'Answer Submitted!', description: 'The student has been notified. Uploading attachments...' });
+    setAnswer('');
+    setFiles([]);
 
-        toast({ title: 'Answer Submitted!', description: 'The student has been notified.' });
-        setFiles([]);
-        setAnswer('');
-    } catch(error: any) {
-        toast({
-            variant: 'destructive',
-            title: 'Submission Failed',
-            description: error.message || 'Could not submit your answer. Please try again.',
-        });
-    } finally {
-        setIsSubmitting(false);
+    if (files.length > 0) {
+        handleBackgroundAnswerUpload(doubtRef, answerData, files);
     }
+    
+    setIsSubmitting(false);
   }
 
   return (

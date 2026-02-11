@@ -9,7 +9,7 @@ import { formatRelative } from 'date-fns';
 import type { Timestamp } from 'firebase/firestore';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, serverTimestamp, where, addDoc } from 'firebase/firestore';
-import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem } from '@/components/ui/form';
@@ -160,8 +160,8 @@ function GroupChat() {
             const storage = getStorage();
             const filePath = `chat_images/${user.uid}-${Date.now()}-${imageFile.name}`;
             const storageRef = ref(storage, filePath);
-            const uploadTask = await uploadBytesResumable(storageRef, imageFile);
-            imageUrl = await getDownloadURL(uploadTask.ref);
+            const uploadResult = await uploadBytes(storageRef, imageFile);
+            imageUrl = await getDownloadURL(uploadResult.ref);
         }
 
         await addDoc(collection(firestore, 'group_chat_messages'), { 

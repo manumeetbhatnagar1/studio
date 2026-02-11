@@ -60,7 +60,7 @@ service cloud.firestore {
      * This is a performant check that costs one read operation.
      */
     function isTeacher() {
-      return get(/databases/$(database)/documents/roles_teacher/$(request.auth.uid)) != null;
+      return exists(/databases/$(database)/documents/roles_teacher/$(request.auth.uid));
     }
 
     /**
@@ -68,7 +68,7 @@ service cloud.firestore {
      * This is determined by the existence of a document in the /roles_admin collection.
      */
     function isAdmin() {
-      return get(/databases/$(database)/documents/roles_admin/$(request.auth.uid)) != null;
+      return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
     }
     
     /**

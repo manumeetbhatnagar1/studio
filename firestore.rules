@@ -105,8 +105,8 @@ service cloud.firestore {
         (isTeacher() && request.writeFields.hasOnly(['subscriptionStatus', 'subscriptionPlanId'])) ||
         // A user can update their own profile, but cannot change their roleId or teacherStatus.
         (isOwner(userId) &&
-          request.resource.data.roleId == resource.data.roleId &&
-          request.resource.data.get('teacherStatus', null) == resource.data.get('teacherStatus', null)
+          (!('roleId' in request.resource.data) || request.resource.data.roleId == resource.data.roleId) &&
+          (!('teacherStatus' in request.resource.data) || request.resource.data.teacherStatus == resource.data.teacherStatus)
         );
 
       allow delete: if isExistingOwner(userId) || isAdmin();
@@ -166,11 +166,13 @@ service cloud.firestore {
      *              confers admin privileges. Only other admins can manage this.
      * @path        /roles_admin/{userId}
      */
-    match /roles_admin/{userId} {
-      allow get, list: if isOwner(userId) || isAdmin();
-      allow create: if isOwner(userId) || isAdmin();
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+     match /roles_admin/{userId} {
+        // Any signed-in user can check for roles to enable client-side logic.
+        allow read: if isSignedIn(); 
+        // Only an admin can make another user an admin.
+        // A user can also be made an admin during special registration flows.
+        allow create: if isAdmin() || isOwner(userId);
+        allow update, delete: if isAdmin();
     }
 
     /**
@@ -179,10 +181,12 @@ service cloud.firestore {
      * @path        /roles_teacher/{userId}
      */
     match /roles_teacher/{userId} {
-      allow get, list: if isOwner(userId) || isAdmin();
-      allow create: if isOwner(userId) || isAdmin();
-      allow update: if false;
-      allow delete: if isAdmin();
+        // Any signed-in user can check for roles to enable client-side logic.
+        allow read: if isSignedIn();
+        // An admin can make any user a teacher.
+        // A user can be made a teacher during registration.
+        allow create: if isAdmin() || isOwner(userId);
+        allow update, delete: if isAdmin();
     }
     
     /**

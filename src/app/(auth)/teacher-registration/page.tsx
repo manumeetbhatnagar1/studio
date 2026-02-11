@@ -64,7 +64,7 @@ export default function TeacherRegistrationPage() {
       const batch = writeBatch(firestore);
 
       const userRef = doc(firestore, 'users', user.uid);
-      const userData = {
+      const userData: any = {
         id: user.uid,
         firstName: values.firstName,
         lastName: values.lastName,
@@ -74,7 +74,6 @@ export default function TeacherRegistrationPage() {
         teacherStatus: 'pending',
         status: 'active',
       };
-      batch.set(userRef, userData);
       
       // Check if the registering user is the designated admin
       if (values.email.toLowerCase() === 'manumeet.bhatnagar1@gmail.com') {
@@ -83,9 +82,11 @@ export default function TeacherRegistrationPage() {
           batch.set(adminRoleRef, { createdAt: new Date().toISOString() });
           batch.set(teacherRoleRef, { createdAt: new Date().toISOString() });
           // Also update the user's roleId to 'admin' and status to 'approved'
-          batch.update(userRef, { roleId: 'admin', teacherStatus: 'approved', status: 'active' });
+          userData.roleId = 'admin';
+          userData.teacherStatus = 'approved';
       }
-
+      
+      batch.set(userRef, userData);
       await batch.commit();
       
       toast({
@@ -104,9 +105,9 @@ export default function TeacherRegistrationPage() {
                 const teacherRoleRef = doc(firestore, 'roles_teacher', user.uid);
                 const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
 
-                batch.update(userRef, { roleId: 'admin', teacherStatus: 'approved', status: 'active' });
-                batch.set(teacherRoleRef, { createdAt: new Date().toISOString() });
-                batch.set(adminRoleRef, { createdAt: new Date().toISOString() });
+                batch.update(userRef, { roleId: 'admin', teacherStatus: 'approved' });
+                batch.set(teacherRoleRef, { createdAt: new Date().toISOString() }, { merge: true });
+                batch.set(adminRoleRef, { createdAt: new Date().toISOString() }, { merge: true });
                 
                 await batch.commit();
 

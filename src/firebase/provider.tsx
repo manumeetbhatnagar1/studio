@@ -2,7 +2,7 @@
 
 import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
 import { FirebaseApp } from 'firebase/app';
-import { Firestore } from 'firebase/firestore';
+import { Firestore, doc, getDoc, writeBatch } from 'firebase/firestore';
 import { Auth, User, onAuthStateChanged } from 'firebase/auth';
 import { FirebaseStorage } from 'firebase/storage';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener'
@@ -93,6 +93,36 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
     );
     return () => unsubscribe(); // Cleanup
   }, [auth]); // Depends on the auth instance
+
+  const { user } = userAuthState;
+  
+  useEffect(() => {
+    const ensureAdminRoleExists = async () => {
+      if (user && user.email === 'manumeet.bhatnagar1@gmail.com' && firestore) {
+        const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
+        const adminDoc = await getDoc(adminRoleRef);
+        if (!adminDoc.exists()) {
+          // Admin role doc doesn't exist, let's create it and the teacher role too
+          try {
+            const batch = writeBatch(firestore);
+            const teacherRoleRef = doc(firestore, 'roles_teacher', user.uid);
+            const userRef = doc(firestore, 'users', user.uid);
+
+            batch.set(adminRoleRef, { createdAt: new Date().toISOString() });
+            batch.set(teacherRoleRef, { createdAt: new Date().toISOString() });
+            batch.update(userRef, { roleId: 'admin', teacherStatus: 'approved' });
+
+            await batch.commit();
+            console.log("Successfully provisioned admin role for designated admin.");
+          } catch (error) {
+            console.error("Failed to provision admin role:", error);
+          }
+        }
+      }
+    };
+
+    ensureAdminRoleExists();
+  }, [user, firestore]);
 
   // Memoize the context value
   const contextValue = useMemo((): FirebaseContextState => {

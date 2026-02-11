@@ -232,7 +232,7 @@ export default function DirectChatPage() {
 
   async function onSubmit(values: z.infer<typeof chatMessageSchema>) {
     if (!user || !firestore || !storage || !chatId) return;
-     if (!values.text && !file) {
+    if (!values.text && !file) {
         toast({ variant: 'destructive', title: 'Cannot send an empty message.' });
         return;
     }
@@ -257,38 +257,52 @@ export default function DirectChatPage() {
         messageData.fileType = attachedFile.type;
     }
 
-    try {
-      const messageRef = await addDoc(collection(firestore, 'direct_messages', chatId, 'messages'), messageData);
-      
-      if (attachedFile) {
-          const filePath = `chat_files/${messageRef.id}-${attachedFile.name}`;
-          const storageRef = ref(storage, filePath);
+    let messageRef;
 
-          uploadBytes(storageRef, attachedFile).then(async (uploadResult) => {
-              const downloadURL = await getDownloadURL(uploadResult.ref);
-              const updateData: any = {
-                  isUploading: false,
-                  fileUrl: downloadURL,
-              };
-              if (attachedFile.type.startsWith('image/')) {
-                  updateData.imageUrl = downloadURL;
-              }
-              await updateDoc(messageRef, updateData);
-          }).catch(async (error) => {
-              console.error("Upload failed:", error);
-              await updateDoc(messageRef, {
-                  isUploading: false,
-                  uploadError: 'Upload failed',
-              });
-          });
+    try {
+      const collectionRef = collection(firestore, 'direct_messages', chatId, 'messages');
+      messageRef = await addDoc(collectionRef, messageData);
+      
+      if (!attachedFile) {
+        setIsSubmitting(false);
+        return;
       }
+
+      const filePath = `chat_files/${messageRef.id}/${attachedFile.name}`;
+      const storageRef = ref(storage, filePath);
+
+      const uploadResult = await uploadBytes(storageRef, attachedFile);
+      const downloadURL = await getDownloadURL(uploadResult.ref);
+
+      const updateData: any = {
+          isUploading: false,
+          uploadError: null,
+          fileUrl: downloadURL,
+      };
+      if (attachedFile.type.startsWith('image/')) {
+          updateData.imageUrl = downloadURL;
+      }
+      
+      await updateDoc(messageRef, updateData);
+
     } catch (error: any) {
-        console.error("Failed to send message:", error);
-        toast({
-            variant: 'destructive',
-            title: 'Failed to send message',
-            description: "Could not create the message document. Please try again.",
-        });
+        console.error("Failed to send message or upload file:", error);
+        if (messageRef) {
+            try {
+                await updateDoc(messageRef, {
+                    isUploading: false,
+                    uploadError: 'Upload failed. Please try again.',
+                });
+            } catch (updateError) {
+                console.error("Failed to update message with error state:", updateError);
+            }
+        } else {
+             toast({
+                variant: "destructive",
+                title: "Failed to send message",
+                description: "Could not create the message document. Please try again.",
+            });
+        }
     } finally {
         setIsSubmitting(false);
     }

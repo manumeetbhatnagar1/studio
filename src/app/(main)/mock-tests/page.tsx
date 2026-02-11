@@ -124,11 +124,6 @@ export default function MockTestsPage() {
         <div className="flex justify-between items-center mb-6">
             <h2 className="font-headline text-2xl font-semibold">Available Mock Tests</h2>
             <div className='flex gap-2'>
-              {(isTeacher || isAdmin) && (
-                 <Button asChild>
-                    <Link href="/mock-tests/create-official"><PlusCircle className="mr-2"/>Create Official Test</Link>
-                </Button>
-              )}
               <Button asChild variant="outline">
                   <Link href="/mock-tests/create"><PlusCircle className="mr-2"/>Create Custom Test</Link>
               </Button>
@@ -192,11 +187,6 @@ export default function MockTestsPage() {
                           )}
                           {(isTeacher || isAdmin) && (
                               <div className="flex justify-end gap-2 border-t pt-2 mt-2">
-                                  <Button asChild variant="ghost" size="sm">
-                                      <Link href={`/mock-tests/edit-official/${test.id}`}>
-                                          <Edit className="mr-2 h-4 w-4" /> Edit
-                                      </Link>
-                                  </Button>
                                   <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => handleDeleteRequest(test.id, 'official', test.title)}>
                                       <Trash2 className="mr-2 h-4 w-4" /> Delete
                                   </Button>
@@ -210,7 +200,7 @@ export default function MockTestsPage() {
             ) : (
                 <Card className="flex flex-col items-center justify-center text-center p-8 border-2 border-dashed rounded-lg bg-muted/50">
                     <h3 className="font-semibold">No official tests have been scheduled.</h3>
-                    {(isTeacher || isAdmin) ? <p className="text-sm text-muted-foreground">Click "Create Official Test" to add one.</p> : <p className="text-sm text-muted-foreground">Please check back later.</p>}
+                    <p className="text-sm text-muted-foreground">Please check back later.</p>
                 </Card>
             )}
           </div>

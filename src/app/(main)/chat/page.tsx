@@ -7,9 +7,9 @@ import * as z from 'zod';
 import Image from 'next/image';
 import { formatRelative } from 'date-fns';
 import type { Timestamp } from 'firebase/firestore';
-import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase, useStorage } from '@/firebase';
 import { collection, query, orderBy, serverTimestamp, where, addDoc } from 'firebase/firestore';
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem } from '@/components/ui/form';
@@ -105,6 +105,7 @@ function Message({ message, isOwnMessage, toast }: { message: ChatMessage; isOwn
 function GroupChat() {
   const { user } = useUser();
   const firestore = useFirestore();
+  const storage = useStorage();
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const { toast } = useToast();
   
@@ -157,7 +158,6 @@ function GroupChat() {
     try {
       let downloadURL: string | null = null;
       if (imageFile) {
-          const storage = getStorage();
           const filePath = `chat_images/${user.uid}-${Date.now()}-${imageFile.name}`;
           const storageRef = ref(storage, filePath);
           const uploadResult = await uploadBytes(storageRef, imageFile);
@@ -182,6 +182,7 @@ function GroupChat() {
       form.reset();
       handleRemoveImage();
     } catch (error: any) {
+        console.error("Failed to send message:", error);
         toast({
             variant: "destructive",
             title: "Failed to send message",

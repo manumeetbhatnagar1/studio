@@ -7,9 +7,9 @@ import * as z from 'zod';
 import { formatRelative } from 'date-fns';
 import { useParams } from 'next/navigation';
 import type { Timestamp } from 'firebase/firestore';
-import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase } from '@/firebase';
+import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase, useStorage } from '@/firebase';
 import { collection, query, orderBy, serverTimestamp, doc, addDoc } from 'firebase/firestore';
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
@@ -144,6 +144,7 @@ const DirectChatPageHeader: FC<{ otherUserId: string | undefined }> = ({ otherUs
 export default function DirectChatPage() {
   const { user } = useUser();
   const firestore = useFirestore();
+  const storage = useStorage();
   const params = useParams();
   const chatId = params.chatId as string;
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -207,7 +208,6 @@ export default function DirectChatPage() {
     try {
       let downloadURL: string | null = null;
       if (imageFile) {
-          const storage = getStorage();
           const filePath = `chat_images/${user.uid}-${Date.now()}-${imageFile.name}`;
           const storageRef = ref(storage, filePath);
           const uploadResult = await uploadBytes(storageRef, imageFile);
@@ -234,6 +234,7 @@ export default function DirectChatPage() {
       handleRemoveImage();
       
     } catch (error: any) {
+        console.error("Failed to send message:", error);
         toast({
             variant: 'destructive',
             title: 'Failed to send message',

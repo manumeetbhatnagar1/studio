@@ -32,7 +32,7 @@ type ChatMessage = {
   senderName: string;
   senderPhotoUrl?: string;
   text?: string;
-  imageUrl?: string | null;
+  imageUrl?: string;
   createdAt: Timestamp;
 };
 
@@ -164,14 +164,18 @@ function GroupChat() {
           downloadURL = await getDownloadURL(uploadResult.ref);
       }
 
-      const messageData = { 
+      const messageData: any = { 
           senderId: user.uid, 
           senderName: user.displayName || 'Anonymous', 
           senderPhotoUrl: user.photoURL || '', 
-          text: values.text || '', 
           createdAt: serverTimestamp(),
-          imageUrl: downloadURL,
       };
+      if (values.text) {
+        messageData.text = values.text;
+      }
+      if (downloadURL) {
+        messageData.imageUrl = downloadURL;
+      }
 
       await addDoc(collection(firestore, 'group_chat_messages'), messageData);
       
@@ -304,5 +308,3 @@ export default function ChatPage() {
     </div>
   );
 }
-
-    

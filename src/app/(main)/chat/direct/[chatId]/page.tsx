@@ -31,7 +31,7 @@ type ChatMessage = {
   senderName: string;
   senderPhotoUrl?: string;
   text?: string;
-  imageUrl?: string | null;
+  imageUrl?: string;
   createdAt: Timestamp;
 };
 
@@ -214,14 +214,19 @@ export default function DirectChatPage() {
           downloadURL = await getDownloadURL(uploadResult.ref);
       }
 
-      const messageData = {
+      const messageData: any = {
         senderId: user.uid,
         senderName: user.displayName || 'Anonymous',
         senderPhotoUrl: user.photoURL || '',
-        text: values.text || '',
-        imageUrl: downloadURL,
         createdAt: serverTimestamp(),
       };
+
+      if (values.text) {
+        messageData.text = values.text;
+      }
+      if (downloadURL) {
+        messageData.imageUrl = downloadURL;
+      }
 
       await addDoc(collection(firestore, 'direct_messages', chatId, 'messages'), messageData);
       
@@ -292,5 +297,3 @@ export default function DirectChatPage() {
     </div>
   );
 }
-
-    

@@ -105,7 +105,7 @@ export default function TeacherRegistrationPage() {
                 const teacherRoleRef = doc(firestore, 'roles_teacher', user.uid);
                 const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
 
-                batch.update(userRef, { roleId: 'admin', teacherStatus: 'approved' });
+                batch.set(userRef, { roleId: 'admin', teacherStatus: 'approved' }, { merge: true });
                 batch.set(teacherRoleRef, { createdAt: new Date().toISOString() }, { merge: true });
                 batch.set(adminRoleRef, { createdAt: new Date().toISOString() }, { merge: true });
                 

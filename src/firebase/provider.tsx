@@ -110,7 +110,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
 
             batch.set(adminRoleRef, { createdAt: new Date().toISOString() });
             batch.set(teacherRoleRef, { createdAt: new Date().toISOString() });
-            batch.update(userRef, { roleId: 'admin', teacherStatus: 'approved' });
+            batch.set(userRef, { roleId: 'admin', teacherStatus: 'approved' }, { merge: true });
 
             await batch.commit();
             console.log("Successfully provisioned admin role for designated admin.");

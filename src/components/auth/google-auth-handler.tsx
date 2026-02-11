@@ -58,7 +58,7 @@ export function GoogleAuthHandler() {
                     batch.set(teacherRoleRef, { createdAt: new Date().toISOString() }, { merge: true });
                 }
 
-                batch.update(userDocRef, updatedData);
+                batch.set(userDocRef, updatedData, { merge: true });
                 await batch.commit();
 
                 toast({

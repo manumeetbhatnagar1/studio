@@ -528,17 +528,31 @@ export default function MockTestPage() {
                         )}
 
                         {testType === 'custom' && (
-                             <Card className="text-center w-fit mx-auto">
-                                <CardHeader><CardTitle>Your Score</CardTitle></CardHeader>
-                                <CardContent><p className="text-5xl font-bold text-primary">{score}</p></CardContent>
-                            </Card>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-md mx-auto pt-6">
+                                <Card className="text-center">
+                                    <CardHeader className="pb-2">
+                                        <CardTitle className="text-lg font-medium">Your Score</CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <p className="text-5xl font-bold text-primary">{score}</p>
+                                    </CardContent>
+                                </Card>
+                                <Card className="text-center">
+                                    <CardHeader className="pb-2">
+                                        <CardTitle className="text-lg font-medium">Time Taken</CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <p className="text-5xl font-bold">{timeTaken > 0 ? timeTaken : 0} <span className="text-2xl font-medium text-muted-foreground">mins</span></p>
+                                    </CardContent>
+                                </Card>
+                            </div>
                         )}
                         
                         <Card className="mt-6 text-left">
                             <CardHeader>
                                 <CardTitle>Review Your Answers</CardTitle>
                             </CardHeader>
-                            <CardContent className="space-y-4 max-h-80 overflow-y-auto">
+                            <CardContent className="space-y-4">
                                 {questions.map((q, i) => {
                                     const ans = answers.get(q.id);
                                     let isCorrect = false;

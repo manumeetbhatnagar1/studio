@@ -42,7 +42,7 @@ type ChatMessage = {
 };
 
 function Message({ message, isOwnMessage, toast }: { message: ChatMessage; isOwnMessage: boolean; toast: ReturnType<typeof useToast>['toast'] }) {
-  const handleDownload = async (e: React.MouseEvent) => {
+  const handleDownload = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
 
@@ -50,25 +50,24 @@ function Message({ message, isOwnMessage, toast }: { message: ChatMessage; isOwn
     if (!urlToDownload) return;
 
     try {
-        toast({ title: 'Downloading...', description: 'Your file download has started.' });
-        const response = await fetch(urlToDownload);
-        if (!response.ok) throw new Error('Network response was not ok.');
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = message.fileName || urlToDownload.split('/').pop()?.split('?')[0]?.split('%2F').pop()?.replace(/%20/g, ' ') || 'download';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
+      toast({ title: 'Starting download...', description: message.fileName || 'file' });
+      const a = document.createElement('a');
+      a.href = urlToDownload;
+      // The target="_blank" is a fallback for when the download attribute is not respected
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      // The download attribute suggests a filename to the browser
+      a.download = message.fileName || 'download';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
     } catch (error) {
-        console.error("Download failed:", error);
-        toast({
-            variant: "destructive",
-            title: "Download failed",
-            description: "Could not download the file. Please try opening it in a new tab and saving from there.",
-        });
+      console.error("Download initialization failed:", error);
+      toast({
+          variant: "destructive",
+          title: "Download Failed",
+          description: "Could not start the file download. Please try opening it in a new tab.",
+      });
     }
   };
 

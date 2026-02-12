@@ -155,6 +155,22 @@ service cloud.firestore {
       match /custom_tests/{testId} {
         allow read, write: if isOwner(userId);
       }
+
+      /**
+       * @description Per-user chat preferences (e.g., group chat clear timestamp).
+       * @path        /users/{userId}/chat_preferences/{prefId}
+       */
+      match /chat_preferences/{prefId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+
+    /**
+     * @description Explicit fallback for per-user chat preferences.
+     * @path        /users/{userId}/chat_preferences/{prefId}
+     */
+    match /users/{userId}/chat_preferences/{prefId} {
+      allow read, write: if isSignedIn() && request.auth.uid == userId;
     }
     
     // --------------------------------------------------------------------
@@ -321,6 +337,21 @@ service cloud.firestore {
       allow list, get: if isSignedIn() && request.auth.uid in chatId.split('_');
       allow create: if isSignedIn() && request.auth.uid in chatId.split('_') && request.resource.data.senderId == request.auth.uid;
       allow update: if isOwner(resource.data.senderId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['imageUrl', 'isUploading', 'uploadError', 'fileUrl', 'fileName', 'fileType']);
+      allow delete: if false;
+    }
+
+    /**
+     * @description Direct message thread metadata (last message + unread counts).
+     * @path        /direct_message_threads/{chatId}
+     */
+    match /direct_message_threads/{chatId} {
+      allow get, list: if isSignedIn() && request.auth.uid in resource.data.participants;
+      allow create: if isSignedIn()
+                    && request.auth.uid in request.resource.data.participants
+                    && request.resource.data.participants.size() == 2;
+      allow update: if isSignedIn()
+                    && request.auth.uid in resource.data.participants
+                    && request.resource.data.participants == resource.data.participants;
       allow delete: if false;
     }
 

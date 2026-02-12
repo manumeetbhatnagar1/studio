@@ -14,9 +14,10 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase, updateDocumentNonBlocking } from '@/firebase';
+import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase, useStorage, updateDocumentNonBlocking } from '@/firebase';
 import { updateProfile, updateEmail, EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth';
 import { doc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useState, useEffect } from 'react';
 import { LoaderCircle, User as UserIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -47,7 +48,7 @@ type UserProfile = {
     lastName: string;
     email: string;
     phoneNumber: string;
-    roleId: 'student' | 'teacher';
+    roleId: 'student' | 'teacher' | 'admin';
     photoURL?: string;
 }
 
@@ -55,6 +56,7 @@ export default function ProfilePage() {
   const auth = useAuth();
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
+  const storage = useStorage();
   const [isLoading, setIsLoading] = useState(false);
   const [isPasswordLoading, setIsPasswordLoading] = useState(false);
   const { toast } = useToast();
@@ -111,6 +113,14 @@ export default function ProfilePage() {
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+        if (!file.type.startsWith('image/')) {
+          toast({ variant: 'destructive', title: 'Invalid file type', description: 'Please select an image file.' });
+          return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+          toast({ variant: 'destructive', title: 'File too large', description: 'Please upload an image smaller than 5MB.' });
+          return;
+        }
         setImageFile(file);
         const reader = new FileReader();
         reader.onloadend = () => {
@@ -126,9 +136,12 @@ export default function ProfilePage() {
 
     setIsLoading(true);
     try {
-      let newPhotoURL = user.photoURL; // Default to existing URL
-      if (imageFile && imagePreview) {
-        newPhotoURL = imagePreview; // Use the new base64 data URL
+      let newPhotoURL = user.photoURL || '';
+      if (imageFile) {
+        const sanitizedFileName = imageFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const photoRef = ref(storage, `profile_pictures/${user.uid}/${Date.now()}_${sanitizedFileName}`);
+        const uploadResult = await uploadBytes(photoRef, imageFile);
+        newPhotoURL = await getDownloadURL(uploadResult.ref);
       }
       
       // Update Firebase Auth profile
@@ -149,7 +162,7 @@ export default function ProfilePage() {
         lastName: values.lastName,
         email: values.email,
         phoneNumber: values.phoneNumber,
-        photoURL: newPhotoURL || ''
+        photoURL: newPhotoURL
       };
       await updateDocumentNonBlocking(userDocRef, updatedData);
 

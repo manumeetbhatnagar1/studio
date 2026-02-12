@@ -13,5 +13,11 @@ service firebase.storage {
         allow read;
         allow write: if request.auth != null;
     }
+
+    // Profile pictures are private-write by owner and readable by authenticated users.
+    match /profile_pictures/{userId}/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
   }
 }

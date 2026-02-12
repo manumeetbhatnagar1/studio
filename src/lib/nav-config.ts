@@ -12,6 +12,7 @@ import {
   ListTree,
   Users,
   ShieldOff,
+  BellRing,
 } from 'lucide-react';
 import type { NavItem } from '@/lib/types';
 
@@ -26,6 +27,7 @@ export const navItems: NavItem[] = [
   { title: 'Mock Tests', href: '/mock-tests', icon: Target },
   { title: 'Chat', href: '/chat', icon: MessagesSquare },
   { title: 'Doubts', href: '/doubts', icon: MessageSquare },
+  { title: 'Notice Board', href: '/notice-board', icon: BellRing },
   { title: 'Subscription', href: '/subscription', icon: CreditCard },
 ];
 

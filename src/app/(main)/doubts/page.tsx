@@ -7,7 +7,8 @@ import * as z from 'zod';
 import { formatDistanceToNow } from 'date-fns';
 import { useUser, useFirestore, useCollection, useMemoFirebase, useStorage } from '@/firebase';
 import { useIsTeacher } from '@/hooks/useIsTeacher';
-import { collection, query, orderBy, serverTimestamp, doc, addDoc, updateDoc, getDoc } from 'firebase/firestore';
+import { useIsAdmin } from '@/hooks/useIsAdmin';
+import { collection, query, where, orderBy, serverTimestamp, doc, addDoc, updateDoc, getDoc } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL, type UploadTaskSnapshot, type StorageReference } from 'firebase/storage';
 import DashboardHeader from '@/components/dashboard-header';
 import { Button } from '@/components/ui/button';
@@ -389,24 +390,38 @@ const AnswerForm: FC<{ doubt: Doubt }> = ({ doubt }) => {
 export default function DoubtsPage() {
   const { user } = useUser();
   const { isTeacher, isLoading: isTeacherLoading } = useIsTeacher();
+  const { isAdmin, isLoading: isAdminLoading } = useIsAdmin();
   const firestore = useFirestore();
   const [isFormOpen, setIsFormOpen] = useState(false);
 
-  const doubtsQuery = useMemoFirebase(() => (firestore && user) ? query(collection(firestore, 'doubts'), orderBy('createdAt', 'desc')) : null, [firestore, user]);
+  const canModerateDoubts = isTeacher || isAdmin;
+
+  const doubtsQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    if (canModerateDoubts) {
+      return query(collection(firestore, 'doubts'), orderBy('createdAt', 'desc'));
+    }
+    return query(collection(firestore, 'doubts'), where('studentId', '==', user.uid));
+  }, [firestore, user, canModerateDoubts]);
 
   const { data: doubts, isLoading: areDoubtsLoading } = useCollection<Doubt>(doubtsQuery);
 
   const filteredDoubts = useMemo(() => {
     if (!doubts) return { open: [], answered: [], myDoubts: [] };
-    const myDoubts = user ? doubts.filter(d => d.studentId === user.uid) : [];
+    const sortedDoubts = [...doubts].sort((a, b) => {
+      const aMs = a.createdAt?.toDate?.().getTime?.() ?? 0;
+      const bMs = b.createdAt?.toDate?.().getTime?.() ?? 0;
+      return bMs - aMs;
+    });
+    const myDoubts = user ? sortedDoubts.filter(d => d.studentId === user.uid) : [];
     return {
-      open: doubts.filter(d => d.status === 'open'),
-      answered: doubts.filter(d => d.status === 'answered' || d.status === 'closed'),
+      open: sortedDoubts.filter(d => d.status === 'open'),
+      answered: sortedDoubts.filter(d => d.status === 'answered' || d.status === 'closed'),
       myDoubts: myDoubts,
     };
   }, [doubts, user]);
   
-  const isLoading = areDoubtsLoading || isTeacherLoading;
+  const isLoading = areDoubtsLoading || isTeacherLoading || isAdminLoading;
 
   const getStatus = (doubt: Doubt) => {
     switch (doubt.status) {

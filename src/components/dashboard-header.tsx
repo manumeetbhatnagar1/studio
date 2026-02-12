@@ -12,14 +12,13 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Bell, LogOut, User } from "lucide-react";
-import { useAuth, useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase";
+import { useAuth, useUser, useFirestore, useCollection, useDoc, useMemoFirebase } from "@/firebase";
 import { Skeleton } from "./ui/skeleton";
 import { signOut } from "firebase/auth";
 import Link from "next/link";
 import { ThemeToggle } from "./theme-toggle";
-import { collection, query, orderBy, limit } from 'firebase/firestore';
+import { collection, doc, query, orderBy, limit } from 'firebase/firestore';
 import { formatDistanceToNow } from 'date-fns';
-import { Badge } from "./ui/badge";
 
 type DashboardHeaderProps = {
   title: string;
@@ -31,6 +30,13 @@ type Notification = {
   message: string;
   href: string;
   createdAt: { toDate: () => Date } | null;
+};
+
+type UserProfile = {
+  id: string;
+  firstName?: string;
+  lastName?: string;
+  photoURL?: string;
 };
 
 function NotificationsDropdown() {
@@ -89,6 +95,13 @@ function NotificationsDropdown() {
 export default function DashboardHeader({ title }: DashboardHeaderProps) {
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
+  const firestore = useFirestore();
+
+  const userDocRef = useMemoFirebase(() => {
+    if (!user?.uid || !firestore) return null;
+    return doc(firestore, 'users', user.uid);
+  }, [firestore, user?.uid]);
+  const { data: userProfile } = useDoc<UserProfile>(userDocRef);
 
   const handleLogout = () => {
     signOut(auth);
@@ -98,6 +111,10 @@ export default function DashboardHeader({ title }: DashboardHeaderProps) {
     if (!name) return '';
     return name.split(' ').map(n => n[0]).join('');
   }
+
+  const profileImageUrl = userProfile?.photoURL || user?.photoURL || undefined;
+  const profileDisplayName =
+    `${userProfile?.firstName || ''} ${userProfile?.lastName || ''}`.trim() || user?.displayName || 'User';
 
   return (
     <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 backdrop-blur-sm px-4 md:px-6">
@@ -113,10 +130,10 @@ export default function DashboardHeader({ title }: DashboardHeaderProps) {
                 <Skeleton className="h-10 w-10 rounded-full" />
               ) : user ? (
                 <Avatar className="h-10 w-10">
-                  {user.photoURL && (
-                    <AvatarImage src={user.photoURL} alt={user.displayName || 'User'} />
+                  {profileImageUrl && (
+                    <AvatarImage src={profileImageUrl} alt={profileDisplayName} />
                   )}
-                  <AvatarFallback>{getInitials(user.displayName)}</AvatarFallback>
+                  <AvatarFallback>{getInitials(profileDisplayName)}</AvatarFallback>
                 </Avatar>
               ) : (
                 <Avatar className="h-10 w-10">
@@ -130,7 +147,7 @@ export default function DashboardHeader({ title }: DashboardHeaderProps) {
               <>
                 <DropdownMenuLabel>
                   <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium leading-none">{user.displayName || 'User'}</p>
+                    <p className="text-sm font-medium leading-none">{profileDisplayName}</p>
                     <p className="text-xs leading-none text-muted-foreground">
                       {user.email}
                     </p>

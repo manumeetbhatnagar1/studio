@@ -8,7 +8,7 @@ import { formatRelative } from 'date-fns';
 import { useParams } from 'next/navigation';
 import type { Timestamp } from 'firebase/firestore';
 import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase, useStorage } from '@/firebase';
-import { collection, query, orderBy, serverTimestamp, doc, addDoc, updateDoc } from 'firebase/firestore';
+import { collection, query, orderBy, serverTimestamp, doc, addDoc, setDoc, updateDoc, increment } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem } from '@/components/ui/form';
@@ -39,8 +39,10 @@ type ChatMessage = {
 };
 
 type UserProfile = {
+  id: string;
   firstName: string;
   lastName: string;
+  photoURL?: string;
 }
 
 function Message({ message, isOwnMessage, toast }: { message: ChatMessage; isOwnMessage: boolean; toast: ReturnType<typeof useToast>['toast'] }) {
@@ -205,6 +207,14 @@ export default function DirectChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  useEffect(() => {
+    if (!firestore || !chatId || !user) return;
+    const threadRef = doc(firestore, 'direct_message_threads', chatId);
+    updateDoc(threadRef, { [`unreadCounts.${user.uid}`]: 0 }).catch(() => {
+      // Thread may not exist yet; first sent message will create it.
+    });
+  }, [firestore, chatId, user, messages?.length]);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
@@ -230,7 +240,7 @@ export default function DirectChatPage() {
   }
 
   async function onSubmit(values: z.infer<typeof chatMessageSchema>) {
-    if (!user || !firestore || !storage || !chatId) return;
+    if (!user || !firestore || !storage || !chatId || !otherUserId) return;
     if (!values.text && !file) {
         toast({ variant: 'destructive', title: 'Cannot send an empty message.' });
         return;
@@ -266,6 +276,27 @@ export default function DirectChatPage() {
         }
         
         await addDoc(collectionRef, messageData);
+
+        // Keep core chat send independent from thread metadata updates.
+        // If metadata permissions are stale, message send should still succeed.
+        try {
+          const threadRef = doc(firestore, 'direct_message_threads', chatId);
+          const participants = [user.uid, otherUserId].sort();
+          await setDoc(threadRef, {
+              participants,
+              createdAt: serverTimestamp(),
+          }, { merge: true });
+          await updateDoc(threadRef, {
+              lastMessageText: values.text?.trim() || (attachedFile ? 'Sent an attachment' : ''),
+              lastMessageSenderId: user.uid,
+              lastMessageAt: serverTimestamp(),
+              [`unreadCounts.${user.uid}`]: 0,
+              [`unreadCounts.${otherUserId}`]: increment(1),
+          });
+        } catch (threadError) {
+          console.warn('Direct message thread metadata update failed:', threadError);
+        }
+
         form.reset();
         handleRemoveFile();
 

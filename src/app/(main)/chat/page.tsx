@@ -7,8 +7,8 @@ import * as z from 'zod';
 import Image from 'next/image';
 import { formatRelative } from 'date-fns';
 import type { Timestamp } from 'firebase/firestore';
-import { useUser, useFirestore, useCollection, useMemoFirebase, useStorage } from '@/firebase';
-import { collection, query, orderBy, serverTimestamp, where, addDoc, updateDoc } from 'firebase/firestore';
+import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase, useStorage } from '@/firebase';
+import { collection, query, orderBy, serverTimestamp, where, doc, setDoc, addDoc, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,12 +16,11 @@ import { Form, FormControl, FormField, FormItem } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { LoaderCircle, MessagesSquare, Send, User as UserIcon, MessageCircle, Paperclip, X, Download, AlertTriangle, FileText } from 'lucide-react';
+import { LoaderCircle, MessagesSquare, Send, User as UserIcon, MessageCircle, Paperclip, X, Download, AlertTriangle, FileText, Search } from 'lucide-react';
 import DashboardHeader from '@/components/dashboard-header';
 import { cn } from '@/lib/utils';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Link from 'next/link';
-import { useIsTeacher } from '@/hooks/useIsTeacher';
 import { useToast } from '@/hooks/use-toast';
 
 const chatMessageSchema = z.object({ text: z.string().max(500, 'Message is too long.').optional() });
@@ -39,6 +38,29 @@ type ChatMessage = {
   createdAt: Timestamp;
   isUploading?: boolean;
   uploadError?: string;
+};
+
+type GroupChatPreferences = {
+  id: string;
+  clearedAt?: Timestamp;
+};
+
+type UserProfile = {
+  id: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  photoURL?: string;
+  roleId?: 'student' | 'teacher' | 'admin';
+};
+
+type DirectMessageThread = {
+  id: string;
+  participants: string[];
+  lastMessageText?: string;
+  lastMessageSenderId?: string;
+  lastMessageAt?: Timestamp;
+  unreadCounts?: Record<string, number>;
 };
 
 function Message({ message, isOwnMessage, toast }: { message: ChatMessage; isOwnMessage: boolean; toast: ReturnType<typeof useToast>['toast'] }) {
@@ -149,8 +171,32 @@ function GroupChat() {
     defaultValues: { text: '' },
   });
 
+  const groupChatPrefsRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, 'users', user.uid, 'chat_preferences', 'group_chat');
+  }, [firestore, user]);
+  const { data: groupChatPrefs } = useDoc<GroupChatPreferences>(groupChatPrefsRef);
+  const [localClearedAtMs, setLocalClearedAtMs] = useState<number | null>(null);
+
   const chatMessagesQuery = useMemoFirebase(() => (firestore ? query(collection(firestore, 'group_chat_messages'), orderBy('createdAt', 'asc')) : null), [firestore]);
   const { data: messages, isLoading: areMessagesLoading } = useCollection<ChatMessage>(chatMessagesQuery);
+
+  const clearedAtMs = useMemo(() => {
+    const serverMs = groupChatPrefs?.clearedAt?.toDate?.().getTime?.() ?? null;
+    if (serverMs == null) return localClearedAtMs;
+    if (localClearedAtMs == null) return serverMs;
+    return Math.max(serverMs, localClearedAtMs);
+  }, [groupChatPrefs, localClearedAtMs]);
+
+  const visibleMessages = useMemo(() => {
+    if (!messages) return [];
+    if (clearedAtMs == null) return messages;
+    return messages.filter((msg) => {
+      const msgMs = msg.createdAt?.toDate?.().getTime?.();
+      if (typeof msgMs !== 'number') return true;
+      return msgMs > clearedAtMs;
+    });
+  }, [messages, clearedAtMs]);
   
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -179,6 +225,23 @@ function GroupChat() {
     setPreviewDataUrl(null);
     if(fileInputRef.current) fileInputRef.current.value = '';
   }
+
+  const handleClearForMe = async () => {
+    if (!firestore || !user || !groupChatPrefsRef) return;
+    const nowMs = Date.now();
+    setLocalClearedAtMs(nowMs);
+    try {
+      await setDoc(groupChatPrefsRef, { clearedAt: serverTimestamp() }, { merge: true });
+      toast({ title: 'Group chat cleared', description: 'Older group messages are now hidden only for your account.' });
+    } catch (error: any) {
+      setLocalClearedAtMs(null);
+      toast({
+        variant: 'destructive',
+        title: 'Could not clear chat',
+        description: error?.message || 'Please try again.',
+      });
+    }
+  };
 
   async function onSubmit(values: z.infer<typeof chatMessageSchema>) {
     if (!user || !firestore || !storage) return;
@@ -232,16 +295,21 @@ function GroupChat() {
 
   return (
     <Card className="flex flex-col h-full max-h-[calc(100vh-16rem)] shadow-none border-none">
+      <div className="flex items-center justify-end px-4 pt-3">
+        <Button variant="outline" size="sm" onClick={handleClearForMe} disabled={areMessagesLoading || visibleMessages.length === 0}>
+          Clear for me
+        </Button>
+      </div>
       <CardContent className="flex-1 overflow-y-auto p-4 space-y-4">
         {areMessagesLoading ? (
           <div className="space-y-4">
             <Skeleton className="h-16 w-full" /><Skeleton className="h-16 w-full" />
           </div>
-        ) : messages && messages.length > 0 ? (
-          messages.map(msg => <Message key={msg.id} message={msg} isOwnMessage={msg.senderId === user?.uid} toast={toast} />)
+        ) : visibleMessages.length > 0 ? (
+          visibleMessages.map(msg => <Message key={msg.id} message={msg} isOwnMessage={msg.senderId === user?.uid} toast={toast} />)
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-            <p>No messages yet. Be the first to start the conversation!</p>
+            <p>No messages here yet.</p>
           </div>
         )}
         <div ref={messagesEndRef} />
@@ -278,20 +346,59 @@ function GroupChat() {
 
 function DirectMessagesList() {
     const { user } = useUser();
-    const { isTeacher, isLoading: isTeacherLoading } = useIsTeacher();
     const firestore = useFirestore();
+    const [searchTerm, setSearchTerm] = useState('');
 
     const usersQuery = useMemoFirebase(() => {
-        if (!firestore) return null;
-        const roleToQuery = isTeacher ? 'student' : 'teacher';
-        return query(collection(firestore, 'users'), where('roleId', '==', roleToQuery));
-    }, [firestore, isTeacher]);
+        if (!firestore || !user) return null;
+        return query(collection(firestore, 'users'));
+    }, [firestore, user]);
 
-    const { data: users, isLoading: areUsersLoading } = useCollection(usersQuery);
+    const threadsQuery = useMemoFirebase(() => {
+        if (!firestore || !user) return null;
+        return query(collection(firestore, 'direct_message_threads'), where('participants', 'array-contains', user.uid));
+    }, [firestore, user]);
+
+    const { data: users, isLoading: areUsersLoading } = useCollection<UserProfile>(usersQuery);
+    const { data: threads, isLoading: areThreadsLoading } = useCollection<DirectMessageThread>(threadsQuery);
 
     const createChatId = (uid1: string, uid2: string) => [uid1, uid2].sort().join('_');
-    
-    const isLoading = isTeacherLoading || areUsersLoading;
+
+    const threadById = useMemo(() => {
+        const entries = (threads || []).map((thread) => [thread.id, thread] as const);
+        return new Map(entries);
+    }, [threads]);
+
+    const filteredUsers = useMemo(() => {
+        if (!users || !user) return [];
+        const normalizedQuery = searchTerm.trim().toLowerCase();
+
+        return [...users]
+            .filter((otherUser) => otherUser.id !== user.uid)
+            .filter((otherUser) => {
+                if (!normalizedQuery) return true;
+                const fullName = `${otherUser.firstName || ''} ${otherUser.lastName || ''}`.trim().toLowerCase();
+                const email = (otherUser.email || '').toLowerCase();
+                return fullName.includes(normalizedQuery) || email.includes(normalizedQuery);
+            })
+            .sort((a, b) => {
+                const aChatId = createChatId(user.uid, a.id);
+                const bChatId = createChatId(user.uid, b.id);
+                const aThread = threadById.get(aChatId);
+                const bThread = threadById.get(bChatId);
+                const aUnread = aThread?.unreadCounts?.[user.uid] || 0;
+                const bUnread = bThread?.unreadCounts?.[user.uid] || 0;
+                if (aUnread !== bUnread) return bUnread - aUnread;
+                const aTime = aThread?.lastMessageAt?.toDate?.().getTime?.() || 0;
+                const bTime = bThread?.lastMessageAt?.toDate?.().getTime?.() || 0;
+                if (aTime !== bTime) return bTime - aTime;
+                const aName = `${a.firstName || ''} ${a.lastName || ''}`.trim().toLowerCase();
+                const bName = `${b.firstName || ''} ${b.lastName || ''}`.trim().toLowerCase();
+                return aName.localeCompare(bName);
+            });
+    }, [users, user, threadById, searchTerm]);
+
+    const isLoading = areUsersLoading || areThreadsLoading;
 
     if (isLoading) {
         return <div className="space-y-2 p-4"><Skeleton className="h-12 w-full" /><Skeleton className="h-12 w-full" /></div>;
@@ -299,9 +406,28 @@ function DirectMessagesList() {
 
     return (
         <div className="p-2 space-y-2">
-            {users && users.length > 0 ? users.map((otherUser) => {
-                if (otherUser.id === user?.uid) return null;
+            <div className="sticky top-0 z-10 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 p-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search people..."
+                  className="pl-9"
+                />
+              </div>
+            </div>
+            {filteredUsers.length > 0 ? filteredUsers.map((otherUser) => {
                 const chatId = createChatId(user!.uid, otherUser.id);
+                const thread = threadById.get(chatId);
+                const unreadCount = thread?.unreadCounts?.[user!.uid] || 0;
+                const hasUnread = unreadCount > 0;
+                const previewText =
+                    thread?.lastMessageText && thread.lastMessageText.trim().length > 0
+                        ? thread.lastMessageText
+                        : thread?.lastMessageAt
+                            ? 'Sent an attachment'
+                            : 'Start a conversation';
                 return (
                     <Link href={`/chat/direct/${chatId}`} key={otherUser.id} className="block">
                         <div className="flex items-center justify-between p-3 rounded-lg hover:bg-muted">
@@ -309,14 +435,26 @@ function DirectMessagesList() {
                                 <Avatar><AvatarImage src={otherUser.photoURL} /><AvatarFallback>{otherUser.firstName?.charAt(0)}{otherUser.lastName?.charAt(0)}</AvatarFallback></Avatar>
                                 <div>
                                     <p className="font-semibold">{otherUser.firstName} {otherUser.lastName}</p>
-                                    <p className="text-sm text-muted-foreground">{otherUser.email}</p>
+                                    <p className={cn('text-sm truncate max-w-52', hasUnread ? 'text-foreground font-medium' : 'text-muted-foreground')}>
+                                      {previewText}
+                                    </p>
                                 </div>
                             </div>
-                            <Button variant="ghost" size="icon"><MessageCircle className="h-5 w-5" /></Button>
+                            <div className="flex items-center gap-2">
+                              {hasUnread && (
+                                <span className="inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-semibold text-primary-foreground">
+                                  {unreadCount > 99 ? '99+' : unreadCount}
+                                </span>
+                              )}
+                              <Button variant={hasUnread ? 'default' : 'outline'} size="sm" className="gap-2">
+                                <MessageCircle className="h-4 w-4" />
+                                {thread?.lastMessageAt ? 'Open' : 'Start chat'}
+                              </Button>
+                            </div>
                         </div>
                     </Link>
                 );
-            }) : <p className="text-muted-foreground text-center p-8">No users to display.</p>}
+            }) : <p className="text-muted-foreground text-center p-8">No people found.</p>}
         </div>
     );
 }

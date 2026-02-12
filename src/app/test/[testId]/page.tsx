@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
@@ -17,6 +17,9 @@ import { Timer, User, LoaderCircle, ArrowLeft, Check, XIcon, Trophy, Users, BarC
 import { cn } from '@/lib/utils';
 import { Logo } from '@/components/icons';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useToast } from '@/hooks/use-toast';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 type QuestionType = 'MCQ' | 'Numerical';
 type SubjectName = 'Physics' | 'Chemistry' | 'Mathematics' | string;
@@ -162,6 +165,8 @@ export default function MockTestPage() {
     const searchParams = useSearchParams();
     const router = useRouter();
     const testType = searchParams.get('type');
+    const { toast } = useToast();
+    const resultsRef = useRef<HTMLDivElement>(null);
 
     const [testTitle, setTestTitle] = useState('Loading Test...');
     const [questions, setQuestions] = useState<MockQuestion[]>([]);
@@ -177,6 +182,46 @@ export default function MockTestPage() {
     const [score, setScore] = useState(0);
     const [analytics, setAnalytics] = useState<TestAnalytics | null>(null);
     const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(false);
+
+    const handleDownloadPdf = () => {
+        const input = resultsRef.current;
+        if (input) {
+            toast({
+                title: 'Generating PDF...',
+                description: 'Your test analysis is being prepared for download.',
+            });
+            html2canvas(input, {
+                scale: 2,
+                useCORS: true
+            }).then((canvas) => {
+                const imgData = canvas.toDataURL('image/png');
+                const pdf = new jsPDF('p', 'mm', 'a4');
+                const pdfWidth = pdf.internal.pageSize.getWidth();
+                const pdfHeight = pdf.internal.pageSize.getHeight();
+                
+                const imgWidth = canvas.width;
+                const imgHeight = canvas.height;
+                
+                const ratio = pdfWidth / imgWidth;
+                const finalImgHeight = imgHeight * ratio;
+                
+                let heightLeft = finalImgHeight;
+                let position = 0;
+
+                pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, finalImgHeight);
+                heightLeft -= pdfHeight;
+
+                while (heightLeft > 0) {
+                    position -= pdfHeight;
+                    pdf.addPage();
+                    pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, finalImgHeight);
+                    heightLeft -= pdfHeight;
+                }
+                
+                pdf.save(`test-analysis-${testId}.pdf`);
+            });
+        }
+    };
 
     const handleSubmitTest = useCallback(async () => {
         setIsSubmitDialogOpen(false);
@@ -464,7 +509,7 @@ export default function MockTestPage() {
 
         return (
             <div className="flex flex-col items-center justify-center min-h-screen bg-muted/30 py-8 px-4">
-                <Card className="w-full max-w-4xl text-center shadow-2xl">
+                <Card ref={resultsRef} className="w-full max-w-4xl text-center shadow-2xl p-6 bg-card">
                     <CardHeader>
                         <CardTitle className="font-headline text-3xl">Test Finished: {testTitle}</CardTitle>
                         <CardDescription>
@@ -545,7 +590,10 @@ export default function MockTestPage() {
                         </Card>
                     </CardContent>
                 </Card>
-                <Button onClick={() => router.push('/mock-tests')} className="mt-8">Back to Mock Tests</Button>
+                <div className="flex gap-4 mt-8">
+                    <Button onClick={() => router.push('/mock-tests')}>Back to Mock Tests</Button>
+                    <Button variant="outline" onClick={handleDownloadPdf}>Download Analysis PDF</Button>
+                </div>
             </div>
         )
     }

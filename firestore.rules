@@ -59,8 +59,32 @@ service cloud.firestore {
      * This is determined by the existence of a document in the /roles_teacher collection.
      * This is a performant check that costs one read operation.
      */
+    function isTeacherByProfile() {
+      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
+      return isSignedIn()
+             && userDoc != null
+             && 'roleId' in userDoc.data
+             && (userDoc.data.roleId == 'teacher' || userDoc.data.roleId == 'admin');
+    }
+
     function isTeacher() {
-      return exists(/databases/$(database)/documents/roles_teacher/$(request.auth.uid));
+      return isSignedIn()
+             && (
+               exists(/databases/$(database)/documents/roles_teacher/$(request.auth.uid))
+               || isTeacherByProfile()
+             );
+    }
+
+    /**
+     * Checks if the authenticated user is an approved teacher.
+     * Reads the user's profile doc for teacherStatus.
+     */
+    function isApprovedTeacher() {
+      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
+      return isTeacher()
+             && userDoc != null
+             && 'teacherStatus' in userDoc.data
+             && userDoc.data.teacherStatus == 'approved';
     }
 
     /**
@@ -69,6 +93,21 @@ service cloud.firestore {
      */
     function isAdmin() {
       return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+    }
+
+    /**
+     * Checks if a teacher sender is messaging an admin in a 1:1 chat.
+     */
+    function isTeacherMessagingAdmin(chatId) {
+      let participants = chatId.split('_');
+      return participants.size() == 2
+             && request.auth.uid in participants
+             && (
+               (participants[0] == request.auth.uid
+                && exists(/databases/$(database)/documents/roles_admin/$(participants[1])))
+               || (participants[1] == request.auth.uid
+                   && exists(/databases/$(database)/documents/roles_admin/$(participants[0])))
+             );
     }
     
     /**
@@ -135,8 +174,10 @@ service cloud.firestore {
        * @path        /users/{userId}/test_results/{resultId}
        */
       match /test_results/{resultId} {
-        allow get, list, create: if isOwner(userId);
-        allow update, delete: if false;
+        allow get, list: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId);
+        allow update: if false;
+        allow delete: if isAdmin();
       }
 
       /**
@@ -144,8 +185,20 @@ service cloud.firestore {
        * @path        /users/{userId}/practice_results/{resultId}
        */
       match /practice_results/{resultId} {
-        allow get, list, create: if isOwner(userId);
-        allow update, delete: if false;
+        allow get, list: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId);
+        allow update: if false;
+        allow delete: if isAdmin();
+      }
+
+      /**
+       * @description Stores per-course learning progress for a user.
+       * @path        /users/{userId}/course_progress/{courseId}
+       */
+      match /course_progress/{courseId} {
+        allow get, list: if isOwner(userId) || isAdmin();
+        allow create, update: if isOwner(userId);
+        allow delete: if isAdmin();
       }
 
       /**
@@ -153,7 +206,40 @@ service cloud.firestore {
        * @path        /users/{userId}/custom_tests/{testId}
        */
       match /custom_tests/{testId} {
-        allow read, write: if isOwner(userId);
+        allow get, list: if isOwner(userId) || isAdmin();
+        allow create, update, delete: if isOwner(userId) || isAdmin();
+      }
+
+      /**
+       * @description Stores user enrollments for live batches.
+       * @path        /users/{userId}/enrolled_live_batches/{batchId}
+       */
+      match /enrolled_live_batches/{batchId} {
+        allow get, list: if isOwner(userId)
+                         || isAdmin()
+                         || (
+                           isTeacher()
+                           && exists(/databases/$(database)/documents/live_batches/$(batchId))
+                           && get(/databases/$(database)/documents/live_batches/$(batchId)).data.teacherId == request.auth.uid
+                         );
+        allow create, update: if (isOwner(userId) || isAdmin())
+                              && request.resource.data.batchId == batchId
+                              && exists(/databases/$(database)/documents/live_batches/$(batchId))
+                              && (
+                                !('publicationStatus' in get(/databases/$(database)/documents/live_batches/$(batchId)).data)
+                                || get(/databases/$(database)/documents/live_batches/$(batchId)).data.publicationStatus == 'published'
+                              );
+        allow delete: if isOwner(userId) || isAdmin();
+      }
+
+      /**
+       * @description Attempt history for self-created custom mock tests.
+       * @path        /users/{userId}/custom_tests/{testId}/attempts/{attemptId}
+       */
+      match /custom_tests/{testId}/attempts/{attemptId} {
+        allow get, list, create: if isOwner(userId) || isAdmin();
+        allow update: if false;
+        allow delete: if isAdmin();
       }
 
       /**
@@ -161,17 +247,77 @@ service cloud.firestore {
        * @path        /users/{userId}/chat_preferences/{prefId}
        */
       match /chat_preferences/{prefId} {
-        allow read, write: if isOwner(userId);
+        allow read, write: if isOwner(userId) || isTeacher() || isAdmin();
+      }
+
+      /**
+       * @description Teacher-facing sales ledger for purchases linked to their content.
+       * @path        /users/{userId}/sales/{saleId}
+       */
+      match /sales/{saleId} {
+        allow get, list: if isOwner(userId) || isAdmin();
+        allow create: if isSignedIn()
+                      && request.resource.data.teacherId == userId
+                      && (
+                        request.resource.data.studentId == request.auth.uid
+                        || isAdmin()
+                      );
+        allow update: if false;
+        allow delete: if isAdmin();
+      }
+
+      /**
+       * @description Student-owned purchased courses ledger.
+       * @path        /users/{userId}/purchased_courses/{courseId}
+       */
+      match /purchased_courses/{courseId} {
+        allow get, list: if isOwner(userId) || isAdmin();
+        allow create, update: if isOwner(userId) || isAdmin();
+        allow delete: if isOwner(userId) || isAdmin();
+      }
+
+      /**
+       * @description Student-owned purchased mock tests ledger.
+       * @path        /users/{userId}/purchased_mock_tests/{testId}
+       */
+      match /purchased_mock_tests/{testId} {
+        allow get, list: if isOwner(userId) || isAdmin();
+        allow create, update: if isOwner(userId) || isAdmin();
+        allow delete: if isOwner(userId) || isAdmin();
+      }
+
+      /**
+       * @description Student-owned purchased live batches ledger.
+       * @path        /users/{userId}/purchased_live_batches/{batchId}
+       */
+      match /purchased_live_batches/{batchId} {
+        allow get, list: if isOwner(userId) || isAdmin();
+        allow create, update: if isOwner(userId) || isAdmin();
+        allow delete: if isOwner(userId) || isAdmin();
+      }
+
+      /**
+       * @description Premium mock feature purchases by exam/curriculum combination per teacher.
+       * @path        /users/{userId}/premium_mock_feature_purchases/{purchaseId}
+       */
+      match /premium_mock_feature_purchases/{purchaseId} {
+        allow get, list: if isOwner(userId) || isAdmin();
+        allow create, update: if isOwner(userId) || isAdmin();
+        allow delete: if isOwner(userId) || isAdmin();
+      }
+
+      /**
+       * @description Premium practice session purchases per student.
+       * @path        /users/{userId}/premium_practice_session_purchases/{purchaseId}
+       */
+      match /premium_practice_session_purchases/{purchaseId} {
+        allow get, list: if isOwner(userId) || isAdmin();
+        allow create, update: if isOwner(userId) || isAdmin();
+        allow delete: if isOwner(userId) || isAdmin();
       }
     }
 
-    /**
-     * @description Explicit fallback for per-user chat preferences.
-     * @path        /users/{userId}/chat_preferences/{prefId}
-     */
-    match /users/{userId}/chat_preferences/{prefId} {
-      allow read, write: if isSignedIn() && request.auth.uid == userId;
-    }
+    // Explicit fallback removed: handled within /users/{userId} scope above.
     
     // --------------------------------------------------------------------
     // Role & System Configuration Rules
@@ -206,7 +352,8 @@ service cloud.firestore {
     match /roles_teacher/{userId} {
         allow get: if isSignedIn();
         allow list: if false;
-        allow write: if isAdmin() || (isDesignatedAdmin() && isOwner(userId));
+        allow create: if isAdmin() || isOwner(userId) || (isDesignatedAdmin() && isOwner(userId));
+        allow update, delete: if isAdmin() || (isDesignatedAdmin() && isOwner(userId));
     }
     
     /**
@@ -218,16 +365,37 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    /**
+     * @description Global platform settings such as revenue percentages.
+     * @path        /platform_settings/{settingId}
+     */
+    match /platform_settings/{settingId} {
+      allow get: if isSignedIn();
+      allow list: if false;
+      allow create, update, delete: if isAdmin();
+    }
+
+    /**
+     * @description Teacher-specific commission overrides.
+     * @path        /teacher_commission_overrides/{teacherId}
+     */
+    match /teacher_commission_overrides/{teacherId} {
+      allow get: if isSignedIn();
+      allow list: if isAdmin();
+      allow create, update, delete: if isAdmin();
+    }
+
     // --------------------------------------------------------------------
     // Public Content Rules (Managed by Roles)
     // --------------------------------------------------------------------
     
     /**
-     * @description Exam Type definitions. Readable by anyone signed in, manageable by admins.
+     * @description Exam Type definitions. Publicly readable for marketing and onboarding pages.
+     *              Manageable only by admins.
      * @path        /exam_types/{examTypeId}
      */
     match /exam_types/{examTypeId} {
-      allow get, list: if isSignedIn();
+      allow get, list: if true;
       allow create, update, delete: if isAdmin();
     }
     
@@ -245,17 +413,61 @@ service cloud.firestore {
      * @path        /content/{contentId}
      */
     match /content/{contentId} {
-      allow get, list: if isSignedIn();
-      allow create, update, delete: if isTeacher() || isAdmin();
+      allow get, list: if isSignedIn()
+                        && (!isTeacher()
+                            || isAdmin()
+                            || (resource != null && resource.data.teacherId == request.auth.uid));
+      allow create: if (isTeacher() || isAdmin()) && request.resource.data.teacherId == request.auth.uid;
+      allow update, delete: if isAdmin()
+                            || (isTeacher()
+                                && resource != null
+                                && ((('teacherId' in resource.data)
+                                      && resource.data.teacherId == request.auth.uid
+                                      && request.resource.data.teacherId == resource.data.teacherId)
+                                    || (!('teacherId' in resource.data)
+                                        && request.resource.data.teacherId == request.auth.uid)));
     }
 
     /**
-     * @description Curriculum topics. Readable by anyone signed in, manageable by admins.
+     * @description Paid courses. Readable by any signed-in user.
+     *              Teachers can manage only their own courses. Admins can manage all courses.
+     * @path        /courses/{courseId}
+     */
+    match /courses/{courseId} {
+      allow get, list: if isSignedIn()
+                        && (
+                          isTeacher()
+                          || isAdmin()
+                          || (resource != null
+                              && (resource.data.accessLevel != 'paid'
+                                  || (('subscriptionAttached' in resource.data)
+                                      && resource.data.subscriptionAttached == true)))
+                        );
+      allow create: if (isTeacher() || isAdmin()) && request.resource.data.teacherId == request.auth.uid;
+      allow update, delete: if isAdmin()
+                            || (isTeacher()
+                                && resource != null
+                                && ((('teacherId' in resource.data)
+                                      && resource.data.teacherId == request.auth.uid
+                                      && request.resource.data.teacherId == resource.data.teacherId)
+                                    || (!('teacherId' in resource.data)
+                                        && request.resource.data.teacherId == request.auth.uid)));
+    }
+
+    /**
+     * @description Curriculum topics. Readable by anyone signed in.
+     *              Teachers/Admins can create topics from question-bank flows.
+     *              Updates/deletes remain admin-only to prevent accidental global edits.
      * @path        /topics/{topicId}
      */
     match /topics/{topicId} {
       allow get, list: if isSignedIn();
-      allow create, update, delete: if isAdmin();
+      allow create: if (isTeacher() || isAdmin())
+                    && request.resource.data.name is string
+                    && request.resource.data.name.size() > 0
+                    && request.resource.data.subjectId is string
+                    && request.resource.data.subjectId.size() > 0;
+      allow update, delete: if isAdmin();
     }
     
     /**
@@ -268,12 +480,63 @@ service cloud.firestore {
     }
 
     /**
+     * @description Teacher requests for missing exam/curriculum/subject combinations.
+     *              Teachers can submit their own requests; admins can review and manage status.
+     * @path        /curriculum_requests/{requestId}
+     */
+    match /curriculum_requests/{requestId} {
+      allow get: if isSignedIn()
+                 && (
+                   isAdmin()
+                   || (resource != null && resource.data.teacherId == request.auth.uid)
+                 );
+      allow list: if isAdmin()
+                  || (
+                    isSignedIn()
+                    && resource != null
+                    && resource.data.teacherId == request.auth.uid
+                  );
+      allow create: if isSignedIn()
+                    && request.resource.data.teacherId == request.auth.uid
+                    && request.resource.data.requestedExamType is string
+                    && request.resource.data.requestedExamType.size() > 0
+                    && request.resource.data.requestedCurriculum is string
+                    && request.resource.data.requestedCurriculum.size() > 0
+                    && request.resource.data.requestedSubjects is string
+                    && request.resource.data.requestedSubjects.size() > 0
+                    && request.resource.data.status == 'pending';
+      allow update: if isAdmin()
+                    && request.resource.data.status in ['pending', 'approved', 'rejected']
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reviewedAt', 'reviewedBy', 'adminNote']);
+      allow delete: if (
+                      isAdmin()
+                      && resource != null
+                      && resource.data.status in ['approved', 'rejected']
+                    )
+                    || (
+                      isSignedIn()
+                      && resource != null
+                      && resource.data.teacherId == request.auth.uid
+                    );
+    }
+
+    /**
      * @description Practice questions. Readable by any signed-in user, manageable by teachers.
      * @path        /practice_questions/{practiceQuestionId}
      */
     match /practice_questions/{practiceQuestionId} {
       allow get, list: if isSignedIn();
-      allow create, update, delete: if isTeacher() || isAdmin();
+      allow create: if (isTeacher() || isAdmin())
+                    && request.resource.data.teacherId == request.auth.uid;
+      allow update: if isAdmin()
+                    || (isTeacher()
+                        && resource != null
+                        && resource.data.teacherId == request.auth.uid
+                        && request.resource.data.teacherId == resource.data.teacherId);
+      allow delete: if isAdmin()
+                    || (isTeacher()
+                        && resource != null
+                        && resource.data.teacherId == request.auth.uid);
     }
 
     /**
@@ -281,8 +544,37 @@ service cloud.firestore {
      * @path        /mock_tests/{mockTestId}
      */
     match /mock_tests/{mockTestId} {
+      allow get, list: if isSignedIn()
+                        && (
+                          isAdmin()
+                          || (resource != null && resource.data.teacherId == request.auth.uid)
+                          || (resource != null
+                              && (!('publicationStatus' in resource.data)
+                                  || resource.data.publicationStatus != 'draft'))
+                        );
+      allow create: if (isTeacher() || isAdmin())
+                    && request.resource.data.teacherId == request.auth.uid;
+      allow update, delete: if isAdmin()
+                            || (isTeacher()
+                                && resource != null
+                                && resource.data.teacherId == request.auth.uid
+                                && request.resource.data.teacherId == resource.data.teacherId);
+    }
+
+    /**
+     * @description Teacher-owned question banks. Each teacher can organize questions
+     *              by exam/curriculum/subjects and reuse them while creating tests.
+     * @path        /teacher_question_banks/{bankId}
+     */
+    match /teacher_question_banks/{bankId} {
       allow get, list: if isSignedIn();
-      allow create, update, delete: if isTeacher() || isAdmin();
+      allow create: if (isTeacher() || isAdmin())
+                    && request.resource.data.teacherId == request.auth.uid;
+      allow update, delete: if isAdmin()
+                            || (isTeacher()
+                                && resource != null
+                                && resource.data.teacherId == request.auth.uid
+                                && request.resource.data.teacherId == resource.data.teacherId);
     }
 
     // --------------------------------------------------------------------
@@ -300,6 +592,38 @@ service cloud.firestore {
       allow update: if resource != null && isOwner(resource.data.teacherId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['recordingUrl', 'title', 'startTime', 'duration', 'meetingUrl', 'accessLevel']);
       allow delete: if resource != null && isOwner(resource.data.teacherId);
     }
+
+    /**
+     * @description Teacher-created live batches grouped by exam/class/subject.
+     * @path        /live_batches/{batchId}
+     */
+    match /live_batches/{batchId} {
+      allow get, list: if isSignedIn();
+      allow create: if (isTeacher() || isAdmin())
+                    && request.resource.data.teacherId == request.auth.uid;
+      allow update, delete: if isAdmin()
+                            || (resource != null
+                                && isTeacher()
+                                && resource.data.teacherId == request.auth.uid
+                                && request.resource.data.teacherId == resource.data.teacherId);
+    }
+
+    /**
+     * @description Daily schedule entries for each live batch (Zoom details + previous recording link).
+     * @path        /live_batch_sessions/{sessionId}
+     */
+    match /live_batch_sessions/{sessionId} {
+      allow get, list: if isSignedIn();
+      allow create: if (isTeacher() || isAdmin())
+                    && request.resource.data.teacherId == request.auth.uid
+                    && exists(/databases/$(database)/documents/live_batches/$(request.resource.data.batchId))
+                    && get(/databases/$(database)/documents/live_batches/$(request.resource.data.batchId)).data.teacherId == request.auth.uid;
+      allow update, delete: if isAdmin()
+                            || (resource != null
+                                && isTeacher()
+                                && resource.data.teacherId == request.auth.uid
+                                && request.resource.data.teacherId == resource.data.teacherId);
+    }
     
     // --------------------------------------------------------------------
     // Doubt Resolution Rules
@@ -310,8 +634,19 @@ service cloud.firestore {
      */
     match /doubts/{doubtId} {
       allow read, list: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.studentId == request.auth.uid;
-      allow update: if resource != null && (isOwner(resource.data.studentId) || isTeacher());
+      allow create: if isSignedIn()
+                    && request.resource.data.studentId == request.auth.uid
+                    && ('teacherId' in request.resource.data)
+                    && (
+                      exists(/databases/$(database)/documents/roles_teacher/$(request.resource.data.teacherId))
+                      || exists(/databases/$(database)/documents/roles_admin/$(request.resource.data.teacherId))
+                    );
+      allow update: if resource != null
+                    && (
+                      isOwner(resource.data.studentId)
+                      || isAdmin()
+                      || (isTeacher() && resource.data.teacherId == request.auth.uid)
+                    );
       allow delete: if resource != null && isOwner(resource.data.studentId);
     }
     
@@ -323,9 +658,28 @@ service cloud.firestore {
      * @path        /group_chat_messages/{messageId}
      */
     match /group_chat_messages/{messageId} {
-      allow read, list: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.senderId == request.auth.uid;
-      allow update: if isOwner(resource.data.senderId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['imageUrl', 'isUploading', 'uploadError', 'fileUrl', 'fileName', 'fileType']);
+      allow read, list: if isSignedIn()
+                        && (!isTeacher() || isAdmin());
+      allow create: if isSignedIn()
+                    && (!isTeacher() || isAdmin())
+                    && request.resource.data.senderId == request.auth.uid;
+      allow update: if isOwner(resource.data.senderId)
+                    && (!isTeacher() || isAdmin())
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['imageUrl', 'isUploading', 'uploadError', 'fileUrl', 'fileName', 'fileType']);
+      allow delete: if false;
+    }
+
+    /**
+     * @description Community announcements for teachers. Admin posts, teachers/admins read.
+     * @path        /community_announcements/{messageId}
+     */
+    match /community_announcements/{messageId} {
+      allow get, list: if isSignedIn() && (isTeacher() || isAdmin());
+      allow create: if isAdmin()
+                    && request.resource.data.senderId == request.auth.uid;
+      allow update: if isAdmin()
+                    && isOwner(resource.data.senderId)
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['imageUrl', 'isUploading', 'uploadError', 'fileUrl', 'fileName', 'fileType']);
       allow delete: if false;
     }
 
@@ -335,7 +689,10 @@ service cloud.firestore {
      */
     match /direct_messages/{chatId}/messages/{messageId} {
       allow list, get: if isSignedIn() && request.auth.uid in chatId.split('_');
-      allow create: if isSignedIn() && request.auth.uid in chatId.split('_') && request.resource.data.senderId == request.auth.uid;
+      allow create: if isSignedIn()
+                    && request.auth.uid in chatId.split('_')
+                    && request.resource.data.senderId == request.auth.uid
+                    && (!isTeacher() || isAdmin() || isTeacherMessagingAdmin(chatId));
       allow update: if isOwner(resource.data.senderId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['imageUrl', 'isUploading', 'uploadError', 'fileUrl', 'fileName', 'fileType']);
       allow delete: if false;
     }
@@ -345,13 +702,15 @@ service cloud.firestore {
      * @path        /direct_message_threads/{chatId}
      */
     match /direct_message_threads/{chatId} {
-      allow get, list: if isSignedIn() && request.auth.uid in resource.data.participants;
+      allow get, list: if (isSignedIn() && request.auth.uid in resource.data.participants) || isAdmin();
       allow create: if isSignedIn()
                     && request.auth.uid in request.resource.data.participants
-                    && request.resource.data.participants.size() == 2;
+                    && request.resource.data.participants.size() == 2
+                    && (!isTeacher() || isAdmin() || isTeacherMessagingAdmin(chatId));
       allow update: if isSignedIn()
                     && request.auth.uid in resource.data.participants
-                    && request.resource.data.participants == resource.data.participants;
+                    && request.resource.data.participants == resource.data.participants
+                    && (!isTeacher() || isAdmin() || isTeacherMessagingAdmin(chatId));
       allow delete: if false;
     }
 
@@ -365,7 +724,142 @@ service cloud.firestore {
      */
     match /subscription_plans/{planId} {
         allow get, list: if isSignedIn();
-        allow create, update, delete: if isAdmin();
+        allow create: if isAdmin()
+                      || (isTeacher()
+                          && request.resource.data.createdByTeacherId == request.auth.uid
+                          && (
+                            (request.resource.data.linkedContentType == 'course'
+                             && request.resource.data.linkedContentId is string
+                             && exists(/databases/$(database)/documents/courses/$(request.resource.data.linkedContentId))
+                             && get(/databases/$(database)/documents/courses/$(request.resource.data.linkedContentId)).data.teacherId == request.auth.uid
+                             && get(/databases/$(database)/documents/courses/$(request.resource.data.linkedContentId)).data.accessLevel == 'paid')
+                            ||
+                            (request.resource.data.linkedContentType == 'mock_test'
+                             && request.resource.data.linkedContentId is string
+                             && exists(/databases/$(database)/documents/mock_tests/$(request.resource.data.linkedContentId))
+                             && get(/databases/$(database)/documents/mock_tests/$(request.resource.data.linkedContentId)).data.teacherId == request.auth.uid
+                             && get(/databases/$(database)/documents/mock_tests/$(request.resource.data.linkedContentId)).data.accessLevel == 'paid')
+                            ||
+                            (request.resource.data.linkedContentType == 'live_batch'
+                             && request.resource.data.linkedContentId is string
+                             && exists(/databases/$(database)/documents/live_batches/$(request.resource.data.linkedContentId))
+                             && get(/databases/$(database)/documents/live_batches/$(request.resource.data.linkedContentId)).data.teacherId == request.auth.uid
+                             && get(/databases/$(database)/documents/live_batches/$(request.resource.data.linkedContentId)).data.accessLevel == 'paid')
+                          ));
+        allow update: if isAdmin()
+                      || (isTeacher()
+                          && resource != null
+                          && resource.data.createdByTeacherId == request.auth.uid
+                          && request.resource.data.createdByTeacherId == resource.data.createdByTeacherId);
+        allow delete: if isAdmin()
+                      || (isTeacher()
+                          && resource != null
+                          && resource.data.createdByTeacherId == request.auth.uid);
+    }
+
+    /**
+     * @description Payment ledger entries for completed purchases.
+     * @path        /payments/{paymentId}
+     */
+    match /payments/{paymentId} {
+      allow get: if isSignedIn()
+                 && (
+                   isAdmin()
+                   || (resource != null && resource.data.userId == request.auth.uid)
+                   || (resource != null && resource.data.teacherId == request.auth.uid)
+                 );
+      allow list: if isAdmin();
+      allow create: if isSignedIn()
+                    && request.resource.data.userId == request.auth.uid
+                    && request.resource.data.status == 'paid';
+      allow update, delete: if false;
+    }
+
+    /**
+     * @description Wallet balances for teacher/admin revenue.
+     * @path        /wallets/{walletId}
+     */
+    match /wallets/{walletId} {
+      allow get: if isSignedIn()
+                 && (
+                   isAdmin()
+                   || walletId == ('teacher_' + request.auth.uid)
+                   || (resource != null && resource.data.ownerId == request.auth.uid)
+                 );
+      allow list: if isAdmin();
+      // NOTE: Temporary client allowance for checkout split credits.
+      // Move this to server-side (Razorpay webhook / trusted backend) for production hardening.
+      allow create: if isSignedIn()
+                    || isAdmin()
+                    || (
+                      isSignedIn()
+                      && request.resource.data.ownerType == 'teacher'
+                      && request.resource.data.ownerId == request.auth.uid
+                      && walletId == ('teacher_' + request.auth.uid)
+                    );
+      allow update: if isAdmin()
+                    || isSignedIn()
+                    || (
+                      isSignedIn()
+                      && resource != null
+                      && resource.data.ownerType == 'teacher'
+                      && resource.data.ownerId == request.auth.uid
+                      && request.resource.data.ownerType == resource.data.ownerType
+                      && request.resource.data.ownerId == resource.data.ownerId
+                      && request.resource.data.totalEarned == resource.data.totalEarned
+                      && request.resource.data.totalWithdrawn == resource.data.totalWithdrawn
+                      && request.resource.data.availableBalance is number
+                      && request.resource.data.pendingBalance is number
+                      && request.resource.data.availableBalance <= resource.data.availableBalance
+                      && request.resource.data.pendingBalance >= resource.data.pendingBalance
+                      && request.resource.data.availableBalance + request.resource.data.pendingBalance
+                         == resource.data.availableBalance + resource.data.pendingBalance
+                    );
+      allow delete: if false;
+    }
+
+    /**
+     * @description Revenue split transaction entries from successful payments.
+     * @path        /wallet_transactions/{txId}
+     */
+    match /wallet_transactions/{txId} {
+      allow get: if isSignedIn()
+                 && (
+                   isAdmin()
+                   || (resource != null && resource.data.teacherId == request.auth.uid)
+                   || (resource != null && resource.data.userId == request.auth.uid)
+                 );
+      allow list: if isAdmin();
+      allow create: if isSignedIn()
+                    && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    /**
+     * @description Payout/withdrawal requests for teachers/admin.
+     * @path        /payout_requests/{requestId}
+     */
+    match /payout_requests/{requestId} {
+      allow get: if isSignedIn()
+                 && (
+                   isAdmin()
+                   || (resource != null && resource.data.requesterId == request.auth.uid)
+                 );
+      allow list: if isAdmin()
+                  || (
+                    isSignedIn()
+                    && resource != null
+                    && resource.data.requesterId == request.auth.uid
+                  );
+      allow create: if isSignedIn()
+                    && request.resource.data.requesterId == request.auth.uid
+                    && request.resource.data.status == 'pending'
+                    && (
+                      (request.resource.data.requesterType == 'teacher' && isTeacher())
+                      || (request.resource.data.requesterType == 'admin' && isAdmin())
+                    );
+      allow update: if isAdmin();
+      allow delete: if false;
     }
     
     // --------------------------------------------------------------------
@@ -378,7 +872,14 @@ service cloud.firestore {
     match /notifications/{notificationId} {
       allow read, list: if isSignedIn();
       allow create: if isTeacher() || isAdmin();
-      allow update, delete: if false;
+      allow update: if false;
+      allow delete: if isAdmin()
+                    || (
+                      isSignedIn()
+                      && resource != null
+                      && ('recipientId' in resource.data)
+                      && resource.data.recipientId == request.auth.uid
+                    );
     }
 
     // --------------------------------------------------------------------
